@@ -66,7 +66,7 @@ namespace SimpleRPG
 
         public static Sprite CreatePlayerSprite()
         {
-            // Chibi knight (3/4 view): cape, armor, helmet visor, plume — not a square.
+            // Chibi anime girl in a cyan bikini — 3/4 view, pixel art.
             const int w = 80;
             const int h = 96;
             var tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
@@ -75,22 +75,21 @@ namespace SimpleRPG
             var px = new Color32[w * h];
 
             Color32 Col(byte r, byte g, byte b) => new Color32(r, g, b, 255);
-            var outline = Col(14, 16, 26);
-            var cape = Col(24, 48, 128);
-            var capeDark = Col(14, 28, 82);
-            var capeLight = Col(52, 96, 196);
-            var armor = Col(68, 108, 158);
-            var armorMid = Col(92, 140, 188);
-            var armorLight = Col(168, 210, 240);
-            var gold = Col(236, 188, 62);
-            var goldDark = Col(168, 118, 28);
-            var boot = Col(42, 28, 24);
-            var bootLight = Col(86, 58, 44);
-            var visor = Col(40, 220, 250);
-            var visorCore = Col(210, 255, 255);
-            var plume = Col(28, 180, 245);
-            var plumeLight = Col(150, 240, 255);
-            var skin = Col(255, 210, 172);
+            var outline = Col(28, 16, 32);
+            var hair = Col(42, 16, 48);
+            var hairMid = Col(92, 32, 96);
+            var hairLight = Col(186, 78, 168);
+            var hairShine = Col(240, 170, 220);
+            var skin = Col(255, 214, 186);
+            var skinShadow = Col(232, 168, 148);
+            var blush = Col(255, 150, 160);
+            var eyeWhite = Col(250, 252, 255);
+            var iris = Col(40, 150, 210);
+            var irisDark = Col(18, 50, 110);
+            var bikini = Col(36, 210, 240);
+            var bikiniDark = Col(18, 130, 170);
+            var bikiniWhite = Col(250, 252, 255);
+            var lip = Col(220, 90, 110);
 
             void Plot(int x, int y, Color32 c)
             {
@@ -144,61 +143,93 @@ namespace SimpleRPG
                         Plot(x, y, c);
             }
 
+            void DrawEye(float ex, float ey, bool lookLeft)
+            {
+                FillEllipse(ex, ey, 5.4f, 6.2f, eyeWhite);
+                float ix = lookLeft ? ex - 0.8f : ex + 0.4f;
+                FillCircle(ix, ey - 0.4f, 3.3f, iris);
+                FillCircle(ix, ey - 0.8f, 2.0f, irisDark);
+                FillCircle(ix - 1.4f, ey + 1.6f, 1.5f, eyeWhite);
+                FillCircle(ix + 1.1f, ey - 1.8f, 0.9f, eyeWhite);
+                FillEllipse(ex, ey + 5.4f, 5.6f, 1.6f, hair); // lash / lid
+            }
+
             float cx = (w - 1) * 0.5f;
 
-            // Cape (behind)
-            FillEllipse(cx + 1, 36, 24, 22, capeDark);
-            FillEllipse(cx - 4, 38, 18, 18, cape);
-            FillEllipse(cx - 9, 34, 8, 11, capeLight);
-            FillEllipse(cx + 10, 28, 10, 12, capeDark);
-
-            // Boots
-            FillEllipse(cx - 10, 10, 8, 6, boot);
-            FillEllipse(cx + 11, 10, 8, 6, boot);
-            FillEllipse(cx - 11, 11, 4, 2.5f, bootLight);
-            FillEllipse(cx + 10, 11, 4, 2.5f, bootLight);
+            // Hair behind (long twin tails)
+            FillEllipse(cx, 58, 20, 24, hair);
+            FillEllipse(cx - 18, 36, 9, 22, hair);
+            FillEllipse(cx + 19, 34, 9, 24, hair);
+            FillEllipse(cx - 20, 18, 7, 14, hairMid);
+            FillEllipse(cx + 21, 16, 7, 16, hairMid);
+            FillEllipse(cx - 18, 44, 4, 8, hairLight);
+            FillEllipse(cx + 18, 42, 4, 8, hairLight);
 
             // Legs
-            FillEllipse(cx - 9, 20, 6.5f, 10, armor);
-            FillEllipse(cx + 10, 20, 6.5f, 10, armor);
-            FillEllipse(cx - 10, 24, 3, 4, armorLight);
-            FillRect((int)cx - 12, 24, (int)cx + 12, 31, armor);
+            FillEllipse(cx - 7, 18, 5.2f, 12, skinShadow);
+            FillEllipse(cx + 8, 18, 5.2f, 12, skin);
+            FillEllipse(cx - 7, 8, 4.6f, 3.4f, skin);   // feet
+            FillEllipse(cx + 9, 8, 4.6f, 3.4f, skin);
 
-            // Torso / chestplate
-            FillEllipse(cx, 42, 16, 18, armor);
-            FillEllipse(cx - 3, 46, 10, 12, armorLight);
-            FillEllipse(cx, 42, 8, 11, armorMid);
-            // Gold belt + buckle
-            FillRect((int)cx - 14, 30, (int)cx + 14, 35, goldDark);
-            FillRect((int)cx - 13, 31, (int)cx + 13, 34, gold);
-            FillRect((int)cx - 3, 29, (int)cx + 3, 36, gold);
-            FillRect((int)cx - 1, 31, (int)cx + 1, 34, visorCore);
+            // Hips + bikini bottom
+            FillEllipse(cx, 30, 12, 9, skin);
+            FillEllipse(cx, 29, 11, 6.5f, bikini);
+            FillEllipse(cx, 27.5f, 9, 3.2f, bikiniDark);
+            FillRect((int)cx - 1, 28, (int)cx + 1, 34, bikiniWhite); // center tie
+            FillEllipse(cx - 6, 31, 2.2f, 1.6f, bikiniWhite);
+            FillEllipse(cx + 6, 31, 2.2f, 1.6f, bikiniWhite);
 
-            // Pauldrons
-            FillCircle(cx - 16, 52, 8, armorLight);
-            FillCircle(cx + 16, 52, 8, armor);
-            FillCircle(cx - 17, 54, 3.2f, Col(230, 245, 255));
-            FillCircle(cx + 15, 54, 2.6f, armorLight);
-            FillCircle(cx - 16, 52, 2.4f, gold);
-            FillCircle(cx + 16, 52, 2.4f, goldDark);
+            // Torso
+            FillEllipse(cx, 42, 9.5f, 12, skin);
+            FillEllipse(cx - 1, 46, 6, 7, skin);
+            FillRect((int)cx - 3, 36, (int)cx + 3, 48, skin);
 
-            // Head / helmet
-            FillCircle(cx, 66, 16.5f, armor);
-            FillEllipse(cx - 3, 70, 11, 10, armorLight);
-            FillEllipse(cx, 61, 7, 3.5f, skin);
-            // Visor
-            FillEllipse(cx, 64.5f, 11.5f, 6.2f, outline);
-            FillEllipse(cx, 64.5f, 9.5f, 4.6f, visor);
-            FillEllipse(cx - 3, 65.5f, 4.2f, 2.2f, visorCore);
-            // Helmet ridge + gem
-            FillEllipse(cx, 78, 8, 4, goldDark);
-            FillEllipse(cx, 79, 6, 2.4f, gold);
-            FillCircle(cx, 76, 2.4f, visor);
+            // Bikini top
+            FillCircle(cx - 6.2f, 48, 5.2f, bikini);
+            FillCircle(cx + 6.2f, 48, 5.2f, bikini);
+            FillCircle(cx - 6.2f, 48, 3.4f, bikiniDark);
+            FillCircle(cx + 6.2f, 48, 3.4f, bikiniDark);
+            FillCircle(cx - 7.2f, 49.5f, 1.6f, bikiniWhite);
+            FillCircle(cx + 5.2f, 49.5f, 1.6f, bikiniWhite);
+            FillRect((int)cx - 2, 48, (int)cx + 2, 50, bikiniWhite); // bridge
+            FillEllipse(cx, 53.5f, 8, 1.3f, bikiniWhite); // neck strap
 
-            // Plume
-            FillEllipse(cx + 1, 87, 5.5f, 11, plume);
-            FillEllipse(cx - 1, 89, 3.2f, 8, plumeLight);
-            FillCircle(cx, 82, 3.2f, gold);
+            // Arms
+            FillEllipse(cx - 14, 40, 3.4f, 10, skinShadow);
+            FillEllipse(cx + 14, 40, 3.4f, 10, skin);
+            FillCircle(cx - 14, 30, 3.2f, skin); // hands
+            FillCircle(cx + 15, 30, 3.2f, skin);
+
+            // Neck + head
+            FillRect((int)cx - 3, 54, (int)cx + 3, 60, skin);
+            FillCircle(cx, 70, 16.5f, skin);
+            FillEllipse(cx, 66, 15, 14, skin);
+            FillEllipse(cx - 4, 64, 5, 4, blush); // cheek
+            FillEllipse(cx + 7, 64, 4.5f, 3.5f, blush);
+
+            // Face
+            DrawEye(cx - 6.0f, 70, true);
+            DrawEye(cx + 7.0f, 70, true);
+            FillEllipse(cx + 1, 62.5f, 2.2f, 1.1f, lip); // mouth
+            FillEllipse(cx + 1, 63.2f, 1.4f, 0.6f, skin); // slight open look
+            FillCircle(cx + 8, 76, 1.6f, Col(255, 250, 252)); // nose highlight
+
+            // Bangs + top hair
+            FillEllipse(cx, 82, 16, 8, hair);
+            FillEllipse(cx - 10, 78, 8, 10, hair);
+            FillEllipse(cx + 10, 78, 8, 10, hair);
+            FillEllipse(cx - 2, 84, 6, 5, hairMid);
+            FillEllipse(cx - 8, 80, 3.5f, 7, hairLight);
+            FillEllipse(cx + 6, 81, 3.2f, 5, hairShine);
+            // Side bangs over cheeks
+            FillEllipse(cx - 14, 68, 4.5f, 10, hair);
+            FillEllipse(cx + 15, 67, 4.5f, 11, hair);
+
+            // Hair bow
+            FillCircle(cx + 12, 86, 3.4f, bikini);
+            FillEllipse(cx + 8, 86, 4.5f, 3.2f, bikini);
+            FillEllipse(cx + 16, 86, 4.5f, 3.2f, bikini);
+            FillCircle(cx + 12, 86, 1.6f, bikiniWhite);
 
             // Cartoon outline around opaque pixels
             var src = (Color32[])px.Clone();
@@ -223,8 +254,7 @@ namespace SimpleRPG
 
             tex.SetPixels32(px);
             tex.Apply();
-            // Pivot near the feet so the knight stands on the collider
-            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.22f), 48);
+            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.20f), 48);
         }
 
         public static Sprite CreateSwordSprite()
