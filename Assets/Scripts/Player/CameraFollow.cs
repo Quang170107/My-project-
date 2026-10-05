@@ -31,8 +31,17 @@ namespace SimpleRPG
 
         public void Shake(float duration = 0.15f, float magnitude = 0.2f)
         {
+            if (!SettingsManager.IsVibrationOn) return;
+
             _shakeDuration = duration;
             _shakeMagnitude = magnitude;
+        }
+
+        public void StopShake()
+        {
+            _shakeDuration = 0f;
+            _shakeMagnitude = 0f;
+            _shakeOffset = Vector3.zero;
         }
 
         private void LateUpdate()
@@ -45,8 +54,8 @@ namespace SimpleRPG
                 -10f
             );
 
-            // Screen shake
-            if (_shakeDuration > 0f)
+            // Screen shake is part of the Vibration setting — skip it when the player turns that off.
+            if (SettingsManager.IsVibrationOn && _shakeDuration > 0f)
             {
                 _shakeOffset = (Vector3)(Random.insideUnitCircle * _shakeMagnitude);
                 _shakeDuration -= Time.deltaTime;
@@ -54,6 +63,8 @@ namespace SimpleRPG
             else
             {
                 _shakeOffset = Vector3.zero;
+                if (!SettingsManager.IsVibrationOn)
+                    _shakeDuration = 0f;
             }
 
             Vector3 smoothed = Vector3.Lerp(transform.position, desiredPos, smoothSpeed * Time.deltaTime);

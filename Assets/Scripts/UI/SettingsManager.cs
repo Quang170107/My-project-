@@ -6,10 +6,17 @@ namespace SimpleRPG
     /// <summary>
     /// Manages persistent game settings: resolution, VSync, vibration, window mode.
     /// All values are saved/loaded through PlayerPrefs.
+    /// Vibration covers both camera screen-shake and gamepad rumble.
     /// </summary>
     public class SettingsManager : MonoBehaviour
     {
         public static SettingsManager Instance { get; private set; }
+
+        /// <summary>
+        /// True when vibration (camera shake + gamepad rumble) is allowed.
+        /// Defaults to on if the manager has not spawned yet.
+        /// </summary>
+        public static bool IsVibrationOn => Instance == null || Instance.VibrationEnabled;
 
         // Available resolutions (common 16:9 choices)
         public static readonly Vector2Int[] Resolutions = new Vector2Int[]
@@ -95,6 +102,14 @@ namespace SimpleRPG
         public void ToggleVibration()
         {
             VibrationEnabled = !VibrationEnabled;
+            if (!VibrationEnabled)
+            {
+                CameraFollow.Instance?.StopShake();
+#if ENABLE_INPUT_SYSTEM
+                var gp = UnityEngine.InputSystem.Gamepad.current;
+                if (gp != null) gp.SetMotorSpeeds(0f, 0f);
+#endif
+            }
             SaveSettings();
         }
 
@@ -105,7 +120,7 @@ namespace SimpleRPG
             SaveSettings();
         }
 
-        // ── Apply ────────────────────────────────────────────────
+        // ── Apply ────────────────────────────────────────────
 
         private void ApplyAllSettings()
         {
@@ -127,7 +142,7 @@ namespace SimpleRPG
             QualitySettings.vSyncCount = VSyncEnabled ? 1 : 0;
         }
 
-        // ── Helpers ──────────────────────────────────────────────
+        // ── Helpers ────────────────────────────────────────
 
         public string CurrentResolutionLabel()
         {
@@ -155,11 +170,11 @@ namespace SimpleRPG
         /// so vibration respects the player's setting.</summary>
         public static void TryVibrate(float lowFreq, float highFreq, float duration)
         {
-            if (Instance == null || !Instance.VibrationEnabled) return;
+            if (!IsVibrationOn) return;
 
 #if ENABLE_INPUT_SYSTEM
             var gp = UnityEngine.InputSystem.Gamepad.current;
-            if (gp != null)
+            if (gp != null && Instance != null)
             {
                 gp.SetMotorSpeeds(lowFreq, highFreq);
                 Instance.StartCoroutine(StopVibrationAfter(duration));
