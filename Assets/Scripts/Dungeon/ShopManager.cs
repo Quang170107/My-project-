@@ -152,7 +152,7 @@ namespace SimpleRPG
 
             // Trừ gold (không phát sound coin vì ta sẽ phát sound riêng)
             stats.gold -= slot.price;
-            stats.OnGoldChanged?.Invoke(stats.gold);
+          
 
             if (slot.isPotionSlot)
             {
@@ -172,7 +172,7 @@ namespace SimpleRPG
                     // Không mạnh hơn đồ hiện tại → vẫn nhận nhưng bán ngay
                     int sellVal = slot.item.SellValue;
                     stats.gold += sellVal;
-                    stats.OnGoldChanged?.Invoke(stats.gold);
+    
                     GameUI.Instance?.ShowBanner($"Bought & sold {slot.item.itemName} (+{sellVal}g)", 2f);
                 }
             }
