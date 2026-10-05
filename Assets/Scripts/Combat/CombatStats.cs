@@ -105,6 +105,10 @@ namespace SimpleRPG
             OnHealthChanged?.Invoke(currentHealth, maxHealth);
             AudioManager.Instance?.PlaySound("potion");
         }
+        public void RefreshHealthUI()
+        {
+            OnHealthChanged?.Invoke(currentHealth, maxHealth);
+        }
 
         public void AddXP(int amount)
         {
