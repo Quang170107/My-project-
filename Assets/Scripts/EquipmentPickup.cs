@@ -32,7 +32,7 @@ namespace SimpleRPG
             }
 
             var sr = go.AddComponent<SpriteRenderer>();
-            sr.sprite = EquipmentIcons.Get(item.slot);
+            sr.sprite = EquipmentIcons.Get(item);
             sr.color = item.RarityColor;
             sr.sortingOrder = 9; // trên sàn(0), tường(7), cột(8)
 

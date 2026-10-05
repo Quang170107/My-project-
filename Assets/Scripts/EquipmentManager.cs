@@ -29,6 +29,12 @@ namespace SimpleRPG
         {
             Instance = this;
             _stats = GetComponent<CombatStats>();
+
+            // Đổi hình vũ khí cầm tay theo món đang mặc
+            if (GetComponent<PlayerWeaponVisual>() == null)
+            {
+                gameObject.AddComponent<PlayerWeaponVisual>();
+            }
         }
 
         public EquipmentItem GetEquipped(EquipSlot slot)
@@ -62,6 +68,12 @@ namespace SimpleRPG
         public void ForgetAll()
         {
             _equipped.Clear();
+
+            // Báo cho hình vũ khí quay về kiếm mặc định
+            foreach (EquipSlot slot in Enum.GetValues(typeof(EquipSlot)))
+            {
+                OnEquipmentChanged?.Invoke(slot, null);
+            }
         }
 
         private void Apply(EquipmentItem item)

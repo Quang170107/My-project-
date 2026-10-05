@@ -5,6 +5,7 @@ namespace SimpleRPG
 {
     public enum EquipSlot { Weapon, Armor, Boots, Ring }
     public enum Rarity { Common, Rare, Epic, Legendary }
+    public enum WeaponType { Sword, Blade, Axe, Spear }
 
     /// <summary>Một món trang bị (dữ liệu thuần, không phải MonoBehaviour).</summary>
     [System.Serializable]
@@ -13,6 +14,7 @@ namespace SimpleRPG
         public string itemName;
         public EquipSlot slot;
         public Rarity rarity;
+        public WeaponType weaponType; // chỉ dùng khi slot = Weapon
 
         // Chỉ số cộng thêm
         public float damage;
@@ -114,7 +116,19 @@ namespace SimpleRPG
                     break;
             }
 
-            item.itemName = Pick(PrefixFor(item.rarity)) + " " + Pick(BaseNamesFor(item.slot));
+            string baseName;
+            if (item.slot == EquipSlot.Weapon)
+            {
+                // WeaponNames có thứ tự trùng với enum WeaponType
+                int w = Random.Range(0, WeaponNames.Length);
+                item.weaponType = (WeaponType)w;
+                baseName = WeaponNames[w];
+            }
+            else
+            {
+                baseName = Pick(BaseNamesFor(item.slot));
+            }
+            item.itemName = Pick(PrefixFor(item.rarity)) + " " + baseName;
             return item;
         }
 

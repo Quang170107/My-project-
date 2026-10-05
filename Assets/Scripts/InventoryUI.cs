@@ -187,7 +187,7 @@ namespace SimpleRPG
                 var row = _rows[(int)slot];
                 var item = mgr != null ? mgr.GetEquipped(slot) : null;
 
-                row.icon.sprite = EquipmentIcons.Get(slot);
+                row.icon.sprite = item != null ? EquipmentIcons.Get(item) : EquipmentIcons.Get(slot);
 
                 if (item == null)
                 {

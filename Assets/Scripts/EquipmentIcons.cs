@@ -4,13 +4,14 @@ using UnityEngine;
 namespace SimpleRPG
 {
     /// <summary>
-    /// Tạo sprite pixel-art 12x12 cho từng ô trang bị bằng code (không cần file ảnh).
+    /// Tạo sprite pixel-art 12x12 bằng code cho từng ô trang bị và từng loại vũ khí.
     /// Ảnh là xám + viền đen, màu độ hiếm được nhân lên bằng SpriteRenderer.color.
     /// '.' = trong suốt, 'o' = viền, '#' = sáng, '+' = trung bình.
+    /// Vũ khí được vẽ thẳng đứng, mũi hướng lên trên.
     /// </summary>
     public static class EquipmentIcons
     {
-        private static readonly Dictionary<EquipSlot, Sprite> _cache = new Dictionary<EquipSlot, Sprite>();
+        private static readonly Dictionary<string, Sprite> _cache = new Dictionary<string, Sprite>();
 
         private static readonly string[] SwordArt =
         {
@@ -26,6 +27,54 @@ namespace SimpleRPG
             ".....o++o...",
             ".....o++o...",
             "....oooooo..",
+        };
+
+        private static readonly string[] BladeArt =
+        {
+            "......oo....",
+            ".....o##o...",
+            "....o###o...",
+            "....o###o...",
+            "....o###o...",
+            "....o###o...",
+            ".....o##o...",
+            "...oooooo...",
+            "....o++o....",
+            "....o++o....",
+            "....o++o....",
+            "....oooo....",
+        };
+
+        private static readonly string[] AxeArt =
+        {
+            "....oooo....",
+            "...o####oo..",
+            "...o######o.",
+            "...o######o.",
+            "...o####oo..",
+            "....o++o....",
+            "....o++o....",
+            "....o++o....",
+            "....o++o....",
+            "....o++o....",
+            "....o++o....",
+            "....oooo....",
+        };
+
+        private static readonly string[] SpearArt =
+        {
+            ".....oo.....",
+            "....o##o....",
+            "...o####o...",
+            "....o##o....",
+            "....o++o....",
+            "....o++o....",
+            "....o++o....",
+            "....o++o....",
+            "....o++o....",
+            "....o++o....",
+            "....o++o....",
+            "....oooo....",
         };
 
         private static readonly string[] ArmorArt =
@@ -76,21 +125,42 @@ namespace SimpleRPG
             "............",
         };
 
+        /// <summary>Hình theo ô trang bị (vũ khí mặc định là kiếm).</summary>
         public static Sprite Get(EquipSlot slot)
         {
-            if (_cache.TryGetValue(slot, out var cached) && cached != null) return cached;
-
-            string[] art;
             switch (slot)
             {
-                case EquipSlot.Weapon: art = SwordArt; break;
-                case EquipSlot.Armor: art = ArmorArt; break;
-                case EquipSlot.Boots: art = BootsArt; break;
-                default: art = RingArt; break;
+                case EquipSlot.Weapon: return GetWeapon(WeaponType.Sword);
+                case EquipSlot.Armor: return GetCached("Armor", ArmorArt);
+                case EquipSlot.Boots: return GetCached("Boots", BootsArt);
+                default: return GetCached("Ring", RingArt);
             }
+        }
 
+        /// <summary>Hình theo đúng món đồ (vũ khí có hình riêng theo loại).</summary>
+        public static Sprite Get(EquipmentItem item)
+        {
+            if (item == null) return null;
+            if (item.slot == EquipSlot.Weapon) return GetWeapon(item.weaponType);
+            return Get(item.slot);
+        }
+
+        public static Sprite GetWeapon(WeaponType type)
+        {
+            switch (type)
+            {
+                case WeaponType.Blade: return GetCached("W_Blade", BladeArt);
+                case WeaponType.Axe: return GetCached("W_Axe", AxeArt);
+                case WeaponType.Spear: return GetCached("W_Spear", SpearArt);
+                default: return GetCached("W_Sword", SwordArt);
+            }
+        }
+
+        private static Sprite GetCached(string key, string[] art)
+        {
+            if (_cache.TryGetValue(key, out var cached) && cached != null) return cached;
             var sprite = Build(art);
-            _cache[slot] = sprite;
+            _cache[key] = sprite;
             return sprite;
         }
 
@@ -120,13 +190,12 @@ namespace SimpleRPG
                         case '+': c = mid; break;
                         default: c = clear; break;
                     }
-                    // hàng 0 của chuỗi là hàng trên cùng của ảnh
                     tex.SetPixel(x, h - 1 - row, c);
                 }
             }
             tex.Apply();
 
-            // pixelsPerUnit = 12 -> sprite rộng đúng 1 đơn vị
+            // pixelsPerUnit = 12 -> sprite rộng/cao đúng 1 đơn vị
             return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f), w);
         }
     }

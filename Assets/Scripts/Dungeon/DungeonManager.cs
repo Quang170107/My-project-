@@ -412,6 +412,9 @@ namespace SimpleRPG
                 PlayerController.Instance.ResetPlayer(new Vector3(0, -roomHeight / 2f + 2.5f, 0));
             }
 
+            // Xóa danh sách trang bị đang mặc (chỉ số đã về mặc định nhờ ResetStats)
+            EquipmentManager.Instance?.ForgetAll();
+
             StartGame();
         }
     }
