@@ -19,6 +19,7 @@ namespace SimpleRPG
             EnsureManager<AudioManager>("AudioManager");
             EnsureManager<DamageNumberManager>("DamageNumberManager");
             EnsureManager<LootManager>("LootManager");
+            EnsureManager<SettingsManager>("SettingsManager");
             EnsureManager<GameUI>("GameUI");
 
             SpawnPlayer();

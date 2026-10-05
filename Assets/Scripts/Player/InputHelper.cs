@@ -123,5 +123,17 @@ namespace SimpleRPG
             return Input.GetKeyDown(KeyCode.R);
 #endif
         }
+
+        public static bool GetPauseDown()
+        {
+#if ENABLE_INPUT_SYSTEM
+            var kb = Keyboard.current;
+            bool esc = kb != null && kb.escapeKey.wasPressedThisFrame;
+            bool startBtn = Gamepad.current != null && Gamepad.current.startButton.wasPressedThisFrame;
+            return esc || startBtn;
+#else
+            return Input.GetKeyDown(KeyCode.Escape);
+#endif
+        }
     }
 }

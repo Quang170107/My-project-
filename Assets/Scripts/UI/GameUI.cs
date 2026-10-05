@@ -43,6 +43,15 @@ namespace SimpleRPG
         private GameObject _gameOverRoot;
         private Text _gameOverStatsText;
 
+        // Settings Panel
+        private GameObject _settingsRoot;
+        private Text _resolutionValueText;
+        private Text _vsyncValueText;
+        private Text _vibrationValueText;
+        private Text _windowModeValueText;
+        private bool _settingsOpen = false;
+        private float _prevTimeScale = 1f;
+
         private void Awake()
         {
             if (Instance == null)
@@ -87,6 +96,7 @@ namespace SimpleRPG
             BuildBannerUI();
             BuildUpgradeModal();
             BuildGameOverModal();
+            BuildSettingsPanel();
         }
 
         private void EnsureEventSystem()
@@ -332,6 +342,15 @@ namespace SimpleRPG
 
         private void Update()
         {
+            // Settings toggle (Escape) – works even when game is paused
+            if (InputHelper.GetPauseDown())
+            {
+                if (_settingsOpen)
+                    CloseSettings();
+                else
+                    OpenSettings();
+            }
+
             // Banner timer
             if (_bannerTimer > 0f)
             {
@@ -507,6 +526,230 @@ namespace SimpleRPG
                 _gameOverRoot.SetActive(false);
             }
         }
+
+        // ── Settings Panel ────────────────────────────────────────────────
+
+        private void BuildSettingsPanel()
+        {
+            // Full-screen overlay (sorting above everything)
+            _settingsRoot = CreateUIObject("SettingsPanel", transform,
+                new Vector2(0, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f),
+                Vector2.zero, Vector2.zero);
+
+            // Semi-transparent dim
+            CreateImage("DimBG", _settingsRoot.transform,
+                new Color(0f, 0f, 0f, 0.8f),
+                new Vector2(0, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f),
+                Vector2.zero, Vector2.zero);
+
+            // Container card (centred, 520 × 460)
+            var card = CreateImage("SettingsCard", _settingsRoot.transform,
+                new Color(0.1f, 0.12f, 0.18f, 0.97f),
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(520, 460));
+
+            // Border
+            var border = CreateImage("Border", card.transform,
+                new Color(0.35f, 0.75f, 1f, 1f),
+                new Vector2(0, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f),
+                Vector2.zero, Vector2.zero);
+            border.GetComponent<Image>().sprite =
+                SpriteFactory.CreateRoundedRect(520, 460, 14, Color.clear, new Color(0.35f, 0.75f, 1f), 3);
+
+            // Title
+            var titleGo = CreateText("Title", card.transform, "SETTINGS", 36,
+                new Color(1f, 0.92f, 0.4f), TextAnchor.MiddleCenter);
+            var titleRect = titleGo.GetComponent<RectTransform>();
+            titleRect.anchoredPosition = new Vector2(0, 180);
+            titleRect.sizeDelta = new Vector2(480, 50);
+            titleGo.AddComponent<Outline>().effectColor = Color.black;
+
+            // ── Row 1: Resolution ──
+            float rowY = 110f;
+            float rowSpacing = -70f;
+
+            BuildSettingsRow(card.transform, "Resolution", rowY,
+                "◀", "▶",
+                out _resolutionValueText,
+                () => { SettingsManager.Instance?.PrevResolution(); RefreshSettingsUI(); },
+                () => { SettingsManager.Instance?.NextResolution(); RefreshSettingsUI(); });
+
+            // ── Row 2: VSync ──
+            rowY += rowSpacing;
+            BuildToggleRow(card.transform, "VSync", rowY,
+                out _vsyncValueText,
+                () => { SettingsManager.Instance?.ToggleVSync(); RefreshSettingsUI(); });
+
+            // ── Row 3: Vibration ──
+            rowY += rowSpacing;
+            BuildToggleRow(card.transform, "Vibration", rowY,
+                out _vibrationValueText,
+                () => { SettingsManager.Instance?.ToggleVibration(); RefreshSettingsUI(); });
+
+            // ── Row 4: Window Mode ──
+            rowY += rowSpacing;
+            BuildToggleRow(card.transform, "Window Mode", rowY,
+                out _windowModeValueText,
+                () => { SettingsManager.Instance?.ToggleFullscreen(); RefreshSettingsUI(); });
+
+            // ── Close Button ──
+            var closeBtnGo = CreateImage("CloseBtn", card.transform,
+                new Color(0.85f, 0.25f, 0.3f, 1f),
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0, -180), new Vector2(200, 48));
+            var closeBtn = closeBtnGo.AddComponent<Button>();
+            var closeBtnColors = closeBtn.colors;
+            closeBtnColors.highlightedColor = new Color(1f, 0.4f, 0.45f);
+            closeBtnColors.pressedColor = new Color(0.6f, 0.15f, 0.2f);
+            closeBtn.colors = closeBtnColors;
+            closeBtn.onClick.AddListener(CloseSettings);
+
+            var closeTxt = CreateText("CloseTxt", closeBtnGo.transform, "CLOSE (ESC)", 20,
+                Color.white, TextAnchor.MiddleCenter);
+            closeTxt.GetComponent<RectTransform>().sizeDelta = new Vector2(200, 48);
+
+            _settingsRoot.SetActive(false);
+        }
+
+        /// <summary>Row with left/right arrows and a value label (for resolution picker).</summary>
+        private void BuildSettingsRow(Transform parent, string label, float y,
+            string leftChar, string rightChar,
+            out Text valueText,
+            UnityEngine.Events.UnityAction onLeft,
+            UnityEngine.Events.UnityAction onRight)
+        {
+            var row = CreateUIObject("Row_" + label, parent,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0, y), new Vector2(460, 48));
+
+            // Label on left side
+            var lblGo = CreateText("Label", row.transform, label, 22, Color.white, TextAnchor.MiddleLeft);
+            var lblRect = lblGo.GetComponent<RectTransform>();
+            lblRect.anchorMin = new Vector2(0, 0.5f);
+            lblRect.anchorMax = new Vector2(0, 0.5f);
+            lblRect.pivot = new Vector2(0, 0.5f);
+            lblRect.anchoredPosition = new Vector2(0, 0);
+            lblRect.sizeDelta = new Vector2(180, 48);
+
+            // Left arrow button
+            var leftBtnGo = CreateImage("LeftBtn", row.transform,
+                new Color(0.2f, 0.55f, 0.85f, 1f),
+                new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(1, 0.5f),
+                new Vector2(-210, 0), new Vector2(36, 36));
+            var leftBtn = leftBtnGo.AddComponent<Button>();
+            leftBtn.onClick.AddListener(onLeft);
+            var leftTxt = CreateText("Txt", leftBtnGo.transform, leftChar, 22, Color.white, TextAnchor.MiddleCenter);
+            leftTxt.GetComponent<RectTransform>().sizeDelta = new Vector2(36, 36);
+
+            // Value text
+            var valGo = CreateText("Value", row.transform, "---", 22,
+                new Color(0.3f, 1f, 0.7f), TextAnchor.MiddleCenter);
+            var valRect = valGo.GetComponent<RectTransform>();
+            valRect.anchorMin = new Vector2(1, 0.5f);
+            valRect.anchorMax = new Vector2(1, 0.5f);
+            valRect.pivot = new Vector2(1, 0.5f);
+            valRect.anchoredPosition = new Vector2(-40, 0);
+            valRect.sizeDelta = new Vector2(170, 48);
+            valueText = valGo.GetComponent<Text>();
+
+            // Right arrow button
+            var rightBtnGo = CreateImage("RightBtn", row.transform,
+                new Color(0.2f, 0.55f, 0.85f, 1f),
+                new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(1, 0.5f),
+                new Vector2(0, 0), new Vector2(36, 36));
+            var rightBtn = rightBtnGo.AddComponent<Button>();
+            rightBtn.onClick.AddListener(onRight);
+            var rightTxt = CreateText("Txt", rightBtnGo.transform, rightChar, 22, Color.white, TextAnchor.MiddleCenter);
+            rightTxt.GetComponent<RectTransform>().sizeDelta = new Vector2(36, 36);
+        }
+
+        /// <summary>Row with a single toggle button (ON/OFF).</summary>
+        private void BuildToggleRow(Transform parent, string label, float y,
+            out Text valueText,
+            UnityEngine.Events.UnityAction onToggle)
+        {
+            var row = CreateUIObject("Row_" + label, parent,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0, y), new Vector2(460, 48));
+
+            // Label
+            var lblGo = CreateText("Label", row.transform, label, 22, Color.white, TextAnchor.MiddleLeft);
+            var lblRect = lblGo.GetComponent<RectTransform>();
+            lblRect.anchorMin = new Vector2(0, 0.5f);
+            lblRect.anchorMax = new Vector2(0, 0.5f);
+            lblRect.pivot = new Vector2(0, 0.5f);
+            lblRect.anchoredPosition = new Vector2(0, 0);
+            lblRect.sizeDelta = new Vector2(220, 48);
+
+            // Toggle button
+            var btnGo = CreateImage("ToggleBtn", row.transform,
+                new Color(0.2f, 0.55f, 0.85f, 1f),
+                new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(1, 0.5f),
+                new Vector2(0, 0), new Vector2(120, 38));
+            var btn = btnGo.AddComponent<Button>();
+            var btnColors = btn.colors;
+            btnColors.highlightedColor = new Color(0.3f, 0.7f, 1f);
+            btnColors.pressedColor = new Color(0.15f, 0.4f, 0.7f);
+            btn.colors = btnColors;
+            btn.onClick.AddListener(onToggle);
+
+            var valGo = CreateText("Value", btnGo.transform, "ON", 20,
+                Color.white, TextAnchor.MiddleCenter);
+            valGo.GetComponent<RectTransform>().sizeDelta = new Vector2(120, 38);
+            valueText = valGo.GetComponent<Text>();
+        }
+
+        private void OpenSettings()
+        {
+            if (_settingsRoot == null) return;
+            // Don't open settings during upgrade selection
+            if (_upgradeModalRoot != null && _upgradeModalRoot.activeSelf) return;
+
+            _settingsOpen = true;
+            _prevTimeScale = Time.timeScale;
+            Time.timeScale = 0f;
+            _settingsRoot.SetActive(true);
+            RefreshSettingsUI();
+        }
+
+        private void CloseSettings()
+        {
+            if (_settingsRoot == null) return;
+            _settingsOpen = false;
+            Time.timeScale = _prevTimeScale;
+            _settingsRoot.SetActive(false);
+        }
+
+        private void RefreshSettingsUI()
+        {
+            if (SettingsManager.Instance == null) return;
+
+            if (_resolutionValueText != null)
+                _resolutionValueText.text = SettingsManager.Instance.CurrentResolutionLabel();
+
+            if (_vsyncValueText != null)
+            {
+                _vsyncValueText.text = SettingsManager.Instance.VSyncEnabled ? "ON" : "OFF";
+                _vsyncValueText.color = SettingsManager.Instance.VSyncEnabled
+                    ? new Color(0.3f, 1f, 0.7f) : new Color(1f, 0.4f, 0.4f);
+            }
+
+            if (_vibrationValueText != null)
+            {
+                _vibrationValueText.text = SettingsManager.Instance.VibrationEnabled ? "ON" : "OFF";
+                _vibrationValueText.color = SettingsManager.Instance.VibrationEnabled
+                    ? new Color(0.3f, 1f, 0.7f) : new Color(1f, 0.4f, 0.4f);
+            }
+
+            if (_windowModeValueText != null)
+            {
+                _windowModeValueText.text = SettingsManager.Instance.IsFullscreen ? "FULLSCREEN" : "WINDOWED";
+                _windowModeValueText.color = SettingsManager.Instance.IsFullscreen
+                    ? new Color(0.3f, 1f, 0.7f) : new Color(1f, 0.85f, 0.3f);
+            }
+        }
+
+        public bool IsSettingsOpen => _settingsOpen;
 
         // Helper UI creation methods
         private GameObject CreateUIObject(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 pos, Vector2 size)
