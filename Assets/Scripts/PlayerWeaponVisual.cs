@@ -10,7 +10,7 @@ namespace SimpleRPG
     public class PlayerWeaponVisual : MonoBehaviour
     {
         // Chỉnh các số này nếu vũ khí trông lệch tay
-        private const float HoldOffsetX = 0.55f;   // khoảng cách từ người tới tâm vũ khí
+        private const float HoldOffsetX = 0.52f;   // khoảng cách từ người tới tâm vũ khí
         private const float HeldRotationZ = -90f;  // sprite vẽ mũi hướng lên, xoay -90 để hướng theo chiều ngắm
 
         private PlayerController _player;

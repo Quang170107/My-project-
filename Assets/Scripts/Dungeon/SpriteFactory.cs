@@ -66,53 +66,165 @@ namespace SimpleRPG
 
         public static Sprite CreatePlayerSprite()
         {
-            // Crisp hero crest: Rounded diamond with cyan/blue gradient and silver rim
-            int size = 64;
-            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-            tex.filterMode = FilterMode.Bilinear;
-            var colors = new Color32[size * size];
+            // Chibi knight (3/4 view): cape, armor, helmet visor, plume — not a square.
+            const int w = 80;
+            const int h = 96;
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Point;
+            tex.wrapMode = TextureWrapMode.Clamp;
+            var px = new Color32[w * h];
 
-            Vector2 center = new Vector2((size - 1) / 2f, (size - 1) / 2f);
-            float radius = size * 0.44f;
+            Color32 Col(byte r, byte g, byte b) => new Color32(r, g, b, 255);
+            var outline = Col(14, 16, 26);
+            var cape = Col(24, 48, 128);
+            var capeDark = Col(14, 28, 82);
+            var capeLight = Col(52, 96, 196);
+            var armor = Col(68, 108, 158);
+            var armorMid = Col(92, 140, 188);
+            var armorLight = Col(168, 210, 240);
+            var gold = Col(236, 188, 62);
+            var goldDark = Col(168, 118, 28);
+            var boot = Col(42, 28, 24);
+            var bootLight = Col(86, 58, 44);
+            var visor = Col(40, 220, 250);
+            var visorCore = Col(210, 255, 255);
+            var plume = Col(28, 180, 245);
+            var plumeLight = Col(150, 240, 255);
+            var skin = Col(255, 210, 172);
 
-            for (int y = 0; y < size; y++)
+            void Plot(int x, int y, Color32 c)
             {
-                for (int x = 0; x < size; x++)
-                {
-                    float dx = Mathf.Abs(x - center.x);
-                    float dy = Mathf.Abs(y - center.y);
-                    // Diamond metric + slight curve
-                    float d = (dx + dy) / 1.35f;
-                    float circleD = Vector2.Distance(new Vector2(x, y), center);
-                    float blendD = Mathf.Lerp(d, circleD, 0.35f);
+                if ((uint)x >= (uint)w || (uint)y >= (uint)h) return;
+                px[y * w + x] = c;
+            }
 
-                    if (blendD <= radius)
+            void FillCircle(float cx, float cy, float r, Color32 c)
+            {
+                int x0 = Mathf.Max(0, Mathf.FloorToInt(cx - r));
+                int x1 = Mathf.Min(w - 1, Mathf.CeilToInt(cx + r));
+                int y0 = Mathf.Max(0, Mathf.FloorToInt(cy - r));
+                int y1 = Mathf.Min(h - 1, Mathf.CeilToInt(cy + r));
+                float r2 = r * r;
+                for (int y = y0; y <= y1; y++)
+                {
+                    for (int x = x0; x <= x1; x++)
                     {
-                        if (blendD >= radius - 3.5f)
-                        {
-                            // Shiny border
-                            colors[y * size + x] = new Color32(240, 245, 255, 255);
-                        }
-                        else
-                        {
-                            // Heroic cyan-blue fill
-                            float t = (float)y / size;
-                            byte r = (byte)Mathf.Lerp(30, 70, t);
-                            byte g = (byte)Mathf.Lerp(140, 210, t);
-                            byte b = (byte)Mathf.Lerp(230, 255, t);
-                            colors[y * size + x] = new Color32(r, g, b, 255);
-                        }
-                    }
-                    else
-                    {
-                        colors[y * size + x] = Color.clear;
+                        float dx = x - cx;
+                        float dy = y - cy;
+                        if (dx * dx + dy * dy <= r2) Plot(x, y, c);
                     }
                 }
             }
 
-            tex.SetPixels32(colors);
+            void FillEllipse(float cx, float cy, float rx, float ry, Color32 c)
+            {
+                int x0 = Mathf.Max(0, Mathf.FloorToInt(cx - rx));
+                int x1 = Mathf.Min(w - 1, Mathf.CeilToInt(cx + rx));
+                int y0 = Mathf.Max(0, Mathf.FloorToInt(cy - ry));
+                int y1 = Mathf.Min(h - 1, Mathf.CeilToInt(cy + ry));
+                for (int y = y0; y <= y1; y++)
+                {
+                    for (int x = x0; x <= x1; x++)
+                    {
+                        float nx = (x - cx) / rx;
+                        float ny = (y - cy) / ry;
+                        if (nx * nx + ny * ny <= 1f) Plot(x, y, c);
+                    }
+                }
+            }
+
+            void FillRect(int x0, int y0, int x1, int y1, Color32 c)
+            {
+                x0 = Mathf.Clamp(x0, 0, w - 1);
+                x1 = Mathf.Clamp(x1, 0, w - 1);
+                y0 = Mathf.Clamp(y0, 0, h - 1);
+                y1 = Mathf.Clamp(y1, 0, h - 1);
+                for (int y = y0; y <= y1; y++)
+                    for (int x = x0; x <= x1; x++)
+                        Plot(x, y, c);
+            }
+
+            float cx = (w - 1) * 0.5f;
+
+            // Cape (behind)
+            FillEllipse(cx + 1, 36, 24, 22, capeDark);
+            FillEllipse(cx - 4, 38, 18, 18, cape);
+            FillEllipse(cx - 9, 34, 8, 11, capeLight);
+            FillEllipse(cx + 10, 28, 10, 12, capeDark);
+
+            // Boots
+            FillEllipse(cx - 10, 10, 8, 6, boot);
+            FillEllipse(cx + 11, 10, 8, 6, boot);
+            FillEllipse(cx - 11, 11, 4, 2.5f, bootLight);
+            FillEllipse(cx + 10, 11, 4, 2.5f, bootLight);
+
+            // Legs
+            FillEllipse(cx - 9, 20, 6.5f, 10, armor);
+            FillEllipse(cx + 10, 20, 6.5f, 10, armor);
+            FillEllipse(cx - 10, 24, 3, 4, armorLight);
+            FillRect((int)cx - 12, 24, (int)cx + 12, 31, armor);
+
+            // Torso / chestplate
+            FillEllipse(cx, 42, 16, 18, armor);
+            FillEllipse(cx - 3, 46, 10, 12, armorLight);
+            FillEllipse(cx, 42, 8, 11, armorMid);
+            // Gold belt + buckle
+            FillRect((int)cx - 14, 30, (int)cx + 14, 35, goldDark);
+            FillRect((int)cx - 13, 31, (int)cx + 13, 34, gold);
+            FillRect((int)cx - 3, 29, (int)cx + 3, 36, gold);
+            FillRect((int)cx - 1, 31, (int)cx + 1, 34, visorCore);
+
+            // Pauldrons
+            FillCircle(cx - 16, 52, 8, armorLight);
+            FillCircle(cx + 16, 52, 8, armor);
+            FillCircle(cx - 17, 54, 3.2f, Col(230, 245, 255));
+            FillCircle(cx + 15, 54, 2.6f, armorLight);
+            FillCircle(cx - 16, 52, 2.4f, gold);
+            FillCircle(cx + 16, 52, 2.4f, goldDark);
+
+            // Head / helmet
+            FillCircle(cx, 66, 16.5f, armor);
+            FillEllipse(cx - 3, 70, 11, 10, armorLight);
+            FillEllipse(cx, 61, 7, 3.5f, skin);
+            // Visor
+            FillEllipse(cx, 64.5f, 11.5f, 6.2f, outline);
+            FillEllipse(cx, 64.5f, 9.5f, 4.6f, visor);
+            FillEllipse(cx - 3, 65.5f, 4.2f, 2.2f, visorCore);
+            // Helmet ridge + gem
+            FillEllipse(cx, 78, 8, 4, goldDark);
+            FillEllipse(cx, 79, 6, 2.4f, gold);
+            FillCircle(cx, 76, 2.4f, visor);
+
+            // Plume
+            FillEllipse(cx + 1, 87, 5.5f, 11, plume);
+            FillEllipse(cx - 1, 89, 3.2f, 8, plumeLight);
+            FillCircle(cx, 82, 3.2f, gold);
+
+            // Cartoon outline around opaque pixels
+            var src = (Color32[])px.Clone();
+            int[] ox = { -1, 0, 1, -1, 1, -1, 0, 1 };
+            int[] oy = { -1, -1, -1, 0, 0, 1, 1, 1 };
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    if (src[y * w + x].a != 0) continue;
+                    bool neighbor = false;
+                    for (int i = 0; i < 8; i++)
+                    {
+                        int nx = x + ox[i];
+                        int ny = y + oy[i];
+                        if ((uint)nx >= (uint)w || (uint)ny >= (uint)h) continue;
+                        if (src[ny * w + nx].a != 0) { neighbor = true; break; }
+                    }
+                    if (neighbor) Plot(x, y, outline);
+                }
+            }
+
+            tex.SetPixels32(px);
             tex.Apply();
-            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 32);
+            // Pivot near the feet so the knight stands on the collider
+            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.22f), 48);
         }
 
         public static Sprite CreateSwordSprite()

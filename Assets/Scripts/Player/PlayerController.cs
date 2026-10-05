@@ -69,15 +69,27 @@ namespace SimpleRPG
             bodyRenderer.sprite = SpriteFactory.GetSprite("player");
             bodyRenderer.sortingOrder = 10;
 
+            if (transform.Find("Shadow") == null)
+            {
+                var shadowGo = new GameObject("Shadow");
+                shadowGo.transform.SetParent(transform, false);
+                shadowGo.transform.localPosition = new Vector3(0f, -0.08f, 0f);
+                shadowGo.transform.localScale = new Vector3(1.15f, 0.38f, 1f);
+                var ssr = shadowGo.AddComponent<SpriteRenderer>();
+                ssr.sprite = SpriteFactory.CreateCircle(32, new Color(0f, 0f, 0f, 0.4f), Color.clear, 0);
+                ssr.sortingOrder = 8;
+            }
+
             if (weaponPivot == null)
             {
                 var pivotGo = new GameObject("WeaponPivot");
                 pivotGo.transform.SetParent(transform, false);
+                pivotGo.transform.localPosition = new Vector3(0f, 0.28f, 0f);
                 weaponPivot = pivotGo.transform;
 
                 var swordGo = new GameObject("Sword");
                 swordGo.transform.SetParent(weaponPivot, false);
-                swordGo.transform.localPosition = new Vector3(0.5f, 0f, 0f);
+                swordGo.transform.localPosition = new Vector3(0.52f, 0f, 0f);
                 swordGo.transform.localRotation = Quaternion.Euler(0, 0, -45f);
 
                 weaponRenderer = swordGo.AddComponent<SpriteRenderer>();
@@ -99,6 +111,12 @@ namespace SimpleRPG
             _moveInput = InputHelper.GetMoveInput();
             Vector2 mouseWorld = InputHelper.GetAimWorldPosition(Camera.main);
             _aimDirection = (mouseWorld - (Vector2)transform.position).normalized;
+
+            // Face the aim direction so the knight isn't a static blob
+            if (bodyRenderer != null && Mathf.Abs(_aimDirection.x) > 0.12f)
+            {
+                bodyRenderer.flipX = _aimDirection.x < 0f;
+            }
 
             // Weapon aim rotation
             if (weaponPivot != null && !isAttacking)
@@ -287,6 +305,7 @@ namespace SimpleRPG
 
                 var sr = ghost.AddComponent<SpriteRenderer>();
                 sr.sprite = bodyRenderer.sprite;
+                sr.flipX = bodyRenderer.flipX;
                 sr.color = new Color(0.2f, 0.8f, 1f, 0.45f);
                 sr.sortingOrder = 9;
 
