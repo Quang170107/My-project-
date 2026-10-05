@@ -27,6 +27,9 @@ namespace SimpleRPG
         private float _attackTimer = 0f;
         private Vector3 _initialScale;
         private float _walkBobTimer = 0f;
+        private readonly Color _baseBodyColor = Color.white;
+        private int _bodyColorFxId;
+        private int _invulnLocks;
 
         private void Awake()
         {
@@ -67,6 +70,7 @@ namespace SimpleRPG
                 bodyRenderer = gameObject.AddComponent<SpriteRenderer>();
             }
             bodyRenderer.sprite = SpriteFactory.GetSprite("player");
+            bodyRenderer.color = _baseBodyColor;
             bodyRenderer.sortingOrder = 10;
 
             if (transform.Find("Shadow") == null)
@@ -269,7 +273,7 @@ namespace SimpleRPG
         {
             isDashing = true;
             dashCooldownTimer = stats.dashCooldown;
-            stats.isInvulnerable = true;
+            PushInvuln();
             AudioManager.Instance?.PlaySound("dash");
 
             Vector2 dashDir = _moveInput.sqrMagnitude > 0.01f ? _moveInput.normalized : _aimDirection;
@@ -282,14 +286,17 @@ namespace SimpleRPG
             // Ghost trail effect
             StartCoroutine(SpawnGhostTrail(stats.dashDuration));
 
-            // Translucent cyan color during i-frames
-            Color origColor = bodyRenderer.color;
-            bodyRenderer.color = new Color(0.4f, 1f, 1f, 0.6f);
+            // Translucent cyan color during i-frames. Never capture the current
+            // tint — overlapping hit-flashes used to save red and restore it.
+            int fx = ++_bodyColorFxId;
+            if (bodyRenderer != null)
+                bodyRenderer.color = new Color(0.4f, 1f, 1f, 0.6f);
 
             yield return new WaitForSeconds(stats.dashDuration);
 
-            bodyRenderer.color = origColor;
-            stats.isInvulnerable = false;
+            if (fx == _bodyColorFxId)
+                RestoreBodyColor();
+            PopInvuln();
             isDashing = false;
         }
 
@@ -354,22 +361,53 @@ namespace SimpleRPG
             stats.TakeDamage(damage, knockbackDir, knockbackForce);
             AudioManager.Instance?.PlaySound("hurt");
             CameraFollow.Instance?.Shake(0.18f, 0.25f);
+            if (stats.currentHealth <= 0) return;
+            StartCoroutine(HurtIFramesRoutine());
             StartCoroutine(DamageFlashRoutine());
+        }
+
+        private IEnumerator HurtIFramesRoutine()
+        {
+            PushInvuln();
+            yield return new WaitForSeconds(0.45f);
+            PopInvuln();
         }
 
         private IEnumerator DamageFlashRoutine()
         {
-            Color orig = bodyRenderer.color;
-            bodyRenderer.color = new Color(1f, 0.2f, 0.2f, 1f);
-            yield return new WaitForSeconds(0.1f);
-            bodyRenderer.color = orig;
+            int fx = ++_bodyColorFxId;
+            if (bodyRenderer != null)
+                bodyRenderer.color = new Color(1f, 0.2f, 0.2f, 1f);
+            yield return new WaitForSeconds(0.12f);
+            if (fx == _bodyColorFxId)
+                RestoreBodyColor();
+        }
+
+        private void RestoreBodyColor()
+        {
+            if (bodyRenderer != null)
+                bodyRenderer.color = _baseBodyColor;
+        }
+
+        private void PushInvuln()
+        {
+            _invulnLocks++;
+            stats.isInvulnerable = true;
+        }
+
+        private void PopInvuln()
+        {
+            _invulnLocks = Mathf.Max(0, _invulnLocks - 1);
+            stats.isInvulnerable = _invulnLocks > 0;
         }
 
         private void HandleDeath()
         {
             AudioManager.Instance?.PlaySound("enemy_death");
             CameraFollow.Instance?.Shake(0.4f, 0.45f);
-            bodyRenderer.color = new Color(0.4f, 0.4f, 0.4f, 0.5f);
+            _bodyColorFxId++;
+            if (bodyRenderer != null)
+                bodyRenderer.color = new Color(0.4f, 0.4f, 0.4f, 0.5f);
             DungeonManager.Instance?.OnPlayerDied();
         }
 
@@ -377,16 +415,21 @@ namespace SimpleRPG
         {
             transform.position = spawnPos;
             transform.localScale = _initialScale;
+            StopAllCoroutines();
             isDashing = false;
             isAttacking = false;
             dashCooldownTimer = 0f;
             specialCooldownTimer = 0f;
             _attackTimer = 0f;
             _walkBobTimer = 0f;
+            _bodyColorFxId++;
+            _invulnLocks = 0;
+            if (stats != null)
+                stats.isInvulnerable = false;
 
             if (bodyRenderer != null)
             {
-                bodyRenderer.color = Color.white;
+                bodyRenderer.color = _baseBodyColor;
             }
 
             if (rb != null)
