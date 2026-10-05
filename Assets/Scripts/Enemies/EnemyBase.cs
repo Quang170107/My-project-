@@ -54,6 +54,15 @@ namespace SimpleRPG
             {
                 playerTransform = PlayerController.Instance.transform;
             }
+            PositionHealthBar();
+        }
+
+        private void PositionHealthBar()
+        {
+            if (_healthBarRoot == null || spriteRenderer == null || spriteRenderer.sprite == null)
+                return;
+            float top = spriteRenderer.sprite.bounds.max.y + 0.16f;
+            _healthBarRoot.localPosition = new Vector3(0f, top, 0f);
         }
 
         private void CreateMiniHealthBar()

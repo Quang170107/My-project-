@@ -39,6 +39,9 @@ namespace SimpleRPG
             rb.velocity = Vector2.Lerp(rb.velocity, dir * moveSpeed, 6f * Time.deltaTime);
 #endif
 
+            if (Mathf.Abs(dir.x) > 0.05f)
+                spriteRenderer.flipX = dir.x < 0f;
+
             if (_attackCycleTimer >= 3.0f && !isAttacking)
             {
                 _attackCycleTimer = 0f;

@@ -28,13 +28,11 @@ namespace SimpleRPG
                 case "sword":
                     return CreateSwordSprite();
                 case "chaser":
-                    return CreateChaserSprite();
                 case "ranger":
-                    return CreateRangerSprite();
                 case "brute":
-                    return CreateBruteSprite();
                 case "boss":
-                    return CreateBossSprite();
+                    return EnemySpriteBytes.Create(key, 48f, new Vector2(0.5f, 0.18f))
+                           ?? GenerateFallbackEnemy(key);
                 case "projectile_player":
                     return CreateCircle(32, new Color(0.2f, 0.9f, 1f), Color.white, 2);
                 case "projectile_enemy":
@@ -308,26 +306,41 @@ namespace SimpleRPG
 
         public static Sprite CreateChaserSprite()
         {
-            // Bouncy Slime / Hexagon - Lime Green
-            return CreateHexagon(48, new Color(0.25f, 0.95f, 0.35f), new Color(0.9f, 1f, 0.5f), 3);
+            return EnemySpriteBytes.Create("chaser", 48f, new Vector2(0.5f, 0.18f))
+                   ?? GenerateFallbackEnemy("chaser");
         }
 
         public static Sprite CreateRangerSprite()
         {
-            // Spiky Diamond / Stalker - Crimson Red
-            return CreateDiamond(48, new Color(0.95f, 0.25f, 0.35f), new Color(1f, 0.7f, 0.7f), 3);
+            return EnemySpriteBytes.Create("ranger", 48f, new Vector2(0.5f, 0.18f))
+                   ?? GenerateFallbackEnemy("ranger");
         }
 
         public static Sprite CreateBruteSprite()
         {
-            // Heavy Armored Octagon - Deep Royal Purple
-            return CreateOctagon(64, new Color(0.55f, 0.2f, 0.85f), new Color(0.85f, 0.6f, 1f), 4);
+            return EnemySpriteBytes.Create("brute", 48f, new Vector2(0.5f, 0.18f))
+                   ?? GenerateFallbackEnemy("brute");
         }
 
         public static Sprite CreateBossSprite()
         {
-            // Giant Dread Lord - Dark Crimson & Gold
-            return CreateOctagon(88, new Color(0.85f, 0.1f, 0.2f), new Color(1f, 0.85f, 0.3f), 5);
+            return EnemySpriteBytes.Create("boss", 48f, new Vector2(0.5f, 0.18f))
+                   ?? GenerateFallbackEnemy("boss");
+        }
+
+        private static Sprite GenerateFallbackEnemy(string key)
+        {
+            switch (key)
+            {
+                case "ranger":
+                    return CreateCircle(48, new Color(0.90f, 0.22f, 0.28f), new Color(0.35f, 0.08f, 0.12f), 3);
+                case "brute":
+                    return CreateCircle(64, new Color(0.45f, 0.28f, 0.82f), new Color(0.18f, 0.10f, 0.32f), 4);
+                case "boss":
+                    return CreateCircle(88, new Color(0.72f, 0.12f, 0.18f), new Color(0.90f, 0.75f, 0.25f), 5);
+                default:
+                    return CreateCircle(48, new Color(0.35f, 0.88f, 0.32f), new Color(0.10f, 0.28f, 0.12f), 3);
+            }
         }
 
         public static Sprite CreateCoinSprite()

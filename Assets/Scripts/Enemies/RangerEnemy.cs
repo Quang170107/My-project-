@@ -12,7 +12,7 @@ namespace SimpleRPG
         protected override void Awake()
         {
             base.Awake();
-            enemyName = "Crimson Ranger";
+            enemyName = "Crimson Spitter";
             maxHealth = 28f;
             currentHealth = maxHealth;
             moveSpeed = 3.2f;
@@ -54,6 +54,9 @@ namespace SimpleRPG
 #else
             rb.velocity = Vector2.Lerp(rb.velocity, moveDir * moveSpeed, 10f * Time.deltaTime);
 #endif
+
+            if (Mathf.Abs(dirToPlayer.x) > 0.05f)
+                spriteRenderer.flipX = dirToPlayer.x < 0f;
 
             // Aim and shoot
             if (_shootTimer >= ShootInterval)

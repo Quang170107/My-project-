@@ -299,7 +299,7 @@ namespace SimpleRPG
 
         private void SpawnRanger(Vector3 pos)
         {
-            var go = new GameObject("Crimson_Ranger");
+            var go = new GameObject("Crimson_Spitter");
             go.transform.SetParent(enemyContainer, false);
             go.transform.position = pos;
             var enemy = go.AddComponent<RangerEnemy>();
@@ -309,7 +309,7 @@ namespace SimpleRPG
 
         private void SpawnBrute(Vector3 pos)
         {
-            var go = new GameObject("Iron_Brute");
+            var go = new GameObject("Armored_Slime");
             go.transform.SetParent(enemyContainer, false);
             go.transform.position = pos;
             var enemy = go.AddComponent<BruteEnemy>();

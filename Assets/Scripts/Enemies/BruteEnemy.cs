@@ -11,7 +11,7 @@ namespace SimpleRPG
         protected override void Awake()
         {
             base.Awake();
-            enemyName = "Iron Brute";
+            enemyName = "Armored Slime";
             maxHealth = 85f;
             currentHealth = maxHealth;
             moveSpeed = 2.1f;
@@ -44,6 +44,8 @@ namespace SimpleRPG
 #else
             rb.velocity = Vector2.Lerp(rb.velocity, dir * moveSpeed, 8f * Time.deltaTime);
 #endif
+            if (Mathf.Abs(dir.x) > 0.05f)
+                spriteRenderer.flipX = dir.x < 0f;
         }
 
         private IEnumerator SlamRoutine()

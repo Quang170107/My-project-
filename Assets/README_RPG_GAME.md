@@ -41,10 +41,10 @@ This places the Player, DungeonManager, UI, and Managers into the hierarchy for 
 - Stepping onto the glowing portal teleports you deeper into the dungeon!
 
 ### 2. Monsters & Archetypes
-- 🟢 **Slime Chaser** (Green Hexagon): Bouncy, fast, lunges when in striking distance.
-- 🔴 **Crimson Ranger** (Red Diamond): Kites away, keeps distance, and fires aimed energy darts.
-- 🟣 **Iron Brute** (Purple Octagon): High health, slow march, telegraphs a massive AOE ground stomp!
-- 👑 **The Void Sovereign** (Boss on Floor 5, 10...): Giant boss that unleashes 10-way bullet spirals, charging rushes, and leaves behind massive loot chests!
+- 🟢 **Slime Chaser** (lime slime): Bouncy, fast, lunges when in striking distance.
+- 🔴 **Crimson Spitter** (horned red slime): Kites away, keeps distance, and fires aimed energy darts.
+- 🟣 **Armored Slime** (purple slime with rock plates): High health, slow march, telegraphs a massive AOE ground stomp!
+- 👑 **The Void Sovereign** (crowned boss slime on Floor 5, 10...): Giant slime that unleashes 10-way bullet spirals, charging rushes, and leaves behind massive loot chests!
 
 ### 3. Loot & Upgrades
 - 🔷 **XP Gems**: Magnetically attracted to the hero; fill your level gauge.
