@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using System.Runtime.ConstrainedExecution;
+
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem.UI;
 #endif
@@ -119,28 +121,23 @@ namespace SimpleRPG
 
         private void BuildTopHUD()
         {
-            // HUD Container Top-Left
             var hudTopLeft = CreateUIObject("TopLeftHUD", transform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(0, 1), new Vector2(20, -20), new Vector2(360, 140));
+            Color lostColor = new Color(0.35f, 0.35f, 0.35f, 1f); // xám
 
             // HP Bar Background
-            var hpBg = CreateImage("HP_BG", hudTopLeft.transform, new Color(0.12f, 0.14f, 0.18f, 0.9f), new Vector2(0, 1), new Vector2(0, 1), new Vector2(0, 1), new Vector2(0, 0), new Vector2(320, 28));
+            var hpBg = CreateImage("HP_BG", hudTopLeft.transform, lostColor, new Vector2(0, 1), new Vector2(0, 1), new Vector2(0, 1), new Vector2(0, 0), new Vector2(320, 28));
             var hpFillGo = CreateImage("HP_Fill", hpBg.transform, new Color(0.92f, 0.22f, 0.25f, 1f), new Vector2(0, 0), new Vector2(0, 1), new Vector2(0, 0.5f), new Vector2(2, 0), new Vector2(316, 24));
             _hpFill = hpFillGo.GetComponent<Image>();
-            _hpFill.type = Image.Type.Filled;
-            _hpFill.fillMethod = Image.FillMethod.Horizontal;
-            _hpFill.fillAmount = 1f;
 
             var hpTextGo = CreateText("HP_Text", hpBg.transform, "HP: 100 / 100", 18, Color.white, TextAnchor.MiddleCenter);
             _hpText = hpTextGo.GetComponent<Text>();
             hpTextGo.GetComponent<RectTransform>().sizeDelta = new Vector2(320, 28);
 
             // XP Bar Background
-            var xpBg = CreateImage("XP_BG", hudTopLeft.transform, new Color(0.12f, 0.14f, 0.18f, 0.9f), new Vector2(0, 1), new Vector2(0, 1), new Vector2(0, 1), new Vector2(0, -36), new Vector2(320, 20));
+            var xpBg = CreateImage("XP_BG", hudTopLeft.transform, lostColor, new Vector2(0, 1), new Vector2(0, 1), new Vector2(0, 1), new Vector2(0, -36), new Vector2(320, 20));
             var xpFillGo = CreateImage("XP_Fill", xpBg.transform, new Color(0.15f, 0.85f, 1f, 1f), new Vector2(0, 0), new Vector2(0, 1), new Vector2(0, 0.5f), new Vector2(2, 0), new Vector2(316, 16));
             _xpFill = xpFillGo.GetComponent<Image>();
-            _xpFill.type = Image.Type.Filled;
-            _xpFill.fillMethod = Image.FillMethod.Horizontal;
-            _xpFill.fillAmount = 0f;
+            SetBar(_xpFill, 0f, 1f);
 
             var xpTextGo = CreateText("XP_Text", xpBg.transform, "LVL 1 - XP 0 / 50", 14, Color.white, TextAnchor.MiddleCenter);
             _xpText = xpTextGo.GetComponent<Text>();
@@ -173,6 +170,12 @@ namespace SimpleRPG
             enemyRect.anchoredPosition = new Vector2(0, -42);
             enemyRect.sizeDelta = new Vector2(400, 30);
             _enemyText = enemyGo.GetComponent<Text>();
+        }
+        private void SetBar(Image fill, float current, float max)
+        {
+            if (fill == null) return;
+            float ratio = max > 0f ? Mathf.Clamp01(current / max) : 0f;
+            fill.rectTransform.localScale = new Vector3(ratio, 1f, 1f);
         }
 
         private void BuildSkillBarHUD()
@@ -367,13 +370,13 @@ namespace SimpleRPG
 
         public void UpdateHealth(float current, float max)
         {
-            if (_hpFill != null) _hpFill.fillAmount = Mathf.Clamp01(current / max);
+            if (_hpFill != null) SetBar(_hpFill, current , max);
             if (_hpText != null) _hpText.text = $"HP: {Mathf.CeilToInt(current)} / {Mathf.CeilToInt(max)}";
         }
 
         public void UpdateXP(int current, int toNext, int level)
         {
-            if (_xpFill != null) _xpFill.fillAmount = Mathf.Clamp01((float)current / toNext);
+            if (_xpFill != null) SetBar(_xpFill, current, toNext);
             if (_xpText != null) _xpText.text = $"LVL {level} - XP {current} / {toNext}";
         }
 
