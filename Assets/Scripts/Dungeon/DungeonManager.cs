@@ -114,13 +114,24 @@ namespace SimpleRPG
             // 4. Spawn Chests
             SpawnChests();
 
-            // 5. Spawn Enemies for Floor
-            SpawnFloorEnemies();
+            // 5. Spawn Enemies for Floor (hoặc Cửa hàng Thương nhân)
+            if (ShopManager.IsShopFloor(currentFloor))
+            {
+                if (exitPortal != null) exitPortal.SetOpen(true);
+                ShopManager.Instance?.OpenShop(currentFloor);
+                GameUI.Instance?.UpdateEnemiesRemaining(0);
+            }
+            else
+            {
+                ShopManager.Instance?.CloseShop();
+                SpawnFloorEnemies();
+            }
         }
 
         private void ClearPreviousFloor()
         {
             _activeEnemies.Clear();
+            ShopManager.Instance?.CloseShop();
 
             // Destroy old room tiles, enemies, and loot
             foreach (Transform child in roomContainer) Destroy(child.gameObject);
@@ -402,6 +413,7 @@ namespace SimpleRPG
             Time.timeScale = 1f;
 
             GameUI.Instance?.HideGameOverModal();
+            ShopManager.Instance?.CloseShop();
 
             if (PlayerController.Instance == null)
             {

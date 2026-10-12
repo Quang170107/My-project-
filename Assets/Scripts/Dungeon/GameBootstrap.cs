@@ -21,6 +21,7 @@ namespace SimpleRPG
             EnsureManager<LootManager>("LootManager");
             EnsureManager<SettingsManager>("SettingsManager");
             EnsureManager<GameUI>("GameUI");
+            EnsureManager<ShopManager>("ShopManager");
 
             SpawnPlayer();
 
