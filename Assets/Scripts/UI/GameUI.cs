@@ -427,7 +427,7 @@ namespace SimpleRPG
             }
         }
 
-        public void ShowLevelUpModal(UpgradeType[] options)
+        public void ShowLevelUpModal(UpgradeType[] options, System.Action onChosen = null)
         {
             Time.timeScale = 0f; // Pause gameplay
             _upgradeModalRoot.SetActive(true);
@@ -456,6 +456,7 @@ namespace SimpleRPG
                         Time.timeScale = 1f;
                         _upgradeModalRoot.SetActive(false);
                         AudioManager.Instance?.PlaySound("potion");
+                        onChosen?.Invoke(); // mở tiếp lượt nâng cấp đang chờ (nếu có)
                     });
                 }
                 else
@@ -510,12 +511,16 @@ namespace SimpleRPG
             }
         }
 
-        public void ShowGameOverModal(int floor, int level, int gold, int enemiesSlain)
+        public void ShowGameOverModal(int floor, int level, int gold, int enemiesSlain, int bestFloor = 0, bool newRecord = false)
         {
             _gameOverRoot.SetActive(true);
             if (_gameOverStatsText != null)
             {
                 _gameOverStatsText.text = $"Floor Reached: {floor}\nFinal Level: {level}\nEnemies Slain: {enemiesSlain}\nGold Accumulated: {gold}";
+                if (bestFloor > 0)
+                {
+                    _gameOverStatsText.text += newRecord ? $"\nBest Floor: {bestFloor}  NEW RECORD!" : $"\nBest Floor: {bestFloor}";
+                }
             }
         }
 

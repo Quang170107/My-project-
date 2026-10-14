@@ -25,6 +25,16 @@ namespace SimpleRPG
         public Transform lootContainer;
 
         private readonly List<EnemyBase> _activeEnemies = new List<EnemyBase>();
+        private readonly List<Vector2> _pillarPositions = new List<Vector2>();
+
+        // Hàng đợi nâng cấp: lên nhiều cấp cùng lúc thì chọn lần lượt, không mất lượt nào
+        private int _pendingLevelUps = 0;
+        private bool _upgradeModalOpen = false;
+
+        private const string BestFloorKey = "SimpleRPG_BestFloor";
+        private const int MaxChasers = 10;
+        private const int MaxRangers = 8;
+        private const int MaxBrutes = 5;
 
         private void Awake()
         {
@@ -69,6 +79,8 @@ namespace SimpleRPG
         {
             currentFloor = 1;
             totalEnemiesSlain = 0;
+            _pendingLevelUps = 0;
+            _upgradeModalOpen = false;
 
             // Connect player events safely
             if (PlayerController.Instance != null && !_eventsConnected)
@@ -175,16 +187,10 @@ namespace SimpleRPG
                 CreateWallTile(new Vector3(halfW + 1, y, 0), wallSprite);
             }
 
-            // Tactical cover pillars
-            Vector2[] pillarPositions = new Vector2[]
-            {
-                new Vector2(-halfW + 4, halfH - 3),
-                new Vector2(halfW - 4, halfH - 3),
-                new Vector2(-halfW + 4, -halfH + 4),
-                new Vector2(halfW - 4, -halfH + 4),
-            };
+            // Tactical cover pillars - bố trí ngẫu nhiên mỗi tầng
+            GeneratePillarPositions();
 
-            foreach (var pos in pillarPositions)
+            foreach (var pos in _pillarPositions)
             {
                 var pillar = new GameObject("Pillar");
                 pillar.transform.SetParent(roomContainer, false);
@@ -197,6 +203,43 @@ namespace SimpleRPG
 
                 var col = pillar.AddComponent<CircleCollider2D>();
                 col.radius = 0.5f;
+            }
+        }
+
+        private void GeneratePillarPositions()
+        {
+            _pillarPositions.Clear();
+
+            int halfW = roomWidth / 2;
+            int halfH = roomHeight / 2;
+            int target = UnityEngine.Random.Range(4, 8);
+
+            Vector2 playerSpawn = new Vector2(0, -roomHeight / 2f + 2.5f);
+            Vector2 portal = new Vector2(0, roomHeight / 2f - 1.8f);
+            Vector2 chestL = new Vector2(-(roomWidth / 2f - 2.5f), roomHeight / 2f - 2.5f);
+            Vector2 chestR = new Vector2(roomWidth / 2f - 2.5f, roomHeight / 2f - 2.5f);
+
+            int tries = 0;
+            while (_pillarPositions.Count < target && tries < 200)
+            {
+                tries++;
+                Vector2 p = new Vector2(
+                    Mathf.Round(UnityEngine.Random.Range(-halfW + 3f, halfW - 2f)),
+                    Mathf.Round(UnityEngine.Random.Range(-halfH + 3f, halfH - 2f)));
+
+                // Giữ chỗ trống quanh điểm xuất hiện, cổng và rương
+                if (Vector2.Distance(p, playerSpawn) < 3.5f) continue;
+                if (Vector2.Distance(p, portal) < 2.5f) continue;
+                if (Vector2.Distance(p, chestL) < 2f || Vector2.Distance(p, chestR) < 2f) continue;
+
+                bool tooClose = false;
+                foreach (var q in _pillarPositions)
+                {
+                    if (Vector2.Distance(p, q) < 3f) { tooClose = true; break; }
+                }
+                if (tooClose) continue;
+
+                _pillarPositions.Add(p);
             }
         }
 
@@ -259,9 +302,9 @@ namespace SimpleRPG
             else
             {
                 // Standard scaling waves
-                int chaserCount = 3 + currentFloor;
-                int rangerCount = Mathf.Max(0, (currentFloor - 1) * 2);
-                int bruteCount = Mathf.Max(0, (currentFloor - 2));
+                int chaserCount = Mathf.Min(3 + currentFloor, MaxChasers);
+                int rangerCount = Mathf.Min(Mathf.Max(0, (currentFloor - 1) * 2), MaxRangers);
+                int bruteCount = Mathf.Min(Mathf.Max(0, currentFloor - 2), MaxBrutes);
 
                 for (int i = 0; i < chaserCount; i++)
                 {
@@ -293,9 +336,18 @@ namespace SimpleRPG
                 pos = new Vector3(UnityEngine.Random.Range(-halfW, halfW), UnityEngine.Random.Range(-halfH + 3f, halfH), 0);
                 tries++;
             }
-            while (Vector3.Distance(pos, new Vector3(0, -roomHeight / 2f + 2.5f, 0)) < 3.5f && tries < 20);
+            while ((Vector3.Distance(pos, new Vector3(0, -roomHeight / 2f + 2.5f, 0)) < 3.5f || IsNearPillar(pos)) && tries < 40);
 
             return pos;
+        }
+
+        private bool IsNearPillar(Vector3 pos)
+        {
+            foreach (var p in _pillarPositions)
+            {
+                if (Vector2.Distance(pos, p) < 1.5f) return true;
+            }
+            return false;
         }
 
         private void SpawnChaser(Vector3 pos)
@@ -386,6 +438,24 @@ namespace SimpleRPG
 
         private void HandleLevelUp(int newLevel)
         {
+            _pendingLevelUps++;
+            if (!_upgradeModalOpen)
+            {
+                ShowNextUpgrade();
+            }
+        }
+
+        private void ShowNextUpgrade()
+        {
+            if (_pendingLevelUps <= 0 || GameUI.Instance == null)
+            {
+                _upgradeModalOpen = false;
+                return;
+            }
+
+            _pendingLevelUps--;
+            _upgradeModalOpen = true;
+
             // Pick 3 random distinct upgrades
             var allUpgrades = (UpgradeType[])Enum.GetValues(typeof(UpgradeType));
             var shuffled = new List<UpgradeType>(allUpgrades);
@@ -398,14 +468,23 @@ namespace SimpleRPG
             }
 
             var choices = new UpgradeType[] { shuffled[0], shuffled[1], shuffled[2] };
-            GameUI.Instance?.ShowLevelUpModal(choices);
+            GameUI.Instance.ShowLevelUpModal(choices, ShowNextUpgrade);
         }
 
         public void OnPlayerDied()
         {
             int lvl = PlayerController.Instance != null ? PlayerController.Instance.stats.level : 1;
             int gold = PlayerController.Instance != null ? PlayerController.Instance.stats.gold : 0;
-            GameUI.Instance?.ShowGameOverModal(currentFloor, lvl, gold, totalEnemiesSlain);
+            int best = PlayerPrefs.GetInt(BestFloorKey, 0);
+            bool newRecord = currentFloor > best;
+            if (newRecord)
+            {
+                best = currentFloor;
+                PlayerPrefs.SetInt(BestFloorKey, best);
+                PlayerPrefs.Save();
+            }
+
+            GameUI.Instance?.ShowGameOverModal(currentFloor, lvl, gold, totalEnemiesSlain, best, newRecord);
         }
 
         public void RestartGame()

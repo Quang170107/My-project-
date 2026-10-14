@@ -213,6 +213,7 @@ namespace SimpleRPG
             // Hit detection in front arc
             Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position + (Vector3)(_aimDirection * 0.8f), stats.attackRange);
             bool hitAny = false;
+            float healTotal = 0f;
 
             foreach (var hit in hits)
             {
@@ -224,13 +225,17 @@ namespace SimpleRPG
                     Vector2 hitDir = ((Vector2)enemy.transform.position - (Vector2)transform.position).normalized;
                     enemy.TakeDamage(stats.baseDamage, hitDir, 6f);
 
-                    // Lifesteal
+                    // Lifesteal (gộp lại, hồi 1 lần mỗi nhát chém)
                     if (stats.lifesteal > 0f)
                     {
-                        float healAmount = stats.baseDamage * stats.lifesteal;
-                        stats.Heal(healAmount);
+                        healTotal += stats.baseDamage * Mathf.Min(stats.lifesteal, CombatStats.MaxLifesteal);
                     }
                 }
+            }
+
+            if (healTotal > 0f)
+            {
+                stats.Heal(healTotal);
             }
 
             if (hitAny)

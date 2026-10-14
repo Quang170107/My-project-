@@ -7,6 +7,7 @@ namespace SimpleRPG
     {
         private float _attackCycleTimer = 0f;
         private int _attackPattern = 0;
+        private bool _enraged = false;
 
         protected override void Awake()
         {
@@ -30,6 +31,16 @@ namespace SimpleRPG
         {
             _attackCycleTimer += Time.deltaTime;
 
+            // Phase 2: dưới 50% máu boss nổi giận - nhanh hơn, tấn công dày hơn
+            if (!_enraged && currentHealth <= maxHealth * 0.5f)
+            {
+                _enraged = true;
+                moveSpeed *= 1.3f;
+                CameraFollow.Instance?.Shake(0.4f, 0.4f);
+                AudioManager.Instance?.PlaySound("special");
+                GameUI.Instance?.ShowBanner("THE VOID SOVEREIGN ENRAGES!", 2f);
+            }
+
             Vector2 dir = ((Vector2)playerTransform.position - (Vector2)transform.position).normalized;
 
             // Slowly pursue
@@ -42,7 +53,7 @@ namespace SimpleRPG
             if (Mathf.Abs(dir.x) > 0.05f)
                 spriteRenderer.flipX = dir.x < 0f;
 
-            if (_attackCycleTimer >= 3.0f && !isAttacking)
+            if (_attackCycleTimer >= (_enraged ? 2.0f : 3.0f) && !isAttacking)
             {
                 _attackCycleTimer = 0f;
                 _attackPattern = (_attackPattern + 1) % 2;
@@ -76,7 +87,7 @@ namespace SimpleRPG
             spriteRenderer.color = orig;
 
             // Fire 8-way projectiles
-            int count = 10;
+            int count = _enraged ? 16 : 10;
             float angleStep = 360f / count;
             for (int i = 0; i < count; i++)
             {

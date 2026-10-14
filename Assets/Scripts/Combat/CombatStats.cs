@@ -16,10 +16,12 @@ namespace SimpleRPG
 
     public class CombatStats : MonoBehaviour
     {
+        public const float MaxLifesteal = 0.3f; // trần hút máu 30%
+
         [Header("Health & Defense")]
         public float maxHealth = 100f;
         public float currentHealth;
-        public float armor = 0f; // flat reduction
+        public float armor = 0f; // giảm sát thương theo % (diminishing returns), xem TakeDamage
         public bool isInvulnerable = false;
 
         [Header("Offense")]
@@ -76,7 +78,8 @@ namespace SimpleRPG
         {
             if (isInvulnerable || currentHealth <= 0) return;
 
-            float effectiveDamage = Mathf.Max(1f, incomingDamage - armor);
+            // Armor 10 => giảm 50%, armor 20 => giảm ~67%. Không bao giờ miễn nhiễm hoàn toàn.
+            float effectiveDamage = Mathf.Max(1f, incomingDamage * 100f / (100f + armor * 10f));
             currentHealth = Mathf.Max(0, currentHealth - effectiveDamage);
 
             // Pop floating damage text
@@ -152,7 +155,7 @@ namespace SimpleRPG
                     dashCooldown = Mathf.Max(0.4f, dashCooldown - 0.2f);
                     break;
                 case UpgradeType.Lifesteal:
-                    lifesteal += 0.08f;
+                    lifesteal = Mathf.Min(MaxLifesteal, lifesteal + 0.08f);
                     break;
                 case UpgradeType.Armor:
                     armor += 2f;

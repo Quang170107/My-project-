@@ -63,7 +63,8 @@ namespace SimpleRPG
         public static bool IsShopFloor(int floor)
         {
             // Cửa hàng mở sau mỗi 3 tầng chiến đấu (tầng 3, 6, 9 …)
-            return floor > 1 && floor % 3 == 0;
+            // Tầng boss (5, 10, 15...) luôn là tầng chiến đấu, không thành cửa hàng
+            return floor > 1 && floor % 3 == 0 && floor % 5 != 0;
         }
 
         /// <summary>Mở phòng cửa hàng: sinh NPC, tạo danh sách hàng, mở UI.</summary>
