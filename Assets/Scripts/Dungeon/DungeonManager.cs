@@ -57,6 +57,7 @@ namespace SimpleRPG
         };
 
         private Theme _theme = Themes[0];
+        private int _themeIndex = 0;
         private Layout _layout = Layout.Scattered;
         private Layout _lastLayout = Layout.Scattered;
         private bool _hasLastLayout = false;
@@ -151,6 +152,8 @@ namespace SimpleRPG
 
             // 1. Build Room Tiles and Walls
             GenerateRoomGeometry();
+            VisualFX.ScatterDecals(roomContainer, _themeIndex, roomWidth, roomHeight, 12);
+            VisualFX.CreateAmbient(roomContainer, _themeIndex, roomWidth, roomHeight);
 
             // 2. Position Player
             if (PlayerController.Instance != null)
@@ -221,7 +224,8 @@ namespace SimpleRPG
             bool boss = currentFloor % 5 == 0;
             bool shop = ShopManager.IsShopFloor(currentFloor);
 
-            _theme = Themes[((currentFloor - 1) / 3) % Themes.Length];
+            _themeIndex = ((currentFloor - 1) / 3) % Themes.Length;
+            _theme = Themes[_themeIndex];
 
             // Biến thể tầng (chỉ tầng chiến đấu thường, từ tầng 2)
             _mod = FloorMod.None;
@@ -247,6 +251,7 @@ namespace SimpleRPG
 
             var cam = Camera.main;
             if (cam != null) cam.backgroundColor = _theme.background;
+            ScreenVignette.SetTint(_theme.background);
         }
 
         private void GenerateRoomGeometry()
@@ -634,7 +639,7 @@ namespace SimpleRPG
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = tile;
             sr.color = new Color(1f, 0.32f, 0.08f, 0.9f);
-            sr.sortingOrder = 1; // trên sàn(0), dưới người chơi và quái
+            sr.sortingOrder = 2; // trên sàn(0) và vết bẩn(1), dưới quái(6+) và người chơi(10)
 
             var col = go.AddComponent<BoxCollider2D>();
             col.size = Vector2.one;
@@ -642,6 +647,9 @@ namespace SimpleRPG
 
             var hazard = go.AddComponent<HazardZone>();
             hazard.damage = 5f + currentFloor * 0.8f;
+
+            // Quầng sáng cam quanh vũng dung nham
+            VisualFX.AddGlow(go.transform, new Color(1f, 0.4f, 0.05f, 0.22f), 1.7f, 1);
         }
 
         private void SpawnChaser(Vector3 pos)

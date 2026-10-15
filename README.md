@@ -115,3 +115,13 @@ Every time you level up, the game pauses and presents **3 random upgrade cards**
 - **Lava pools** in *Molten Depths* (floors 7-9, 16-18...): tick damage while you stand in them (scales with floor). Dashing through is safe thanks to i-frames. They avoid the spawn, portal, chests, pillars and the boss.
 - **Fix:** unopened chests were never cleaned up and stacked on top of each other from floor to floor.
 
+## ✨ Graphics update (branch `claude/improvements`)
+
+All effects are generated in code (no art assets needed):
+- **Ambient particles per biome:** drifting dust (Crypt), fireflies (Ruins), rising embers (Molten Depths), falling snow (Frozen Halls).
+- **Screen vignette** tinted by the biome, with a red pulse when the player is hurt.
+- **Soft ground shadows** under every enemy, and **hit / death spark bursts**; the player gets a hurt burst too.
+- **Floor decals** (grime, moss, scorch marks, frost) scattered around each room.
+- **Glow:** purple halo on the open exit portal, golden halo on chests, pulsing orange halo on lava pools.
+- Enemies now have an explicit sorting order, so lava and decals can never draw on top of them.
+

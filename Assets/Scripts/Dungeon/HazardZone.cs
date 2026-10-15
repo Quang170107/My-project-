@@ -13,10 +13,22 @@ namespace SimpleRPG
         public float tickInterval = 0.6f;
 
         private float _nextTick = 0f;
+        private SpriteRenderer _sr;
+        private float _phase;
 
         private void Awake()
         {
             GetComponent<BoxCollider2D>().isTrigger = true;
+            _sr = GetComponent<SpriteRenderer>();
+            _phase = Random.Range(0f, 6.28f);
+        }
+
+        // Nhịp sáng của dung nham
+        private void Update()
+        {
+            if (_sr == null) return;
+            float k = 0.5f + 0.5f * Mathf.Sin(Time.time * 3f + _phase);
+            _sr.color = Color.Lerp(new Color(0.85f, 0.2f, 0.05f, 0.85f), new Color(1f, 0.55f, 0.1f, 0.95f), k);
         }
 
         private void OnTriggerStay2D(Collider2D other)

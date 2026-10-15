@@ -34,9 +34,16 @@ namespace SimpleRPG
             }
         }
 
+        private GameObject _glow;
+
         public void SetOpen(bool open)
         {
             isOpen = open;
+
+            // Vầng sáng tím quanh cổng khi đã mở
+            if (_glow == null) _glow = VisualFX.AddGlow(transform, new Color(0.55f, 0.45f, 1f, 0.35f), 3.2f, 2);
+            _glow.SetActive(open);
+
             if (isOpen)
             {
                 _sr.color = Color.white;

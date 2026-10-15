@@ -366,6 +366,8 @@ namespace SimpleRPG
             stats.TakeDamage(damage, knockbackDir, knockbackForce);
             AudioManager.Instance?.PlaySound("hurt");
             CameraFollow.Instance?.Shake(0.18f, 0.25f);
+            ScreenVignette.Pulse(new Color(0.85f, 0.05f, 0.05f));
+            VisualFX.Burst(transform.position, new Color(0.9f, 0.2f, 0.2f), 8, 3.5f, 0.16f);
             if (stats.currentHealth <= 0) return;
             StartCoroutine(HurtIFramesRoutine());
             StartCoroutine(DamageFlashRoutine());

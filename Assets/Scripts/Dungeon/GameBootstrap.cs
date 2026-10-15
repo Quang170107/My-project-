@@ -45,6 +45,7 @@ namespace SimpleRPG
             cam.orthographicSize = 7.5f;
             cam.backgroundColor = new Color(0.08f, 0.09f, 0.12f);
             cam.clearFlags = CameraClearFlags.SolidColor;
+            ScreenVignette.Attach(cam);
 
             var follow = cam.GetComponent<CameraFollow>();
             if (follow == null)

@@ -63,6 +63,9 @@ namespace SimpleRPG
             var loot = go.AddComponent<LootItem>();
             loot.lootType = LootType.Chest;
             loot.SetupVisual();
+
+            // Vầng sáng vàng để rương nổi bật
+            VisualFX.AddGlow(go.transform, new Color(1f, 0.82f, 0.3f, 0.28f), 2.4f, 1);
         }
     }
 }

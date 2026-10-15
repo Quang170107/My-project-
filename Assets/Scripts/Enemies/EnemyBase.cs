@@ -44,6 +44,9 @@ namespace SimpleRPG
                 spriteRenderer = gameObject.AddComponent<SpriteRenderer>();
             }
 
+            // Quái mặc định ở order 0 trùng với sàn; đặt cao hơn vết bẩn/dung nham nhưng thấp hơn tường
+            if (spriteRenderer.sortingOrder == 0) spriteRenderer.sortingOrder = 6;
+
             currentHealth = maxHealth;
             CreateMiniHealthBar();
         }
@@ -90,9 +93,27 @@ namespace SimpleRPG
             _healthBarRoot.gameObject.SetActive(false); // only show when damaged
         }
 
+        private GameObject _shadowGo;
+        private bool _shadowAdded = false;
+
+        /// <summary>Màu tia lửa khi quái bị đánh trúng hoặc chết.</summary>
+        protected virtual Color HitFxColor { get { return new Color(0.9f, 0.3f, 0.25f); } }
+
+        private void AddShadow()
+        {
+            _shadowAdded = true;
+            if (spriteRenderer == null || spriteRenderer.sprite == null) return;
+
+            var b = spriteRenderer.sprite.bounds;
+            float width = Mathf.Max(0.6f, b.size.x * 0.85f);
+            _shadowGo = VisualFX.AddShadow(transform, width, b.min.y + 0.06f, Mathf.Max(0, spriteRenderer.sortingOrder - 1));
+        }
+
         protected virtual void Update()
         {
             if (!IsAlive) return;
+
+            if (!_shadowAdded) AddShadow();
 
             if (playerTransform == null && PlayerController.Instance != null)
             {
@@ -132,6 +153,7 @@ namespace SimpleRPG
 
             // Hit flash
             StartCoroutine(FlashRoutine());
+            VisualFX.Burst(transform.position, HitFxColor, 5, 3f, 0.13f);
 
             if (currentHealth <= 0)
             {
@@ -158,6 +180,8 @@ namespace SimpleRPG
             DungeonManager.Instance?.OnEnemyDefeated(this);
 
             // Death poof animation
+            VisualFX.Burst(transform.position, HitFxColor, 16, 5.5f, 0.22f);
+            if (_shadowGo != null) _shadowGo.SetActive(false);
             StartCoroutine(DeathRoutine());
         }
 
