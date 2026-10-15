@@ -144,6 +144,23 @@ namespace SimpleRPG
             var stats = PlayerController.Instance?.stats;
             if (stats == null) return;
 
+            // Không cho mua thứ vô ích: potion khi đầy máu, trang bị không mạnh hơn đồ đang mặc
+            if (slot.isPotionSlot && stats.currentHealth >= stats.maxHealth)
+            {
+                GameUI.Instance?.ShowBanner("HP is already full!", 1.5f);
+                return;
+            }
+
+            if (!slot.isPotionSlot && slot.item != null)
+            {
+                var current = EquipmentManager.Get()?.GetEquipped(slot.item.slot);
+                if (current != null && slot.item.Score <= current.Score)
+                {
+                    GameUI.Instance?.ShowBanner("Not an upgrade - you already wear better!", 2f);
+                    return;
+                }
+            }
+
             if (stats.gold < slot.price)
             {
                 GameUI.Instance?.ShowBanner("Not enough Gold!", 1.5f);

@@ -99,4 +99,5 @@ Every time you level up, the game pauses and presents **3 random upgrade cards**
 - **New:** Cover pillars are randomised every floor (4-7 pillars), keeping spawn, portal and chest areas clear. Enemies no longer spawn inside pillars.
 - **New:** Boss enrages below 50% HP (faster movement, shorter attack cycle, 16-way bullet ring).
 - **New:** Best floor is saved (PlayerPrefs) and shown on the Game Over screen, with a NEW RECORD marker.
-
+- **Fix:** The shop no longer lets you buy a potion at full HP or gear that is not an upgrade (previously the gold was spent and only partly refunded).
+- **Repo:** Added MIT license.
