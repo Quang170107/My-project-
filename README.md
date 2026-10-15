@@ -109,3 +109,9 @@ Every time you level up, the game pauses and presents **3 random upgrade cards**
 - **Floor modifiers** on normal floors: Swarm, Elite Hunt, Sniper Nest, and an enemy-free Treasure Vault with extra chests.
 - Checkerboard floor shading for a bit more depth.
 
+## ⚔️ Enemy & hazard update (branch `claude/improvements`)
+
+- **New enemy - Horned Charger** (from floor 4): telegraphs by turning red, locks its direction, dashes in a straight line, then is stunned for ~1s. Dodge with dash or a sidestep, then punish. More common on Elite Hunt floors, absent from Swarm and Sniper Nest floors.
+- **Lava pools** in *Molten Depths* (floors 7-9, 16-18...): tick damage while you stand in them (scales with floor). Dashing through is safe thanks to i-frames. They avoid the spawn, portal, chests, pillars and the boss.
+- **Fix:** unopened chests were never cleaned up and stacked on top of each other from floor to floor.
+

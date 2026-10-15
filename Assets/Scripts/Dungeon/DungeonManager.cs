@@ -36,6 +36,7 @@ namespace SimpleRPG
             public string name;
             public Color floor, wall, pillar, background;
             public float chaserMul, rangerMul, bruteMul;
+            public bool lava; // có vũng dung nham gây sát thương
         }
 
         // Đổi chủ đề mỗi 3 tầng: 1-3 Crypt, 4-6 Ruins, 7-9 Molten, 10-12 Frozen, rồi lặp lại
@@ -49,7 +50,7 @@ namespace SimpleRPG
                 background = new Color(0.05f, 0.10f, 0.06f), chaserMul = 1.4f, rangerMul = 0.7f, bruteMul = 0.8f },
             new Theme { name = "Molten Depths",
                 floor = new Color(1f, 0.65f, 0.55f), wall = new Color(0.9f, 0.5f, 0.4f), pillar = new Color(1f, 0.55f, 0.4f),
-                background = new Color(0.14f, 0.05f, 0.04f), chaserMul = 0.8f, rangerMul = 1.4f, bruteMul = 1f },
+                background = new Color(0.14f, 0.05f, 0.04f), chaserMul = 0.8f, rangerMul = 1.4f, bruteMul = 1f, lava = true },
             new Theme { name = "Frozen Halls",
                 floor = new Color(0.7f, 0.9f, 1f), wall = new Color(0.6f, 0.8f, 1f), pillar = new Color(0.75f, 0.9f, 1f),
                 background = new Color(0.05f, 0.09f, 0.15f), chaserMul = 0.8f, rangerMul = 0.9f, bruteMul = 1.5f },
@@ -69,6 +70,7 @@ namespace SimpleRPG
         private const int MaxChasers = 10;
         private const int MaxRangers = 8;
         private const int MaxBrutes = 5;
+        private const int MaxChargers = 5;
 
         private void Awake()
         {
@@ -161,6 +163,7 @@ namespace SimpleRPG
 
             // 4. Spawn Chests
             SpawnChests();
+            SpawnHazards();
 
             // 5. Spawn Enemies for Floor (hoặc Cửa hàng Thương nhân)
             if (ShopManager.IsShopFloor(currentFloor))
@@ -489,6 +492,7 @@ namespace SimpleRPG
                 int rangerCount = Mathf.Max(0, (currentFloor - 1) * 2);
                 int bruteCount = Mathf.Max(0, currentFloor - 2);
                 int chaserCap = MaxChasers, rangerCap = MaxRangers, bruteCap = MaxBrutes;
+                int chargerCount = currentFloor >= 4 ? Mathf.Min((currentFloor - 2) / 2, MaxChargers) : 0;
 
                 switch (_mod)
                 {
@@ -512,13 +516,17 @@ namespace SimpleRPG
                         break;
                 }
 
+                // Quái húc: không có ở Swarm/Sniper Nest, nhiều hơn ở Elite Hunt
+                if (_mod == FloorMod.Swarm || _mod == FloorMod.SniperNest) chargerCount = 0;
+                else if (_mod == FloorMod.EliteHunt && currentFloor >= 4) chargerCount = Mathf.Min(2 + currentFloor / 4, 6);
+
                 chaserCount = Mathf.Min(Mathf.RoundToInt(chaserCount * _theme.chaserMul), chaserCap);
                 rangerCount = Mathf.Min(Mathf.RoundToInt(rangerCount * _theme.rangerMul), rangerCap);
                 bruteCount = Mathf.Min(Mathf.RoundToInt(bruteCount * _theme.bruteMul), bruteCap);
 
                 // Trần tổng số quái để màn chơi luôn đọc được
                 const int maxTotal = 28;
-                int overflow = chaserCount + rangerCount + bruteCount - maxTotal;
+                int overflow = chaserCount + rangerCount + bruteCount + chargerCount - maxTotal;
                 if (overflow > 0) chaserCount = Mathf.Max(0, chaserCount - overflow);
 
                 for (int i = 0; i < chaserCount; i++)
@@ -532,6 +540,10 @@ namespace SimpleRPG
                 for (int i = 0; i < bruteCount; i++)
                 {
                     SpawnBrute(GetRandomSpawnPos());
+                }
+                for (int i = 0; i < chargerCount; i++)
+                {
+                    SpawnCharger(GetRandomSpawnPos());
                 }
             }
 
@@ -558,11 +570,78 @@ namespace SimpleRPG
 
         private bool IsNearPillar(Vector3 pos)
         {
+            return IsNearPillar(pos, 1.5f);
+        }
+
+        private bool IsNearPillar(Vector3 pos, float radius)
+        {
             foreach (var p in _pillarPositions)
             {
-                if (Vector2.Distance(pos, p) < 1.5f) return true;
+                if (Vector2.Distance(pos, p) < radius) return true;
             }
             return false;
+        }
+
+        /// <summary>Vũng dung nham ở chủ đề Molten Depths: tránh điểm xuất hiện, cổng, rương, cột và boss.</summary>
+        private void SpawnHazards()
+        {
+            if (!_theme.lava || ShopManager.IsShopFloor(currentFloor) || _mod == FloorMod.Treasure) return;
+
+            Sprite tile = SpriteFactory.GetSprite("floor_tile");
+            Vector2 playerSpawn = new Vector2(0, -roomHeight / 2f + 2.5f);
+            Vector2 portal = new Vector2(0, roomHeight / 2f - 1.8f);
+            Vector2 chestL = new Vector2(-(roomWidth / 2f - 2.5f), roomHeight / 2f - 2.5f);
+            Vector2 chestR = new Vector2(roomWidth / 2f - 2.5f, roomHeight / 2f - 2.5f);
+            Vector2 bossPos = new Vector2(0, 2f);
+
+            int count = Mathf.Min(2 + currentFloor / 6, 4);
+            float halfW = roomWidth / 2f - 3f;
+            float halfH = roomHeight / 2f - 2.5f;
+            var placed = new List<Vector2>();
+
+            for (int n = 0; n < count; n++)
+            {
+                for (int tries = 0; tries < 60; tries++)
+                {
+                    Vector2 pos = new Vector2(UnityEngine.Random.Range(-halfW, halfW), UnityEngine.Random.Range(-halfH, halfH));
+
+                    if (Vector2.Distance(pos, playerSpawn) < 4f || Vector2.Distance(pos, portal) < 3f) continue;
+                    if (Vector2.Distance(pos, chestL) < 2.5f || Vector2.Distance(pos, chestR) < 2.5f) continue;
+                    if (currentFloor % 5 == 0 && Vector2.Distance(pos, bossPos) < 3.5f) continue;
+                    if (IsNearPillar(pos, 2.3f)) continue;
+
+                    bool overlap = false;
+                    foreach (var q in placed)
+                    {
+                        if (Vector2.Distance(pos, q) < 4f) { overlap = true; break; }
+                    }
+                    if (overlap) continue;
+
+                    placed.Add(pos);
+                    CreateLava(pos, tile);
+                    break;
+                }
+            }
+        }
+
+        private void CreateLava(Vector2 pos, Sprite tile)
+        {
+            var go = new GameObject("Lava");
+            go.transform.SetParent(roomContainer, false);
+            go.transform.position = pos;
+            go.transform.localScale = new Vector3(UnityEngine.Random.Range(2f, 3.5f), UnityEngine.Random.Range(2f, 2.5f), 1f);
+
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = tile;
+            sr.color = new Color(1f, 0.32f, 0.08f, 0.9f);
+            sr.sortingOrder = 1; // trên sàn(0), dưới người chơi và quái
+
+            var col = go.AddComponent<BoxCollider2D>();
+            col.size = Vector2.one;
+            col.isTrigger = true;
+
+            var hazard = go.AddComponent<HazardZone>();
+            hazard.damage = 5f + currentFloor * 0.8f;
         }
 
         private void SpawnChaser(Vector3 pos)
@@ -581,6 +660,16 @@ namespace SimpleRPG
             go.transform.SetParent(enemyContainer, false);
             go.transform.position = pos;
             var enemy = go.AddComponent<RangerEnemy>();
+            ScaleEnemy(enemy);
+            _activeEnemies.Add(enemy);
+        }
+
+        private void SpawnCharger(Vector3 pos)
+        {
+            var go = new GameObject("Horned_Charger");
+            go.transform.SetParent(enemyContainer, false);
+            go.transform.position = pos;
+            var enemy = go.AddComponent<ChargerEnemy>();
             ScaleEnemy(enemy);
             _activeEnemies.Add(enemy);
         }
