@@ -27,6 +27,40 @@ namespace SimpleRPG
         private readonly List<EnemyBase> _activeEnemies = new List<EnemyBase>();
         private readonly List<Vector2> _pillarPositions = new List<Vector2>();
 
+        // ── Đa dạng màn chơi: chủ đề (theme), bố cục (layout), biến thể tầng (modifier) ──
+        private enum Layout { Scattered, Ring, Blocks, Bastion, Open }
+        private enum FloorMod { None, Swarm, EliteHunt, SniperNest, Treasure }
+
+        private struct Theme
+        {
+            public string name;
+            public Color floor, wall, pillar, background;
+            public float chaserMul, rangerMul, bruteMul;
+        }
+
+        // Đổi chủ đề mỗi 3 tầng: 1-3 Crypt, 4-6 Ruins, 7-9 Molten, 10-12 Frozen, rồi lặp lại
+        private static readonly Theme[] Themes =
+        {
+            new Theme { name = "Ancient Crypt",
+                floor = new Color(1f, 1f, 1f), wall = new Color(1f, 1f, 1f), pillar = new Color(1f, 1f, 1f),
+                background = new Color(0.08f, 0.09f, 0.12f), chaserMul = 1f, rangerMul = 1f, bruteMul = 1f },
+            new Theme { name = "Overgrown Ruins",
+                floor = new Color(0.7f, 1f, 0.7f), wall = new Color(0.6f, 0.9f, 0.6f), pillar = new Color(0.7f, 1f, 0.6f),
+                background = new Color(0.05f, 0.10f, 0.06f), chaserMul = 1.4f, rangerMul = 0.7f, bruteMul = 0.8f },
+            new Theme { name = "Molten Depths",
+                floor = new Color(1f, 0.65f, 0.55f), wall = new Color(0.9f, 0.5f, 0.4f), pillar = new Color(1f, 0.55f, 0.4f),
+                background = new Color(0.14f, 0.05f, 0.04f), chaserMul = 0.8f, rangerMul = 1.4f, bruteMul = 1f },
+            new Theme { name = "Frozen Halls",
+                floor = new Color(0.7f, 0.9f, 1f), wall = new Color(0.6f, 0.8f, 1f), pillar = new Color(0.75f, 0.9f, 1f),
+                background = new Color(0.05f, 0.09f, 0.15f), chaserMul = 0.8f, rangerMul = 0.9f, bruteMul = 1.5f },
+        };
+
+        private Theme _theme = Themes[0];
+        private Layout _layout = Layout.Scattered;
+        private Layout _lastLayout = Layout.Scattered;
+        private bool _hasLastLayout = false;
+        private FloorMod _mod = FloorMod.None;
+
         // Hàng đợi nâng cấp: lên nhiều cấp cùng lúc thì chọn lần lượt, không mất lượt nào
         private int _pendingLevelUps = 0;
         private bool _upgradeModalOpen = false;
@@ -108,8 +142,10 @@ namespace SimpleRPG
         {
             ClearPreviousFloor();
 
+            ChooseFloorStyle();
+
             GameUI.Instance?.UpdateFloor(currentFloor);
-            GameUI.Instance?.ShowBanner($"FLOOR {currentFloor}", 2.5f);
+            GameUI.Instance?.ShowBanner($"FLOOR {currentFloor} - {_theme.name}{ModLabel()}", 2.5f);
 
             // 1. Build Room Tiles and Walls
             GenerateRoomGeometry();
@@ -133,6 +169,14 @@ namespace SimpleRPG
                 ShopManager.Instance?.OpenShop(currentFloor);
                 GameUI.Instance?.UpdateEnemiesRemaining(0);
             }
+            else if (_mod == FloorMod.Treasure)
+            {
+                // Phòng kho báu: không có quái, cổng mở sẵn, nhiều rương
+                ShopManager.Instance?.CloseShop();
+                remainingEnemies = 0;
+                if (exitPortal != null) exitPortal.SetOpen(true);
+                GameUI.Instance?.UpdateEnemiesRemaining(0);
+            }
             else
             {
                 ShopManager.Instance?.CloseShop();
@@ -149,6 +193,57 @@ namespace SimpleRPG
             foreach (Transform child in roomContainer) Destroy(child.gameObject);
             foreach (Transform child in enemyContainer) Destroy(child.gameObject);
             foreach (Transform child in lootContainer) Destroy(child.gameObject);
+        }
+
+        private static Color Shade(Color c, float v)
+        {
+            return new Color(c.r * v, c.g * v, c.b * v, 1f);
+        }
+
+        private string ModLabel()
+        {
+            switch (_mod)
+            {
+                case FloorMod.Swarm: return " - SWARM!";
+                case FloorMod.EliteHunt: return " - ELITE HUNT!";
+                case FloorMod.SniperNest: return " - SNIPER NEST!";
+                case FloorMod.Treasure: return " - TREASURE VAULT";
+                default: return "";
+            }
+        }
+
+        /// <summary>Chọn chủ đề, biến thể và bố cục cho tầng hiện tại.</summary>
+        private void ChooseFloorStyle()
+        {
+            bool boss = currentFloor % 5 == 0;
+            bool shop = ShopManager.IsShopFloor(currentFloor);
+
+            _theme = Themes[((currentFloor - 1) / 3) % Themes.Length];
+
+            // Biến thể tầng (chỉ tầng chiến đấu thường, từ tầng 2)
+            _mod = FloorMod.None;
+            if (!boss && !shop && currentFloor >= 2)
+            {
+                float r = UnityEngine.Random.value;
+                if (r < 0.12f) _mod = FloorMod.Treasure;
+                else if (r < 0.32f) _mod = FloorMod.Swarm;
+                else if (currentFloor >= 3 && r < 0.50f) _mod = FloorMod.EliteHunt;
+                else if (currentFloor >= 3 && r < 0.68f) _mod = FloorMod.SniperNest;
+            }
+
+            // Bố cục phòng: không lặp lại bố cục của tầng trước
+            var pool = new List<Layout> { Layout.Scattered, Layout.Ring, Layout.Blocks, Layout.Open };
+            if (!boss && !shop) pool.Add(Layout.Bastion);
+            if (_hasLastLayout && pool.Count > 1) pool.Remove(_lastLayout);
+
+            _layout = currentFloor == 1 ? Layout.Scattered : pool[UnityEngine.Random.Range(0, pool.Count)];
+            if (_mod == FloorMod.Treasure) _layout = Layout.Open;
+
+            _lastLayout = _layout;
+            _hasLastLayout = true;
+
+            var cam = Camera.main;
+            if (cam != null) cam.backgroundColor = _theme.background;
         }
 
         private void GenerateRoomGeometry()
@@ -172,6 +267,7 @@ namespace SimpleRPG
                     var sr = tile.AddComponent<SpriteRenderer>();
                     sr.sprite = floorSprite;
                     sr.sortingOrder = 0;
+                    sr.color = Shade(_theme.floor, ((x + y) & 1) == 0 ? 1f : 0.92f); // ô cờ nhẹ
                 }
             }
 
@@ -200,6 +296,7 @@ namespace SimpleRPG
                 var sr = pillar.AddComponent<SpriteRenderer>();
                 sr.sprite = pillarSprite;
                 sr.sortingOrder = 8;
+                sr.color = _theme.pillar;
 
                 var col = pillar.AddComponent<CircleCollider2D>();
                 col.radius = 0.5f;
@@ -207,6 +304,87 @@ namespace SimpleRPG
         }
 
         private void GeneratePillarPositions()
+        {
+            _pillarPositions.Clear();
+
+            switch (_layout)
+            {
+                case Layout.Scattered: BuildScatteredLayout(); break;
+                case Layout.Ring: BuildRingLayout(); break;
+                case Layout.Blocks: BuildBlocksLayout(); break;
+                case Layout.Bastion: BuildBastionLayout(); break;
+                default: break; // Open: đấu trường trống
+            }
+
+            RemoveReservedPillars();
+        }
+
+        /// <summary>Vòng cột ở giữa với 4 lối mở (Bắc/Nam/Đông/Tây) + 1 cột trung tâm.</summary>
+        private void BuildRingLayout()
+        {
+            const int points = 16;
+            const float radius = 3.5f;
+            for (int i = 0; i < points; i++)
+            {
+                if (i % 4 == 0) continue; // chừa 4 lối đi
+                float a = i * Mathf.PI * 2f / points;
+                _pillarPositions.Add(new Vector2(Mathf.Cos(a) * radius, Mathf.Sin(a) * radius));
+            }
+            if (currentFloor % 5 != 0) _pillarPositions.Add(Vector2.zero);
+        }
+
+        /// <summary>4 cụm khối 2x2 làm chỗ nấp; chọn ngẫu nhiên 1 trong 2 cách xếp.</summary>
+        private void BuildBlocksLayout()
+        {
+            Vector2[] origins = UnityEngine.Random.value < 0.5f
+                ? new[] { new Vector2(-7, 1), new Vector2(6, 1), new Vector2(-4, -3), new Vector2(3, -3) }
+                : new[] { new Vector2(-9, -1), new Vector2(8, -1), new Vector2(-5, 3), new Vector2(4, 3) };
+
+            foreach (var o in origins)
+            {
+                _pillarPositions.Add(o);
+                _pillarPositions.Add(o + new Vector2(1, 0));
+                _pillarPositions.Add(o + new Vector2(0, 1));
+                _pillarPositions.Add(o + new Vector2(1, 1));
+            }
+        }
+
+        /// <summary>
+        /// 3 đoạn tường ngắn (2 đoạn hai bên + 1 đoạn giữa). Cố ý không tạo tường kín
+        /// vì quái đuổi thẳng theo người chơi, không có tìm đường.
+        /// </summary>
+        private void BuildBastionLayout()
+        {
+            int shift = UnityEngine.Random.Range(-1, 2);
+            int rowOuter = -1 + shift;
+            int rowCenter = 2 + shift;
+
+            for (int x = -9; x <= -5; x++) _pillarPositions.Add(new Vector2(x, rowOuter));
+            for (int x = 5; x <= 9; x++) _pillarPositions.Add(new Vector2(x, rowOuter));
+            for (int x = -3; x <= 3; x++) _pillarPositions.Add(new Vector2(x, rowCenter));
+        }
+
+        /// <summary>Gỡ các cột nằm trên điểm xuất hiện, cổng, rương và vị trí boss/thương nhân.</summary>
+        private void RemoveReservedPillars()
+        {
+            Vector2 playerSpawn = new Vector2(0, -roomHeight / 2f + 2.5f);
+            Vector2 portal = new Vector2(0, roomHeight / 2f - 1.8f);
+            Vector2 chestL = new Vector2(-(roomWidth / 2f - 2.5f), roomHeight / 2f - 2.5f);
+            Vector2 chestR = new Vector2(roomWidth / 2f - 2.5f, roomHeight / 2f - 2.5f);
+
+            bool shop = ShopManager.IsShopFloor(currentFloor);
+            bool boss = currentFloor % 5 == 0;
+            Vector2 center = new Vector2(0, shop ? 2.5f : 2f);
+
+            _pillarPositions.RemoveAll(p =>
+                Vector2.Distance(p, playerSpawn) < 2f ||
+                Vector2.Distance(p, portal) < 2f ||
+                Vector2.Distance(p, chestL) < 1.5f ||
+                Vector2.Distance(p, chestR) < 1.5f ||
+                ((shop || boss) && Vector2.Distance(p, center) < 2.5f));
+        }
+
+        private void BuildScatteredLayout()
         {
             _pillarPositions.Clear();
 
@@ -253,6 +431,7 @@ namespace SimpleRPG
             var sr = wall.AddComponent<SpriteRenderer>();
             sr.sprite = wallSprite;
             sr.sortingOrder = 7;
+            sr.color = _theme.wall;
 
             var col = wall.AddComponent<BoxCollider2D>();
             col.size = Vector2.one;
@@ -270,7 +449,7 @@ namespace SimpleRPG
 
         private void SpawnChests()
         {
-            int chestCount = (currentFloor % 3 == 0) ? 2 : 1;
+            int chestCount = (currentFloor % 3 == 0 || _mod == FloorMod.Treasure) ? 2 : 1;
             float halfW = roomWidth / 2f - 2.5f;
             float halfH = roomHeight / 2f - 2.5f;
 
@@ -281,6 +460,10 @@ namespace SimpleRPG
             if (chestCount >= 2)
             {
                 LootManager.Instance?.SpawnChest(new Vector3(halfW, halfH, 0));
+            }
+            if (_mod == FloorMod.Treasure)
+            {
+                LootManager.Instance?.SpawnChest(new Vector3(0, 0.5f, 0));
             }
         }
 
@@ -301,10 +484,42 @@ namespace SimpleRPG
             }
             else
             {
-                // Standard scaling waves
-                int chaserCount = Mathf.Min(3 + currentFloor, MaxChasers);
-                int rangerCount = Mathf.Min(Mathf.Max(0, (currentFloor - 1) * 2), MaxRangers);
-                int bruteCount = Mathf.Min(Mathf.Max(0, currentFloor - 2), MaxBrutes);
+                // Số quái theo tầng, chủ đề và biến thể
+                int chaserCount = 3 + currentFloor;
+                int rangerCount = Mathf.Max(0, (currentFloor - 1) * 2);
+                int bruteCount = Mathf.Max(0, currentFloor - 2);
+                int chaserCap = MaxChasers, rangerCap = MaxRangers, bruteCap = MaxBrutes;
+
+                switch (_mod)
+                {
+                    case FloorMod.Swarm:
+                        chaserCount = Mathf.RoundToInt((3 + currentFloor) * 1.8f);
+                        rangerCount = Mathf.Max(0, currentFloor - 1);
+                        bruteCount = 0;
+                        chaserCap = 16;
+                        break;
+                    case FloorMod.EliteHunt:
+                        chaserCount = 2 + currentFloor / 2;
+                        rangerCount = currentFloor / 2;
+                        bruteCount = 2 + currentFloor / 2;
+                        bruteCap = 8;
+                        break;
+                    case FloorMod.SniperNest:
+                        chaserCount = 2 + currentFloor / 2;
+                        rangerCount = Mathf.RoundToInt((currentFloor + 2) * 1.5f);
+                        bruteCount = 0;
+                        rangerCap = 12;
+                        break;
+                }
+
+                chaserCount = Mathf.Min(Mathf.RoundToInt(chaserCount * _theme.chaserMul), chaserCap);
+                rangerCount = Mathf.Min(Mathf.RoundToInt(rangerCount * _theme.rangerMul), rangerCap);
+                bruteCount = Mathf.Min(Mathf.RoundToInt(bruteCount * _theme.bruteMul), bruteCap);
+
+                // Trần tổng số quái để màn chơi luôn đọc được
+                const int maxTotal = 28;
+                int overflow = chaserCount + rangerCount + bruteCount - maxTotal;
+                if (overflow > 0) chaserCount = Mathf.Max(0, chaserCount - overflow);
 
                 for (int i = 0; i < chaserCount; i++)
                 {

@@ -101,3 +101,11 @@ Every time you level up, the game pauses and presents **3 random upgrade cards**
 - **New:** Best floor is saved (PlayerPrefs) and shown on the Game Over screen, with a NEW RECORD marker.
 - **Fix:** The shop no longer lets you buy a potion at full HP or gear that is not an upgrade (previously the gold was spent and only partly refunded).
 - **Repo:** Added MIT license.
+
+## 🗺️ Level variety update
+
+- **4 biomes** that change every 3 floors (Ancient Crypt, Overgrown Ruins, Molten Depths, Frozen Halls): different colour palette and a different enemy mix (e.g. Ruins = more Chasers, Molten = more Spitters, Frozen = more Armored Slimes).
+- **5 room layouts**, never repeated twice in a row: Scattered pillars, Pillar Ring, 2x2 Blocks, Bastion walls and an Open arena. Boss and shop floors avoid layouts that block them.
+- **Floor modifiers** on normal floors: Swarm, Elite Hunt, Sniper Nest, and an enemy-free Treasure Vault with extra chests.
+- Checkerboard floor shading for a bit more depth.
+
