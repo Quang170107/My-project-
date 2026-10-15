@@ -52,6 +52,14 @@ namespace SimpleRPG
         {
             var go = new GameObject("Treasure_Chest");
             go.transform.position = pos;
+
+            // Gắn vào Loot_Container để rương chưa mở được dọn khi sang tầng mới
+            // (trước đây rương bị bỏ lại và chồng thêm ở mỗi tầng)
+            var dm = DungeonManager.Instance;
+            if (dm != null && dm.lootContainer != null)
+            {
+                go.transform.SetParent(dm.lootContainer, true);
+            }
             var loot = go.AddComponent<LootItem>();
             loot.lootType = LootType.Chest;
             loot.SetupVisual();
