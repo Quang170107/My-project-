@@ -107,14 +107,19 @@ namespace SimpleRPG
 
         protected abstract void UpdateAI();
 
-        public virtual void TakeDamage(float damage, Vector2 knockbackDir, float knockbackForce = 5f)
+        public virtual void TakeDamage(float damage, Vector2 knockbackDir, float knockbackForce = 5f, bool isCritical = false)
         {
             if (!IsAlive) return;
 
             currentHealth = Mathf.Max(0, currentHealth - damage);
 
             // Floating damage text
-            DamageNumberManager.Instance?.SpawnNumber(transform.position + Vector3.up * 0.3f, Mathf.RoundToInt(damage), Color.white);
+            DamageNumberManager.Instance?.SpawnNumber(transform.position + Vector3.up * 0.3f, Mathf.RoundToInt(damage), isCritical ? new Color(1f, 0.85f, 0.1f) : Color.white, isCritical ? "!" : "");
+            if (isCritical)
+            {
+                AudioManager.Instance?.PlaySound("hit");
+                CameraFollow.Instance?.Shake(0.1f, 0.12f);
+            }
 
             // Update mini health bar
             if (_healthBarRoot != null)
@@ -153,6 +158,9 @@ namespace SimpleRPG
 
             // Drop loot
             DropLoot();
+
+            // Combo kill streak
+            ComboSystem.RegisterKill(transform.position);
 
             // Notify DungeonManager
             DungeonManager.Instance?.OnEnemyDefeated(this);

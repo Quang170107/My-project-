@@ -372,7 +372,7 @@ namespace SimpleRPG
                 }
                 if (_specialCdFill != null)
                 {
-                    float specPct = player.specialCooldownTimer / PlayerController.SpecialMaxCooldown;
+                    float specPct = player.specialCooldownTimer / Mathf.Max(0.1f, player.stats.specialCooldown);
                     _specialCdFill.fillAmount = Mathf.Clamp01(specPct);
                 }
             }
@@ -477,6 +477,8 @@ namespace SimpleRPG
                 case UpgradeType.DashCooldown: return "Blink Step";
                 case UpgradeType.Lifesteal: return "Vampiric Touch";
                 case UpgradeType.Armor: return "Iron Aegis";
+                case UpgradeType.CritChance: return "Eagle Eye";
+                case UpgradeType.NovaCooldown: return "Arcane Focus";
                 default: return "Mystery Boon";
             }
         }
@@ -492,6 +494,8 @@ namespace SimpleRPG
                 case UpgradeType.DashCooldown: return "-0.2s Dash Cooldown\nGreater mobility";
                 case UpgradeType.Lifesteal: return "+8% Lifesteal\nHeal on every hit";
                 case UpgradeType.Armor: return "+2 Damage Reduction\nResist all hits";
+                case UpgradeType.CritChance: return "+8% Crit Chance\nCrits deal x2 damage";
+                case UpgradeType.NovaCooldown: return "-0.8s Nova Cooldown\nCast Nova more often";
                 default: return "+Bonus Stats";
             }
         }
@@ -507,6 +511,8 @@ namespace SimpleRPG
                 case UpgradeType.DashCooldown: return SpriteFactory.GetSprite("player");
                 case UpgradeType.Lifesteal: return SpriteFactory.GetSprite("projectile_enemy");
                 case UpgradeType.Armor: return SpriteFactory.GetSprite("pillar");
+                case UpgradeType.CritChance: return SpriteFactory.GetSprite("slash");
+                case UpgradeType.NovaCooldown: return SpriteFactory.GetSprite("gem_xp");
                 default: return SpriteFactory.GetSprite("coin");
             }
         }

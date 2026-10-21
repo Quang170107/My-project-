@@ -109,3 +109,12 @@ Every time you level up, the game pauses and presents **3 random upgrade cards**
 - **Floor modifiers** on normal floors: Swarm, Elite Hunt, Sniper Nest, and an enemy-free Treasure Vault with extra chests.
 - Checkerboard floor shading for a bit more depth.
 
+
+## 🎯 Combat depth update (crits & combos)
+
+Inspired by Hades, Dead Cells and Soul Knight:
+
+- **Critical hits:** every melee swing and Nova rolls a crit (base 5%, x2 damage). Crits show a yellow `!` damage number, hit harder knockback and a little extra screen shake.
+- **2 new upgrade cards:** **Eagle Eye** (+8% crit chance, capped at 60%) and **Arcane Focus** (-0.8s Nova cooldown, min 2.5s). The Nova cooldown ring in the HUD follows the new value.
+- **Kill combo:** killing enemies within 3 seconds of each other builds a combo shown on the right side of the screen (colour heats up at x10 and x20). Every 5th kill pays out bonus gold that scales with the combo. Taking damage or dying breaks the combo.
+- New file: `Assets/Scripts/Combat/ComboSystem.cs` (creates itself on the first kill, no scene setup needed).

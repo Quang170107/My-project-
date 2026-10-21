@@ -223,7 +223,8 @@ namespace SimpleRPG
                 {
                     hitAny = true;
                     Vector2 hitDir = ((Vector2)enemy.transform.position - (Vector2)transform.position).normalized;
-                    enemy.TakeDamage(stats.baseDamage, hitDir, 6f);
+                    float swingDamage = stats.RollDamage(stats.baseDamage, out bool swingCrit);
+                    enemy.TakeDamage(swingDamage, hitDir, swingCrit ? 9f : 6f, swingCrit);
 
                     // Lifesteal (gộp lại, hồi 1 lần mỗi nhát chém)
                     if (stats.lifesteal > 0f)
@@ -331,7 +332,7 @@ namespace SimpleRPG
 
         private void PerformSpecialNova()
         {
-            specialCooldownTimer = SpecialMaxCooldown;
+            specialCooldownTimer = stats.specialCooldown;
             AudioManager.Instance?.PlaySound("special");
             CameraFollow.Instance?.Shake(0.25f, 0.35f);
 
@@ -354,7 +355,8 @@ namespace SimpleRPG
                 if (enemy != null && enemy.IsAlive)
                 {
                     Vector2 pushDir = ((Vector2)enemy.transform.position - (Vector2)transform.position).normalized;
-                    enemy.TakeDamage(stats.baseDamage * 1.8f, pushDir, 12f);
+                    float novaDamage = stats.RollDamage(stats.baseDamage * 1.8f, out bool novaCrit);
+                    enemy.TakeDamage(novaDamage, pushDir, 12f, novaCrit);
                 }
             }
         }
@@ -364,6 +366,7 @@ namespace SimpleRPG
             if (stats.isInvulnerable || stats.currentHealth <= 0) return;
 
             stats.TakeDamage(damage, knockbackDir, knockbackForce);
+            ComboSystem.Instance?.BreakCombo();
             AudioManager.Instance?.PlaySound("hurt");
             CameraFollow.Instance?.Shake(0.18f, 0.25f);
             if (stats.currentHealth <= 0) return;

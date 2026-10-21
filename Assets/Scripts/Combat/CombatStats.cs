@@ -11,12 +11,16 @@ namespace SimpleRPG
         AttackSpeed,
         DashCooldown,
         Lifesteal,
-        Armor
+        Armor,
+        CritChance,
+        NovaCooldown
     }
 
     public class CombatStats : MonoBehaviour
     {
         public const float MaxLifesteal = 0.3f; // trần hút máu 30%
+        public const float MaxCritChance = 0.6f; // trần chí mạng 60%
+        public const float MinSpecialCooldown = 2.5f;
 
         [Header("Health & Defense")]
         public float maxHealth = 100f;
@@ -29,6 +33,9 @@ namespace SimpleRPG
         public float attackRate = 2.5f; // attacks per second
         public float attackRange = 1.4f;
         public float lifesteal = 0f; // percentage e.g. 0.1f = 10%
+        public float critChance = 0.05f; // xác suất chí mạng (0..MaxCritChance)
+        public float critMultiplier = 2f; // hệ số sát thương khi chí mạng
+        public float specialCooldown = 6f; // hồi chiêu kỹ năng Nova (giây)
 
         [Header("Mobility")]
         public float moveSpeed = 5.5f;
@@ -64,6 +71,9 @@ namespace SimpleRPG
             moveSpeed = 5.5f;
             dashCooldown = 1.2f;
             lifesteal = 0f;
+            critChance = 0.05f;
+            critMultiplier = 2f;
+            specialCooldown = 6f;
             level = 1;
             currentXP = 0;
             xpToNextLevel = 50;
@@ -98,6 +108,13 @@ namespace SimpleRPG
             {
                 OnDeath?.Invoke();
             }
+        }
+
+        /// <summary>Tung xúc xắc chí mạng. Trả về sát thương cuối cùng và cho biết có chí mạng không.</summary>
+        public float RollDamage(float baseValue, out bool isCrit)
+        {
+            isCrit = UnityEngine.Random.value < critChance;
+            return isCrit ? baseValue * critMultiplier : baseValue;
         }
 
         public void Heal(float amount)
@@ -159,6 +176,12 @@ namespace SimpleRPG
                     break;
                 case UpgradeType.Armor:
                     armor += 2f;
+                    break;
+                case UpgradeType.CritChance:
+                    critChance = Mathf.Min(MaxCritChance, critChance + 0.08f);
+                    break;
+                case UpgradeType.NovaCooldown:
+                    specialCooldown = Mathf.Max(MinSpecialCooldown, specialCooldown - 0.8f);
                     break;
             }
             OnHealthChanged?.Invoke(currentHealth, maxHealth);
