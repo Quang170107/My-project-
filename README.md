@@ -6,15 +6,26 @@ Welcome to **Geometric Dungeon**, a fast-paced 2D Roguelike Action RPG built nat
 
 ## 🎮 How to Play
 
-### Option 1: Just Hit Play!
+### Option 1: ⚡ Run the Standalone EXE (No Unity Required!)
+Just double-click **`GeometricDungeon.exe`** to play instantly!
+- Make sure `libraylib.dll` and `libwinpthread-1.dll` are in the same folder as the `.exe`.
+- The standalone version is a complete C++ port using [raylib](https://www.raylib.com/) — no Unity installation needed.
+
+### Option 2: Just Hit Play! (Unity Editor)
 Simply click the **Play** button (`▶`) at the top of the Unity Editor in `SampleScene`.
 The game automatically bootstraps the camera, player, audio, dungeon room, UI, shop, inventory, and monsters!
 
-### Option 2: Pre-populate Scene in Edit Mode
+### Option 3: Pre-populate Scene in Edit Mode
 In Unity's top menu bar, click:
 > **RPG Game** -> **Setup Playable Scene**
 
 This places all Managers, UI, and Player directly into the hierarchy for Edit Mode inspection.
+
+### 🔨 Building the EXE from Source
+If you want to rebuild the standalone executable yourself:
+1. Install [MSYS2](https://www.msys2.org/) and raylib: `pacman -S mingw-w64-ucrt-x86_64-raylib`
+2. Run `build_game.bat` (CMD) or `build_game.ps1` (PowerShell)
+3. The script compiles `StandaloneApp/main.cpp` and copies all required DLLs automatically.
 
 ---
 
