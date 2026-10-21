@@ -88,6 +88,17 @@ namespace SimpleRPG
         private void Start()
         {
             InitializeContainers();
+
+            // Đảm bảo hệ thống Cổ vật & Quản lý Pool hoạt động
+            if (GetComponent<RelicSystem>() == null)
+            {
+                gameObject.AddComponent<RelicSystem>();
+            }
+            if (GetComponent<ObjectPoolManager>() == null)
+            {
+                gameObject.AddComponent<ObjectPoolManager>();
+            }
+
             StartGame();
         }
 
@@ -142,6 +153,9 @@ namespace SimpleRPG
         {
             ClearPreviousFloor();
 
+            // Khởi tạo lưới phân vùng không gian Native C++
+            NativeRoguelikeCore.InitGrid(-roomWidth / 2f - 2f, -roomHeight / 2f - 2f, roomWidth / 2f + 2f, roomHeight / 2f + 2f, 2.5f);
+
             ChooseFloorStyle();
 
             GameUI.Instance?.UpdateFloor(currentFloor);
@@ -171,7 +185,6 @@ namespace SimpleRPG
             }
             else if (_mod == FloorMod.Treasure)
             {
-                // Phòng kho báu: không có quái, cổng mở sẵn, nhiều rương
                 ShopManager.Instance?.CloseShop();
                 remainingEnemies = 0;
                 if (exitPortal != null) exitPortal.SetOpen(true);
@@ -188,6 +201,7 @@ namespace SimpleRPG
         {
             _activeEnemies.Clear();
             ShopManager.Instance?.CloseShop();
+            NativeRoguelikeCore.ClearGrid();
 
             // Destroy old room tiles, enemies, and loot
             foreach (Transform child in roomContainer) Destroy(child.gameObject);
@@ -212,7 +226,6 @@ namespace SimpleRPG
             }
         }
 
-        /// <summary>Chọn chủ đề, biến thể và bố cục cho tầng hiện tại.</summary>
         private void ChooseFloorStyle()
         {
             bool boss = currentFloor % 5 == 0;
@@ -220,7 +233,6 @@ namespace SimpleRPG
 
             _theme = Themes[((currentFloor - 1) / 3) % Themes.Length];
 
-            // Biến thể tầng (chỉ tầng chiến đấu thường, từ tầng 2)
             _mod = FloorMod.None;
             if (!boss && !shop && currentFloor >= 2)
             {
@@ -231,7 +243,6 @@ namespace SimpleRPG
                 else if (currentFloor >= 3 && r < 0.68f) _mod = FloorMod.SniperNest;
             }
 
-            // Bố cục phòng: không lặp lại bố cục của tầng trước
             var pool = new List<Layout> { Layout.Scattered, Layout.Ring, Layout.Blocks, Layout.Open };
             if (!boss && !shop) pool.Add(Layout.Bastion);
             if (_hasLastLayout && pool.Count > 1) pool.Remove(_lastLayout);
@@ -267,7 +278,7 @@ namespace SimpleRPG
                     var sr = tile.AddComponent<SpriteRenderer>();
                     sr.sprite = floorSprite;
                     sr.sortingOrder = 0;
-                    sr.color = Shade(_theme.floor, ((x + y) & 1) == 0 ? 1f : 0.92f); // ô cờ nhẹ
+                    sr.color = Shade(_theme.floor, ((x + y) & 1) == 0 ? 1f : 0.92f);
                 }
             }
 
@@ -283,7 +294,7 @@ namespace SimpleRPG
                 CreateWallTile(new Vector3(halfW + 1, y, 0), wallSprite);
             }
 
-            // Tactical cover pillars - bố trí ngẫu nhiên mỗi tầng
+            // Tactical cover pillars
             GeneratePillarPositions();
 
             foreach (var pos in _pillarPositions)
@@ -313,27 +324,25 @@ namespace SimpleRPG
                 case Layout.Ring: BuildRingLayout(); break;
                 case Layout.Blocks: BuildBlocksLayout(); break;
                 case Layout.Bastion: BuildBastionLayout(); break;
-                default: break; // Open: đấu trường trống
+                default: break;
             }
 
             RemoveReservedPillars();
         }
 
-        /// <summary>Vòng cột ở giữa với 4 lối mở (Bắc/Nam/Đông/Tây) + 1 cột trung tâm.</summary>
         private void BuildRingLayout()
         {
             const int points = 16;
             const float radius = 3.5f;
             for (int i = 0; i < points; i++)
             {
-                if (i % 4 == 0) continue; // chừa 4 lối đi
+                if (i % 4 == 0) continue;
                 float a = i * Mathf.PI * 2f / points;
                 _pillarPositions.Add(new Vector2(Mathf.Cos(a) * radius, Mathf.Sin(a) * radius));
             }
             if (currentFloor % 5 != 0) _pillarPositions.Add(Vector2.zero);
         }
 
-        /// <summary>4 cụm khối 2x2 làm chỗ nấp; chọn ngẫu nhiên 1 trong 2 cách xếp.</summary>
         private void BuildBlocksLayout()
         {
             Vector2[] origins = UnityEngine.Random.value < 0.5f
@@ -349,10 +358,6 @@ namespace SimpleRPG
             }
         }
 
-        /// <summary>
-        /// 3 đoạn tường ngắn (2 đoạn hai bên + 1 đoạn giữa). Cố ý không tạo tường kín
-        /// vì quái đuổi thẳng theo người chơi, không có tìm đường.
-        /// </summary>
         private void BuildBastionLayout()
         {
             int shift = UnityEngine.Random.Range(-1, 2);
@@ -364,7 +369,6 @@ namespace SimpleRPG
             for (int x = -3; x <= 3; x++) _pillarPositions.Add(new Vector2(x, rowCenter));
         }
 
-        /// <summary>Gỡ các cột nằm trên điểm xuất hiện, cổng, rương và vị trí boss/thương nhân.</summary>
         private void RemoveReservedPillars()
         {
             Vector2 playerSpawn = new Vector2(0, -roomHeight / 2f + 2.5f);
@@ -405,7 +409,6 @@ namespace SimpleRPG
                     Mathf.Round(UnityEngine.Random.Range(-halfW + 3f, halfW - 2f)),
                     Mathf.Round(UnityEngine.Random.Range(-halfH + 3f, halfH - 2f)));
 
-                // Giữ chỗ trống quanh điểm xuất hiện, cổng và rương
                 if (Vector2.Distance(p, playerSpawn) < 3.5f) continue;
                 if (Vector2.Distance(p, portal) < 2.5f) continue;
                 if (Vector2.Distance(p, chestL) < 2f || Vector2.Distance(p, chestR) < 2f) continue;
@@ -475,7 +478,6 @@ namespace SimpleRPG
 
             if (isBossFloor)
             {
-                // Boss + minion spawns
                 SpawnBoss(new Vector3(0, 2f, 0));
                 for (int i = 0; i < 4; i++)
                 {
@@ -484,7 +486,6 @@ namespace SimpleRPG
             }
             else
             {
-                // Số quái theo tầng, chủ đề và biến thể
                 int chaserCount = 3 + currentFloor;
                 int rangerCount = Mathf.Max(0, (currentFloor - 1) * 2);
                 int bruteCount = Mathf.Max(0, currentFloor - 2);
@@ -516,7 +517,6 @@ namespace SimpleRPG
                 rangerCount = Mathf.Min(Mathf.RoundToInt(rangerCount * _theme.rangerMul), rangerCap);
                 bruteCount = Mathf.Min(Mathf.RoundToInt(bruteCount * _theme.bruteMul), bruteCap);
 
-                // Trần tổng số quái để màn chơi luôn đọc được
                 const int maxTotal = 28;
                 int overflow = chaserCount + rangerCount + bruteCount - maxTotal;
                 if (overflow > 0) chaserCount = Mathf.Max(0, chaserCount - overflow);
@@ -543,7 +543,6 @@ namespace SimpleRPG
         {
             float halfW = roomWidth / 2f - 3f;
             float halfH = roomHeight / 2f - 3f;
-            // Ensure enemy spawns away from player spawn point
             Vector3 pos;
             int tries = 0;
             do
@@ -613,7 +612,12 @@ namespace SimpleRPG
             enemy.currentHealth = enemy.maxHealth;
             enemy.contactDamage *= dmgMult;
 
-            // Đảm bảo quái luôn nằm trên sàn, tường và cột
+            // Quái Tinh Anh (Elite Monster) xuất hiện từ tầng 3
+            if (!(enemy is BossEnemy) && currentFloor >= 3 && UnityEngine.Random.value < 0.20f)
+            {
+                enemy.MakeElite();
+            }
+
             var sr = enemy.GetComponentInChildren<SpriteRenderer>();
             if (sr != null)
             {
@@ -629,9 +633,31 @@ namespace SimpleRPG
 
             GameUI.Instance?.UpdateEnemiesRemaining(remainingEnemies);
 
+            if (enemy is BossEnemy)
+            {
+                RewardBossRelic();
+            }
+
             if (remainingEnemies <= 0)
             {
                 OnRoomCleared();
+            }
+        }
+
+        private void RewardBossRelic()
+        {
+            if (RelicSystem.Instance == null) return;
+            var allRelics = (RelicType[])Enum.GetValues(typeof(RelicType));
+            var unowned = new List<RelicType>();
+            foreach (var r in allRelics)
+            {
+                if (!RelicSystem.Instance.HasRelic(r)) unowned.Add(r);
+            }
+
+            if (unowned.Count > 0)
+            {
+                var picked = unowned[UnityEngine.Random.Range(0, unowned.Count)];
+                RelicSystem.Instance.AddRelic(picked);
             }
         }
 
@@ -671,7 +697,6 @@ namespace SimpleRPG
             _pendingLevelUps--;
             _upgradeModalOpen = true;
 
-            // Pick 3 random distinct upgrades
             var allUpgrades = (UpgradeType[])Enum.GetValues(typeof(UpgradeType));
             var shuffled = new List<UpgradeType>(allUpgrades);
             for (int i = 0; i < shuffled.Count; i++)
@@ -718,7 +743,6 @@ namespace SimpleRPG
                 PlayerController.Instance.ResetPlayer(new Vector3(0, -roomHeight / 2f + 2.5f, 0));
             }
 
-            // Xóa danh sách trang bị đang mặc (chỉ số đã về mặc định nhờ ResetStats)
             EquipmentManager.Instance?.ForgetAll();
 
             StartGame();

@@ -36,9 +36,9 @@ namespace SimpleRPG
                 return;
             }
 
-            // Bouncy hop movement
+            // Bouncy hop movement with status effect modifier (Chill / Freeze)
             _bounceTimer += Time.deltaTime * 5f;
-            float speedMod = Mathf.Max(0.2f, Mathf.Sin(_bounceTimer));
+            float speedMod = Mathf.Max(0.2f, Mathf.Sin(_bounceTimer)) * CurrentSpeedModifier;
 #if UNITY_6000_0_OR_NEWER
             rb.linearVelocity = Vector2.Lerp(rb.linearVelocity, dir * (moveSpeed * speedMod), 12f * Time.deltaTime);
 #else
@@ -66,9 +66,9 @@ namespace SimpleRPG
             // Lunge forward
             transform.localScale = new Vector3(initScale.x * 0.8f, initScale.y * 1.3f, initScale.z);
 #if UNITY_6000_0_OR_NEWER
-            rb.linearVelocity = dir * (moveSpeed * 2.8f);
+            rb.linearVelocity = dir * (moveSpeed * 2.8f * CurrentSpeedModifier);
 #else
-            rb.velocity = dir * (moveSpeed * 2.8f);
+            rb.velocity = dir * (moveSpeed * 2.8f * CurrentSpeedModifier);
 #endif
             yield return new WaitForSeconds(0.35f);
 

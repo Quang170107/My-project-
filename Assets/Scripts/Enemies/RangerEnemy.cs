@@ -35,24 +35,22 @@ namespace SimpleRPG
             Vector2 moveDir = Vector2.zero;
             if (dist < PreferredDist - 1.2f)
             {
-                // Back away
                 moveDir = -dirToPlayer;
             }
             else if (dist > PreferredDist + 1.2f)
             {
-                // Approach
                 moveDir = dirToPlayer;
             }
             else
             {
-                // Strafe perpendicular
                 moveDir = new Vector2(-dirToPlayer.y, dirToPlayer.x);
             }
 
+            float finalSpeed = moveSpeed * CurrentSpeedModifier;
 #if UNITY_6000_0_OR_NEWER
-            rb.linearVelocity = Vector2.Lerp(rb.linearVelocity, moveDir * moveSpeed, 10f * Time.deltaTime);
+            rb.linearVelocity = Vector2.Lerp(rb.linearVelocity, moveDir * finalSpeed, 10f * Time.deltaTime);
 #else
-            rb.velocity = Vector2.Lerp(rb.velocity, moveDir * moveSpeed, 10f * Time.deltaTime);
+            rb.velocity = Vector2.Lerp(rb.velocity, moveDir * finalSpeed, 10f * Time.deltaTime);
 #endif
 
             if (Mathf.Abs(dirToPlayer.x) > 0.05f)
@@ -75,13 +73,11 @@ namespace SimpleRPG
             rb.velocity = Vector2.zero;
 #endif
 
-            // Telegraph: flash brighter yellow/red
             Color orig = spriteRenderer.color;
             spriteRenderer.color = new Color(1f, 0.9f, 0.2f, 1f);
             yield return new WaitForSeconds(0.35f);
             spriteRenderer.color = orig;
 
-            // Spawn projectile
             SpawnProjectile(dir);
             AudioManager.Instance?.PlaySound("shoot");
 
@@ -102,11 +98,11 @@ namespace SimpleRPG
             col.isTrigger = true;
             col.radius = 0.25f;
 
-            var projRb = projGo.AddComponent<Rigidbody2D>();
-            projRb.gravityScale = 0f;
+            var pRb = projGo.AddComponent<Rigidbody2D>();
+            pRb.gravityScale = 0f;
 
             var proj = projGo.AddComponent<Projectile>();
-            proj.Initialize(dir, 7.5f, 14f, false, 3f);
+            proj.Initialize(dir, 7.5f, contactDamage * 0.8f, false, 3.5f);
         }
     }
 }

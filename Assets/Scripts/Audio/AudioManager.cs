@@ -41,6 +41,12 @@ namespace SimpleRPG
             _clips["portal"] = CreateChimeClip(new float[] { 440f, 554.37f, 659.25f, 880f }, 0.15f);
             _clips["hurt"] = CreateToneClip(0.12f, 180, 90, ToneType.Sawtooth);
             _clips["special"] = CreateToneClip(0.35f, 180, 40, ToneType.Sine);
+
+            // New synthesized SFX for Relics and Combat Synergies
+            _clips["shield_block"] = CreateChimeClip(new float[] { 880f, 1320f }, 0.09f);
+            _clips["freeze"] = CreateToneClip(0.18f, 1200f, 600f, ToneType.Sine);
+            _clips["lightning"] = CreateToneClip(0.15f, 950f, 200f, ToneType.NoiseBurst);
+            _clips["relic"] = CreateChimeClip(new float[] { 587.33f, 739.99f, 880f, 1174.66f }, 0.14f);
         }
 
         public void PlaySound(string soundName, float volume = 1f)

@@ -15,8 +15,16 @@ namespace SimpleRPG
         public int xpDrop = 15;
         public int coinDropChance = 50; // percentage
         public int potionDropChance = 15; // percentage
+        public bool isElite = false;
 
         public bool IsAlive => currentHealth > 0;
+
+        // Status effects
+        private float _poisonTimer = 0f;
+        private float _poisonDmgPerSec = 0f;
+        private float _poisonTickAccum = 0f;
+        private float _chillTimer = 0f;
+        public float CurrentSpeedModifier => _chillTimer > 0f ? 0.5f : 1.0f;
 
         protected Rigidbody2D rb;
         protected SpriteRenderer spriteRenderer;
@@ -57,6 +65,24 @@ namespace SimpleRPG
             PositionHealthBar();
         }
 
+        public void MakeElite()
+        {
+            isElite = true;
+            enemyName = "Elite " + enemyName;
+            maxHealth *= 1.8f;
+            currentHealth = maxHealth;
+            contactDamage *= 1.3f;
+            xpDrop *= 2;
+            coinDropChance = 100;
+            potionDropChance = 40;
+            transform.localScale *= 1.25f;
+
+            if (spriteRenderer != null)
+            {
+                spriteRenderer.color = new Color(1f, 0.85f, 0.4f, 1f); // Golden tint for elite
+            }
+        }
+
         private void PositionHealthBar()
         {
             if (_healthBarRoot == null || spriteRenderer == null || spriteRenderer.sprite == null)
@@ -94,6 +120,38 @@ namespace SimpleRPG
         {
             if (!IsAlive) return;
 
+            // Register into Native spatial hash grid for high-speed C++ queries
+            NativeRoguelikeCore.InsertGrid(GetInstanceID(), transform.position.x, transform.position.y, 0.5f, isElite ? 1 : 0);
+
+            // Process Poison DoT
+            if (_poisonTimer > 0f)
+            {
+                _poisonTimer -= Time.deltaTime;
+                _poisonTickAccum += Time.deltaTime;
+                if (_poisonTickAccum >= 0.5f)
+                {
+                    _poisonTickAccum = 0f;
+                    float tickDmg = _poisonDmgPerSec * 0.5f;
+                    currentHealth = Mathf.Max(0, currentHealth - tickDmg);
+                    DamageNumberManager.Instance?.SpawnNumber(transform.position + Vector3.up * 0.3f, Mathf.RoundToInt(tickDmg), new Color(0.4f, 0.9f, 0.2f), "☣");
+                    if (currentHealth <= 0)
+                    {
+                        Die();
+                        return;
+                    }
+                }
+            }
+
+            // Process Chill / Freeze
+            if (_chillTimer > 0f)
+            {
+                _chillTimer -= Time.deltaTime;
+                if (_chillTimer <= 0f && spriteRenderer != null)
+                {
+                    spriteRenderer.color = isElite ? new Color(1f, 0.85f, 0.4f) : Color.white;
+                }
+            }
+
             if (playerTransform == null && PlayerController.Instance != null)
             {
                 playerTransform = PlayerController.Instance.transform;
@@ -102,6 +160,21 @@ namespace SimpleRPG
             if (playerTransform != null && !isAttacking)
             {
                 UpdateAI();
+            }
+        }
+
+        public void ApplyPoison(float dmgPerSec, float duration)
+        {
+            _poisonTimer = Mathf.Max(_poisonTimer, duration);
+            _poisonDmgPerSec = Mathf.Max(_poisonDmgPerSec, dmgPerSec);
+        }
+
+        public void ApplyChill(float slowPct, float duration)
+        {
+            _chillTimer = Mathf.Max(_chillTimer, duration);
+            if (spriteRenderer != null)
+            {
+                spriteRenderer.color = new Color(0.5f, 0.8f, 1f, 1f); // icy tint
             }
         }
 
@@ -120,6 +193,9 @@ namespace SimpleRPG
                 AudioManager.Instance?.PlaySound("hit");
                 CameraFollow.Instance?.Shake(0.1f, 0.12f);
             }
+
+            // Relic trigger on hit
+            RelicSystem.Instance?.OnHitEnemy(this, damage, isCritical);
 
             // Update mini health bar
             if (_healthBarRoot != null)
@@ -158,6 +234,9 @@ namespace SimpleRPG
 
             // Drop loot
             DropLoot();
+
+            // Relic kill trigger (explosions, blood chalice)
+            RelicSystem.Instance?.OnEnemyKilled(this);
 
             // Combo kill streak
             ComboSystem.RegisterKill(transform.position);

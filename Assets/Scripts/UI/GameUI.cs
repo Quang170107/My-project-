@@ -25,6 +25,7 @@ namespace SimpleRPG
         private Text _goldText;
         private Text _floorText;
         private Text _enemyText;
+        private Text _relicsText;
 
         // Skill cooldowns
         private Image _dashCdFill;
@@ -131,8 +132,8 @@ namespace SimpleRPG
 
         private void BuildTopHUD()
         {
-            var hudTopLeft = CreateUIObject("TopLeftHUD", transform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(0, 1), new Vector2(20, -20), new Vector2(360, 140));
-            Color lostColor = new Color(0.35f, 0.35f, 0.35f, 1f); // xám
+            var hudTopLeft = CreateUIObject("TopLeftHUD", transform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(0, 1), new Vector2(20, -20), new Vector2(380, 160));
+            Color lostColor = new Color(0.35f, 0.35f, 0.35f, 1f);
 
             // HP Bar Background
             var hpBg = CreateImage("HP_BG", hudTopLeft.transform, lostColor, new Vector2(0, 1), new Vector2(0, 1), new Vector2(0, 1), new Vector2(0, 0), new Vector2(320, 28));
@@ -160,8 +161,18 @@ namespace SimpleRPG
             goldRect.anchorMax = new Vector2(0, 1);
             goldRect.pivot = new Vector2(0, 1);
             goldRect.anchoredPosition = new Vector2(5, -68);
-            goldRect.sizeDelta = new Vector2(200, 30);
+            goldRect.sizeDelta = new Vector2(200, 28);
             _goldText = goldGo.GetComponent<Text>();
+
+            // Relics Display row
+            var relicsGo = CreateText("RelicsText", hudTopLeft.transform, "Relics: None", 16, new Color(0.7f, 0.9f, 1f), TextAnchor.MiddleLeft);
+            var relicsRect = relicsGo.GetComponent<RectTransform>();
+            relicsRect.anchorMin = new Vector2(0, 1);
+            relicsRect.anchorMax = new Vector2(0, 1);
+            relicsRect.pivot = new Vector2(0, 1);
+            relicsRect.anchoredPosition = new Vector2(5, -98);
+            relicsRect.sizeDelta = new Vector2(360, 26);
+            _relicsText = relicsGo.GetComponent<Text>();
 
             // Top-Center: Floor & Enemy count
             var topCenter = CreateUIObject("TopCenterHUD", transform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -20), new Vector2(500, 90));
@@ -181,73 +192,56 @@ namespace SimpleRPG
             enemyRect.sizeDelta = new Vector2(400, 30);
             _enemyText = enemyGo.GetComponent<Text>();
         }
-        private void SetBar(Image fill, float current, float max)
-        {
-            if (fill == null) return;
-            float ratio = max > 0f ? Mathf.Clamp01(current / max) : 0f;
-            fill.rectTransform.localScale = new Vector3(ratio, 1f, 1f);
-        }
 
         private void BuildSkillBarHUD()
         {
-            // Bottom Center Skill HUD
-            var skillBar = CreateUIObject("SkillBar", transform, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 30), new Vector2(340, 80));
+            var skillBar = CreateUIObject("SkillBarHUD", transform, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 30), new Vector2(240, 70));
 
-            // Melee indicator
-            CreateSkillIcon(skillBar.transform, new Vector2(-100, 0), "LMB", "Attack", Color.white);
+            // Dash Skill Icon
+            var dashSlot = CreateImage("DashSlot", skillBar.transform, new Color(0.12f, 0.15f, 0.2f, 0.85f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-45, 0), new Vector2(58, 58));
+            var dashIcon = CreateImage("Icon", dashSlot.transform, Color.white, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(42, 42));
+            dashIcon.GetComponent<Image>().sprite = SpriteFactory.GetSprite("player");
 
-            // Dash indicator with cooldown overlay
-            var dashIcon = CreateSkillIcon(skillBar.transform, new Vector2(0, 0), "Shift", "Dash", new Color(0.2f, 0.85f, 1f), out _dashCdFill);
+            var dashKeyText = CreateText("Key", dashSlot.transform, "RMB", 13, Color.yellow, TextAnchor.LowerRight);
+            dashKeyText.GetComponent<RectTransform>().anchoredPosition = new Vector2(20, -18);
 
-            // Special Nova indicator with cooldown overlay
-            var specialIcon = CreateSkillIcon(skillBar.transform, new Vector2(100, 0), "Q / E", "Nova", new Color(1f, 0.7f, 0.2f), out _specialCdFill);
-        }
+            var dashCd = CreateImage("CD_Overlay", dashSlot.transform, new Color(0, 0, 0, 0.7f), new Vector2(0, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            _dashCdFill = dashCd.GetComponent<Image>();
+            _dashCdFill.type = Image.Type.Filled;
+            _dashCdFill.fillMethod = Image.FillMethod.Radial360;
+            _dashCdFill.fillOrigin = (int)Image.Origin360.Top;
+            _dashCdFill.fillClockwise = false;
+            _dashCdFill.fillAmount = 0f;
 
-        private GameObject CreateSkillIcon(Transform parent, Vector2 pos, string keyName, string label, Color themeColor)
-        {
-            return CreateSkillIcon(parent, pos, keyName, label, themeColor, out _);
-        }
+            // Special Nova Skill Icon
+            var specSlot = CreateImage("SpecialSlot", skillBar.transform, new Color(0.12f, 0.15f, 0.2f, 0.85f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(45, 0), new Vector2(58, 58));
+            var specIcon = CreateImage("Icon", specSlot.transform, Color.white, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(42, 42));
+            specIcon.GetComponent<Image>().sprite = SpriteFactory.GetSprite("slash");
 
-        private GameObject CreateSkillIcon(Transform parent, Vector2 pos, string keyName, string label, Color themeColor, out Image cdOverlay)
-        {
-            var iconRoot = CreateImage("Skill_" + label, parent, new Color(0.12f, 0.14f, 0.2f, 0.85f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos, new Vector2(74, 74));
+            var specKeyText = CreateText("Key", specSlot.transform, "Q / E", 13, Color.cyan, TextAnchor.LowerRight);
+            specKeyText.GetComponent<RectTransform>().anchoredPosition = new Vector2(20, -18);
 
-            // Border
-            var border = CreateImage("Border", iconRoot.transform, themeColor, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(74, 74));
-            var borderImg = border.GetComponent<Image>();
-            borderImg.sprite = SpriteFactory.CreateRoundedRect(74, 74, 8, Color.clear, themeColor, 3);
-
-            // Key text
-            var keyGo = CreateText("Key", iconRoot.transform, keyName, 18, Color.white, TextAnchor.MiddleCenter);
-            keyGo.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 8);
-            keyGo.GetComponent<RectTransform>().sizeDelta = new Vector2(70, 30);
-
-            // Label
-            var lblGo = CreateText("Label", iconRoot.transform, label, 12, new Color(0.8f, 0.85f, 0.9f), TextAnchor.MiddleCenter);
-            lblGo.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -18);
-            lblGo.GetComponent<RectTransform>().sizeDelta = new Vector2(70, 20);
-
-            // Cooldown overlay
-            var cdGo = CreateImage("CDOverlay", iconRoot.transform, new Color(0f, 0f, 0f, 0.7f), new Vector2(0, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
-            var cdImg = cdGo.GetComponent<Image>();
-            cdImg.type = Image.Type.Filled;
-            cdImg.fillMethod = Image.FillMethod.Radial360;
-            cdImg.fillAmount = 0f;
-            cdOverlay = cdImg;
-
-            return iconRoot;
+            var specCd = CreateImage("CD_Overlay", specSlot.transform, new Color(0, 0, 0, 0.7f), new Vector2(0, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            _specialCdFill = specCd.GetComponent<Image>();
+            _specialCdFill.type = Image.Type.Filled;
+            _specialCdFill.fillMethod = Image.FillMethod.Radial360;
+            _specialCdFill.fillOrigin = (int)Image.Origin360.Top;
+            _specialCdFill.fillClockwise = false;
+            _specialCdFill.fillAmount = 0f;
         }
 
         private void BuildBannerUI()
         {
-            _bannerRoot = CreateUIObject("Banner", transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 150), new Vector2(800, 90));
-            var bg = CreateImage("BG", _bannerRoot.transform, new Color(0.08f, 0.1f, 0.15f, 0.85f), new Vector2(0, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            _bannerRoot = CreateUIObject("BannerUI", transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 160), new Vector2(800, 70));
+            var bannerBg = CreateImage("BG", _bannerRoot.transform, new Color(0, 0, 0, 0.75f), new Vector2(0, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
 
-            var textGo = CreateText("Text", _bannerRoot.transform, "FLOOR CLEARED! ENTER THE PORTAL", 28, new Color(0.2f, 1f, 0.7f), TextAnchor.MiddleCenter);
+            var textGo = CreateText("BannerText", _bannerRoot.transform, "", 28, new Color(1f, 0.85f, 0.2f), TextAnchor.MiddleCenter);
+            textGo.GetComponent<RectTransform>().sizeDelta = new Vector2(780, 60);
             _bannerText = textGo.GetComponent<Text>();
-            textGo.GetComponent<RectTransform>().sizeDelta = new Vector2(780, 80);
+
             var outline = textGo.AddComponent<Outline>();
             outline.effectColor = Color.black;
+            outline.effectDistance = new Vector2(2, -2);
 
             _bannerRoot.SetActive(false);
         }
@@ -255,46 +249,38 @@ namespace SimpleRPG
         private void BuildUpgradeModal()
         {
             _upgradeModalRoot = CreateUIObject("UpgradeModal", transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1920, 1080));
-            // Dim background
-            CreateImage("ModalBG", _upgradeModalRoot.transform, new Color(0f, 0f, 0f, 0.75f), new Vector2(0, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            CreateImage("BG", _upgradeModalRoot.transform, new Color(0, 0, 0, 0.82f), new Vector2(0, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
 
-            // Title
-            var titleGo = CreateText("Title", _upgradeModalRoot.transform, "LEVEL UP!", 46, new Color(1f, 0.85f, 0.2f), TextAnchor.MiddleCenter);
-            titleGo.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 220);
-            titleGo.GetComponent<RectTransform>().sizeDelta = new Vector2(800, 60);
+            var titleGo = CreateText("Title", _upgradeModalRoot.transform, "LEVEL UP! CHOOSE AN UPGRADE", 42, new Color(1f, 0.88f, 0.25f), TextAnchor.MiddleCenter);
+            titleGo.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 240);
+            titleGo.GetComponent<RectTransform>().sizeDelta = new Vector2(900, 60);
 
-            var subGo = CreateText("Subtitle", _upgradeModalRoot.transform, "Choose an enhancement to grow stronger:", 22, Color.white, TextAnchor.MiddleCenter);
-            subGo.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 160);
-            subGo.GetComponent<RectTransform>().sizeDelta = new Vector2(800, 40);
-
-            // Card Container
-            var cardContainer = CreateUIObject("CardContainer", _upgradeModalRoot.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, -30), new Vector2(900, 320));
-
-            // Create 3 card slots
-            float[] xOffsets = new float[] { -280f, 0f, 280f };
+            // 3 Upgrade Cards
+            float[] cardX = new float[] { -280f, 0f, 280f };
             for (int i = 0; i < 3; i++)
             {
-                var card = CreateUpgradeCard(cardContainer.transform, new Vector2(xOffsets[i], 0));
+                var card = CreateUpgradeCard(_upgradeModalRoot.transform, cardX[i]);
                 _upgradeCards.Add(card);
             }
 
             _upgradeModalRoot.SetActive(false);
         }
 
-        private GameObject CreateUpgradeCard(Transform parent, Vector2 pos)
+        private GameObject CreateUpgradeCard(Transform parent, float xPos)
         {
-            var cardGo = CreateImage("Card", parent, new Color(0.14f, 0.16f, 0.24f, 0.95f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos, new Vector2(250, 310));
-            var border = CreateImage("Border", cardGo.transform, new Color(0.3f, 0.7f, 1f), new Vector2(0, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
-            var borderImg = border.GetComponent<Image>();
-            borderImg.sprite = SpriteFactory.CreateRoundedRect(250, 310, 12, Color.clear, new Color(0.3f, 0.8f, 1f), 3);
+            var cardGo = CreateUIObject("Card", parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(xPos, -20), new Vector2(250, 360));
+            CreateImage("CardBG", cardGo.transform, new Color(0.12f, 0.14f, 0.2f, 0.95f), new Vector2(0, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
 
-            // Icon placeholder
-            var iconGo = CreateImage("Icon", cardGo.transform, Color.white, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 75), new Vector2(56, 56));
+            var border = CreateImage("Border", cardGo.transform, new Color(0.3f, 0.7f, 1f, 0.8f), new Vector2(0, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            border.GetComponent<Image>().sprite = SpriteFactory.CreateRoundedRect(250, 360, 12, Color.clear, new Color(0.3f, 0.7f, 1f), 3);
+
+            // Icon
+            var iconGo = CreateImage("Icon", cardGo.transform, Color.white, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 90), new Vector2(72, 72));
 
             // Name
-            var nameGo = CreateText("Name", cardGo.transform, "Upgrade Name", 20, Color.white, TextAnchor.MiddleCenter);
-            nameGo.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 15);
-            nameGo.GetComponent<RectTransform>().sizeDelta = new Vector2(230, 45);
+            var nameGo = CreateText("Name", cardGo.transform, "Upgrade Name", 22, new Color(1f, 0.9f, 0.3f), TextAnchor.MiddleCenter);
+            nameGo.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 25);
+            nameGo.GetComponent<RectTransform>().sizeDelta = new Vector2(230, 36);
 
             // Description
             var descGo = CreateText("Desc", cardGo.transform, "+Bonus Stats", 16, new Color(0.8f, 0.9f, 0.95f), TextAnchor.MiddleCenter);
@@ -342,7 +328,7 @@ namespace SimpleRPG
 
         private void Update()
         {
-            // Settings toggle (Escape) – works even when game is paused
+            // Settings toggle (Escape)
             if (InputHelper.GetPauseDown())
             {
                 if (_settingsOpen)
@@ -377,6 +363,25 @@ namespace SimpleRPG
                 }
             }
 
+            // Update Relics row in Top HUD
+            if (_relicsText != null && RelicSystem.Instance != null)
+            {
+                var relics = RelicSystem.Instance.ActiveRelics;
+                if (relics.Count == 0)
+                {
+                    _relicsText.text = "Relics: None";
+                }
+                else
+                {
+                    string rStr = "Relics: ";
+                    for (int i = 0; i < relics.Count; i++)
+                    {
+                        rStr += $"{relics[i].iconSymbol} {relics[i].relicName}  ";
+                    }
+                    _relicsText.text = rStr;
+                }
+            }
+
             // Quick restart via R key or click
             if (_gameOverRoot != null && _gameOverRoot.activeSelf)
             {
@@ -389,7 +394,7 @@ namespace SimpleRPG
 
         public void UpdateHealth(float current, float max)
         {
-            if (_hpFill != null) SetBar(_hpFill, current , max);
+            if (_hpFill != null) SetBar(_hpFill, current, max);
             if (_hpText != null) _hpText.text = $"HP: {Mathf.CeilToInt(current)} / {Mathf.CeilToInt(max)}";
         }
 
@@ -429,7 +434,7 @@ namespace SimpleRPG
 
         public void ShowLevelUpModal(UpgradeType[] options, System.Action onChosen = null)
         {
-            Time.timeScale = 0f; // Pause gameplay
+            Time.timeScale = 0f;
             _upgradeModalRoot.SetActive(true);
 
             for (int i = 0; i < _upgradeCards.Count; i++)
@@ -456,7 +461,7 @@ namespace SimpleRPG
                         Time.timeScale = 1f;
                         _upgradeModalRoot.SetActive(false);
                         AudioManager.Instance?.PlaySound("potion");
-                        onChosen?.Invoke(); // mở tiếp lượt nâng cấp đang chờ (nếu có)
+                        onChosen?.Invoke();
                     });
                 }
                 else
@@ -542,24 +547,20 @@ namespace SimpleRPG
 
         private void BuildSettingsPanel()
         {
-            // Full-screen overlay (sorting above everything)
             _settingsRoot = CreateUIObject("SettingsPanel", transform,
                 new Vector2(0, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f),
                 Vector2.zero, Vector2.zero);
 
-            // Semi-transparent dim
             CreateImage("DimBG", _settingsRoot.transform,
                 new Color(0f, 0f, 0f, 0.8f),
                 new Vector2(0, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f),
                 Vector2.zero, Vector2.zero);
 
-            // Container card (centred, 520 × 460)
             var card = CreateImage("SettingsCard", _settingsRoot.transform,
                 new Color(0.1f, 0.12f, 0.18f, 0.97f),
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 Vector2.zero, new Vector2(520, 460));
 
-            // Border
             var border = CreateImage("Border", card.transform,
                 new Color(0.35f, 0.75f, 1f, 1f),
                 new Vector2(0, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f),
@@ -567,7 +568,6 @@ namespace SimpleRPG
             border.GetComponent<Image>().sprite =
                 SpriteFactory.CreateRoundedRect(520, 460, 14, Color.clear, new Color(0.35f, 0.75f, 1f), 3);
 
-            // Title
             var titleGo = CreateText("Title", card.transform, "SETTINGS", 36,
                 new Color(1f, 0.92f, 0.4f), TextAnchor.MiddleCenter);
             var titleRect = titleGo.GetComponent<RectTransform>();
@@ -575,7 +575,6 @@ namespace SimpleRPG
             titleRect.sizeDelta = new Vector2(480, 50);
             titleGo.AddComponent<Outline>().effectColor = Color.black;
 
-            // ── Row 1: Resolution ──
             float rowY = 110f;
             float rowSpacing = -70f;
 
@@ -585,25 +584,21 @@ namespace SimpleRPG
                 () => { SettingsManager.Instance?.PrevResolution(); RefreshSettingsUI(); },
                 () => { SettingsManager.Instance?.NextResolution(); RefreshSettingsUI(); });
 
-            // ── Row 2: VSync ──
             rowY += rowSpacing;
             BuildToggleRow(card.transform, "VSync", rowY,
                 out _vsyncValueText,
                 () => { SettingsManager.Instance?.ToggleVSync(); RefreshSettingsUI(); });
 
-            // ── Row 3: Vibration ──
             rowY += rowSpacing;
             BuildToggleRow(card.transform, "Vibration", rowY,
                 out _vibrationValueText,
                 () => { SettingsManager.Instance?.ToggleVibration(); RefreshSettingsUI(); });
 
-            // ── Row 4: Window Mode ──
             rowY += rowSpacing;
             BuildToggleRow(card.transform, "Window Mode", rowY,
                 out _windowModeValueText,
                 () => { SettingsManager.Instance?.ToggleFullscreen(); RefreshSettingsUI(); });
 
-            // ── Close Button ──
             var closeBtnGo = CreateImage("CloseBtn", card.transform,
                 new Color(0.85f, 0.25f, 0.3f, 1f),
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
@@ -622,7 +617,6 @@ namespace SimpleRPG
             _settingsRoot.SetActive(false);
         }
 
-        /// <summary>Row with left/right arrows and a value label (for resolution picker).</summary>
         private void BuildSettingsRow(Transform parent, string label, float y,
             string leftChar, string rightChar,
             out Text valueText,
@@ -633,7 +627,6 @@ namespace SimpleRPG
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0, y), new Vector2(460, 48));
 
-            // Label on left side
             var lblGo = CreateText("Label", row.transform, label, 22, Color.white, TextAnchor.MiddleLeft);
             var lblRect = lblGo.GetComponent<RectTransform>();
             lblRect.anchorMin = new Vector2(0, 0.5f);
@@ -642,7 +635,6 @@ namespace SimpleRPG
             lblRect.anchoredPosition = new Vector2(0, 0);
             lblRect.sizeDelta = new Vector2(180, 48);
 
-            // Left arrow button
             var leftBtnGo = CreateImage("LeftBtn", row.transform,
                 new Color(0.2f, 0.55f, 0.85f, 1f),
                 new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(1, 0.5f),
@@ -652,7 +644,6 @@ namespace SimpleRPG
             var leftTxt = CreateText("Txt", leftBtnGo.transform, leftChar, 22, Color.white, TextAnchor.MiddleCenter);
             leftTxt.GetComponent<RectTransform>().sizeDelta = new Vector2(36, 36);
 
-            // Value text
             var valGo = CreateText("Value", row.transform, "---", 22,
                 new Color(0.3f, 1f, 0.7f), TextAnchor.MiddleCenter);
             var valRect = valGo.GetComponent<RectTransform>();
@@ -663,7 +654,6 @@ namespace SimpleRPG
             valRect.sizeDelta = new Vector2(170, 48);
             valueText = valGo.GetComponent<Text>();
 
-            // Right arrow button
             var rightBtnGo = CreateImage("RightBtn", row.transform,
                 new Color(0.2f, 0.55f, 0.85f, 1f),
                 new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(1, 0.5f),
@@ -674,7 +664,6 @@ namespace SimpleRPG
             rightTxt.GetComponent<RectTransform>().sizeDelta = new Vector2(36, 36);
         }
 
-        /// <summary>Row with a single toggle button (ON/OFF).</summary>
         private void BuildToggleRow(Transform parent, string label, float y,
             out Text valueText,
             UnityEngine.Events.UnityAction onToggle)
@@ -683,7 +672,6 @@ namespace SimpleRPG
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0, y), new Vector2(460, 48));
 
-            // Label
             var lblGo = CreateText("Label", row.transform, label, 22, Color.white, TextAnchor.MiddleLeft);
             var lblRect = lblGo.GetComponent<RectTransform>();
             lblRect.anchorMin = new Vector2(0, 0.5f);
@@ -692,7 +680,6 @@ namespace SimpleRPG
             lblRect.anchoredPosition = new Vector2(0, 0);
             lblRect.sizeDelta = new Vector2(220, 48);
 
-            // Toggle button
             var btnGo = CreateImage("ToggleBtn", row.transform,
                 new Color(0.2f, 0.55f, 0.85f, 1f),
                 new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(1, 0.5f),
@@ -713,7 +700,6 @@ namespace SimpleRPG
         private void OpenSettings()
         {
             if (_settingsRoot == null) return;
-            // Don't open settings during upgrade selection
             if (_upgradeModalRoot != null && _upgradeModalRoot.activeSelf) return;
 
             _settingsOpen = true;
@@ -762,7 +748,13 @@ namespace SimpleRPG
 
         public bool IsSettingsOpen => _settingsOpen;
 
-        // Helper UI creation methods
+        private void SetBar(Image fill, float current, float max)
+        {
+            if (fill == null) return;
+            float pct = Mathf.Clamp01(current / Mathf.Max(0.01f, max));
+            fill.rectTransform.sizeDelta = new Vector2(316f * pct, fill.rectTransform.sizeDelta.y);
+        }
+
         private GameObject CreateUIObject(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 pos, Vector2 size)
         {
             var go = new GameObject(name);

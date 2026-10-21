@@ -31,6 +31,9 @@ namespace SimpleRPG
         private int _bodyColorFxId;
         private int _invulnLocks;
 
+        // Zero-GC non-allocating query buffer
+        private static readonly Collider2D[] _hitsBuffer = new Collider2D[32];
+
         private void Awake()
         {
             Instance = this;
@@ -210,14 +213,15 @@ namespace SimpleRPG
             float swingDuration = 0.15f;
             float elapsed = 0f;
 
-            // Hit detection in front arc
-            Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position + (Vector3)(_aimDirection * 0.8f), stats.attackRange);
+            // Non-alloc hit detection in front arc
+            int hitCount = Physics2D.OverlapCircleNonAlloc(transform.position + (Vector3)(_aimDirection * 0.8f), stats.attackRange, _hitsBuffer);
             bool hitAny = false;
             float healTotal = 0f;
 
-            foreach (var hit in hits)
+            for (int i = 0; i < hitCount; i++)
             {
-                if (hit.gameObject == gameObject) continue;
+                var hit = _hitsBuffer[i];
+                if (hit == null || hit.gameObject == gameObject) continue;
                 var enemy = hit.GetComponent<EnemyBase>();
                 if (enemy != null && enemy.IsAlive)
                 {
@@ -292,8 +296,6 @@ namespace SimpleRPG
             // Ghost trail effect
             StartCoroutine(SpawnGhostTrail(stats.dashDuration));
 
-            // Translucent cyan color during i-frames. Never capture the current
-            // tint — overlapping hit-flashes used to save red and restore it.
             int fx = ++_bodyColorFxId;
             if (bodyRenderer != null)
                 bodyRenderer.color = new Color(0.4f, 1f, 1f, 0.6f);
@@ -347,10 +349,12 @@ namespace SimpleRPG
             expand.maxRadius = 3.5f;
             expand.duration = 0.35f;
 
-            // Damage all enemies in 3.5m radius
-            Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, 3.5f);
-            foreach (var hit in hits)
+            // Non-alloc query for all enemies in 3.5m radius
+            int novaHits = Physics2D.OverlapCircleNonAlloc(transform.position, 3.5f, _hitsBuffer);
+            for (int i = 0; i < novaHits; i++)
             {
+                var hit = _hitsBuffer[i];
+                if (hit == null || hit.gameObject == gameObject) continue;
                 var enemy = hit.GetComponent<EnemyBase>();
                 if (enemy != null && enemy.IsAlive)
                 {
@@ -364,6 +368,12 @@ namespace SimpleRPG
         public void TakeDamage(float damage, Vector2 knockbackDir, float knockbackForce)
         {
             if (stats.isInvulnerable || stats.currentHealth <= 0) return;
+
+            // Divine Aegis barrier check
+            if (RelicSystem.Instance != null && RelicSystem.Instance.TryAbsorbHit())
+            {
+                return;
+            }
 
             stats.TakeDamage(damage, knockbackDir, knockbackForce);
             ComboSystem.Instance?.BreakCombo();
@@ -453,6 +463,8 @@ namespace SimpleRPG
             {
                 stats.ResetStats();
             }
+
+            RelicSystem.Instance?.ClearRelics();
         }
     }
 
