@@ -200,3 +200,13 @@ Inspired by Hades, Dead Cells and Soul Knight:
 ### 🔊 Sounds
 
 New generated SFX (no audio files needed): `explode` (Bomber blast), `fuse` (accelerating beeps while the Bomber's fuse burns) and `combo` (every 5th kill of a combo).
+
+### 🎨 Graphics upgrade
+
+All done in code, no scene/asset setup needed (`Assets/Scripts/Dungeon/VisualFX.cs`, starts automatically):
+
+- **Post-processing (URP):** bloom on bright effects, a soft vignette, and slightly boosted saturation/contrast. Skipped automatically if the project is not running URP.
+- **Damage feedback:** the screen edge pulses red when the player gets hurt (stronger for bigger hits).
+- **Particles (pooled):** white hit sparks on every hit, gold ones on crits, colour-matched debris when enemies die, and a fiery burst when a Bomber explodes. Capped to keep the frame rate stable on crowded floors.
+- **Shadows:** every enemy now has a soft ground shadow like the player.
+- **New Bomber Slime sprite:** hand-drawn pixel art (shaded orange body, angry eyes, lit fuse) instead of a plain circle.

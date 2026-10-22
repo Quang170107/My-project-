@@ -126,6 +126,9 @@ namespace SimpleRPG
             AudioManager.Instance?.PlaySound("explode");
             CameraFollow.Instance?.Shake(0.3f, 0.4f);
 
+            VisualFX.Burst(center, new Color(1f, 0.7f, 0.2f), 30, 7f, 0.65f);
+            VisualFX.Burst(center, new Color(1f, 0.3f, 0.1f), 14, 4f, 0.5f);
+
             var ringGo = new GameObject("BomberBlast");
             ringGo.transform.position = center;
             var sr = ringGo.AddComponent<SpriteRenderer>();

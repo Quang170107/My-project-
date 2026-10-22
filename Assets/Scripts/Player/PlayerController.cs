@@ -396,6 +396,7 @@ namespace SimpleRPG
 
             stats.TakeDamage(damage, knockbackDir, knockbackForce);
             ComboSystem.Instance?.BreakCombo();
+            VisualFX.DamagePulse(Mathf.Clamp01(0.45f + damage / 60f));
             AudioManager.Instance?.PlaySound("hurt");
             CameraFollow.Instance?.Shake(0.18f, 0.25f);
             if (stats.currentHealth <= 0) return;
