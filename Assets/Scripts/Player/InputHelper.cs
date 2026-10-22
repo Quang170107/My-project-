@@ -7,6 +7,17 @@ namespace SimpleRPG
 {
     public static class InputHelper
     {
+        /// <summary>F3: bật/tắt hiệu ứng hậu kỳ (bloom, vignette).</summary>
+        public static bool GetToggleFxDown()
+        {
+#if ENABLE_INPUT_SYSTEM
+            var kb = Keyboard.current;
+            return kb != null && kb.f3Key.wasPressedThisFrame;
+#else
+            return Input.GetKeyDown(KeyCode.F3);
+#endif
+        }
+
         public static Vector2 GetMoveInput()
         {
             Vector2 input = Vector2.zero;

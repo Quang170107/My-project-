@@ -20,6 +20,7 @@ namespace SimpleRPG
         private const int MaxLiveParticles = 220;
 
         private Vignette _vignette;
+        private Volume _volume;
         private float _baseVignette = 0.3f;
         private float _pulse;
 
@@ -99,10 +100,15 @@ namespace SimpleRPG
             volume.isGlobal = true;
             volume.priority = 50f;
             volume.sharedProfile = profile;
+            _volume = volume;
         }
 
         private void Update()
         {
+            // F3 bật/tắt hậu kỳ cho máy yếu hoặc ai thấy chói
+            if (_volume != null && InputHelper.GetToggleFxDown())
+                _volume.enabled = !_volume.enabled;
+
             if (_vignette == null) return;
 
             if (_pulse > 0f)
@@ -172,7 +178,7 @@ namespace SimpleRPG
             _pool.Push(p);
         }
 
-        private class FxParticle : MonoBehaviour
+        public class FxParticle : MonoBehaviour
         {
             private SpriteRenderer _sr;
             private VisualFX _owner;
@@ -259,7 +265,7 @@ namespace SimpleRPG
                 m.Configure(tint, halfW, halfH);
         }
 
-        private class AmbientMote : MonoBehaviour
+        public class AmbientMote : MonoBehaviour
         {
             private SpriteRenderer _sr;
             private Color _tint = Color.white;
