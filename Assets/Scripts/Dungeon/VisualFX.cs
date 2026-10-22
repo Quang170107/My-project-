@@ -71,12 +71,7 @@ namespace SimpleRPG
         {
             if (!(GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset)) return;
 
-            var cam = Camera.main;
-            if (cam != null)
-            {
-                var camData = cam.GetUniversalAdditionalCameraData();
-                if (camData != null) camData.renderPostProcessing = true;
-            }
+            EnsureCameraPostProcessing();
 
             var profile = ScriptableObject.CreateInstance<VolumeProfile>();
 
@@ -103,8 +98,26 @@ namespace SimpleRPG
             _volume = volume;
         }
 
+        private bool _cameraReady;
+
+        /// <summary>Bật post-processing trên camera chính. Thử lại sau nếu camera chưa tồn tại lúc khởi động.</summary>
+        private void EnsureCameraPostProcessing()
+        {
+            var cam = Camera.main;
+            if (cam == null) return;
+
+            var camData = cam.GetUniversalAdditionalCameraData();
+            if (camData == null) return;
+
+            camData.renderPostProcessing = true;
+            _cameraReady = true;
+        }
+
         private void Update()
         {
+            if (!_cameraReady && _volume != null && Time.frameCount % 30 == 0)
+                EnsureCameraPostProcessing();
+
             // F3 bật/tắt hậu kỳ cho máy yếu hoặc ai thấy chói
             if (_volume != null && InputHelper.GetToggleFxDown())
                 _volume.enabled = !_volume.enabled;
