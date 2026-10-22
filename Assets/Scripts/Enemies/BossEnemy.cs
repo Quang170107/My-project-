@@ -43,11 +43,12 @@ namespace SimpleRPG
 
             Vector2 dir = ((Vector2)playerTransform.position - (Vector2)transform.position).normalized;
 
-            // Slowly pursue
+            // Slowly pursue with status effect modifier
+            float finalSpeed = moveSpeed * CurrentSpeedModifier;
 #if UNITY_6000_0_OR_NEWER
-            rb.linearVelocity = Vector2.Lerp(rb.linearVelocity, dir * moveSpeed, 6f * Time.deltaTime);
+            rb.linearVelocity = Vector2.Lerp(rb.linearVelocity, dir * finalSpeed, 6f * Time.deltaTime);
 #else
-            rb.velocity = Vector2.Lerp(rb.velocity, dir * moveSpeed, 6f * Time.deltaTime);
+            rb.velocity = Vector2.Lerp(rb.velocity, dir * finalSpeed, 6f * Time.deltaTime);
 #endif
 
             if (Mathf.Abs(dir.x) > 0.05f)
@@ -78,7 +79,6 @@ namespace SimpleRPG
             rb.velocity = Vector2.zero;
 #endif
 
-            // Roar telegraph
             AudioManager.Instance?.PlaySound("special");
             CameraFollow.Instance?.Shake(0.3f, 0.3f);
             Color orig = spriteRenderer.color;
@@ -86,7 +86,6 @@ namespace SimpleRPG
             yield return new WaitForSeconds(0.45f);
             spriteRenderer.color = orig;
 
-            // Fire 8-way projectiles
             int count = _enraged ? 16 : 10;
             float angleStep = 360f / count;
             for (int i = 0; i < count; i++)
@@ -131,18 +130,16 @@ namespace SimpleRPG
             rb.velocity = Vector2.zero;
 #endif
 
-            // Telegraph
             Color orig = spriteRenderer.color;
             spriteRenderer.color = Color.red;
             yield return new WaitForSeconds(0.5f);
             spriteRenderer.color = orig;
 
-            // Charge
             AudioManager.Instance?.PlaySound("dash");
 #if UNITY_6000_0_OR_NEWER
-            rb.linearVelocity = dir * (moveSpeed * 3.5f);
+            rb.linearVelocity = dir * (moveSpeed * 3.5f * CurrentSpeedModifier);
 #else
-            rb.velocity = dir * (moveSpeed * 3.5f);
+            rb.velocity = dir * (moveSpeed * 3.5f * CurrentSpeedModifier);
 #endif
             yield return new WaitForSeconds(0.55f);
 
@@ -157,7 +154,6 @@ namespace SimpleRPG
 
         protected override void Die()
         {
-            // Extra loot fountain!
             LootManager.Instance?.SpawnCoin(transform.position + Vector3.left * 0.7f, 10);
             LootManager.Instance?.SpawnCoin(transform.position + Vector3.right * 0.7f, 10);
             LootManager.Instance?.SpawnPotion(transform.position + Vector3.up * 0.7f, 50f);

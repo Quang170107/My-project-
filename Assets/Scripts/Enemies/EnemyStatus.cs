@@ -73,7 +73,7 @@ namespace SimpleRPG
                 if (_tickTimer <= 0f)
                 {
                     _tickTimer += TickInterval;
-                    _enemy.TakeDamage(Mathf.Max(1f, _burnDps * TickInterval), Vector2.zero, 0f);
+                    _enemy.TakeDamage(Mathf.Max(1f, _burnDps * TickInterval), Vector2.zero, 0f, false, false);
                     if (!_enemy.IsAlive) return;
                 }
             }

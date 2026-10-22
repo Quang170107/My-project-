@@ -38,11 +38,12 @@ namespace SimpleRPG
                 return;
             }
 
-            // Steady march towards player
+            // Steady march towards player with status effect speed modifier
+            float finalSpeed = moveSpeed * CurrentSpeedModifier;
 #if UNITY_6000_0_OR_NEWER
-            rb.linearVelocity = Vector2.Lerp(rb.linearVelocity, dir * moveSpeed, 8f * Time.deltaTime);
+            rb.linearVelocity = Vector2.Lerp(rb.linearVelocity, dir * finalSpeed, 8f * Time.deltaTime);
 #else
-            rb.velocity = Vector2.Lerp(rb.velocity, dir * moveSpeed, 8f * Time.deltaTime);
+            rb.velocity = Vector2.Lerp(rb.velocity, dir * finalSpeed, 8f * Time.deltaTime);
 #endif
             if (Mathf.Abs(dir.x) > 0.05f)
                 spriteRenderer.flipX = dir.x < 0f;
@@ -58,7 +59,6 @@ namespace SimpleRPG
             rb.velocity = Vector2.zero;
 #endif
 
-            // Telegraph: swell up and pulse red
             Vector3 initScale = transform.localScale;
             Color origColor = spriteRenderer.color;
 
@@ -73,11 +73,9 @@ namespace SimpleRPG
                 yield return null;
             }
 
-            // Slam!
             AudioManager.Instance?.PlaySound("special");
             CameraFollow.Instance?.Shake(0.25f, 0.35f);
 
-            // Ground slam visual ring
             var ringGo = new GameObject("BruteSlamWave");
             ringGo.transform.position = transform.position;
             var sr = ringGo.AddComponent<SpriteRenderer>();
@@ -87,7 +85,6 @@ namespace SimpleRPG
             expand.maxRadius = 2.8f;
             expand.duration = 0.3f;
 
-            // Damage player if in slam radius
             Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, 2.8f);
             foreach (var hit in hits)
             {

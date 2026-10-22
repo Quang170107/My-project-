@@ -49,9 +49,9 @@ namespace SimpleRPG
             }
 
 #if UNITY_6000_0_OR_NEWER
-            rb.linearVelocity = Vector2.Lerp(rb.linearVelocity, dir * moveSpeed, 10f * Time.deltaTime);
+            rb.linearVelocity = Vector2.Lerp(rb.linearVelocity, dir * (moveSpeed * CurrentSpeedModifier), 10f * Time.deltaTime);
 #else
-            rb.velocity = Vector2.Lerp(rb.velocity, dir * moveSpeed, 10f * Time.deltaTime);
+            rb.velocity = Vector2.Lerp(rb.velocity, dir * (moveSpeed * CurrentSpeedModifier), 10f * Time.deltaTime);
 #endif
             if (Mathf.Abs(dir.x) > 0.05f)
                 spriteRenderer.flipX = dir.x < 0f;
@@ -156,7 +156,7 @@ namespace SimpleRPG
                 if (other != null && other != this && other.IsAlive)
                 {
                     Vector2 pushDir = ((Vector2)other.transform.position - (Vector2)center).normalized;
-                    other.TakeDamage(EnemyBlastDamage, pushDir, 8f);
+                    other.TakeDamage(EnemyBlastDamage, pushDir, 8f, false, false);
                 }
             }
 
