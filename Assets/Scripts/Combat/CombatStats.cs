@@ -113,7 +113,7 @@ namespace SimpleRPG
         /// <summary>Tung xúc xắc chí mạng. Trả về sát thương cuối cùng và cho biết có chí mạng không.</summary>
         public float RollDamage(float baseValue, out bool isCrit)
         {
-            isCrit = UnityEngine.Random.value < critChance;
+            isCrit = UnityEngine.Random.value < Mathf.Min(critChance, MaxCritChance);
             return isCrit ? baseValue * critMultiplier : baseValue;
         }
 

@@ -168,7 +168,7 @@ namespace SimpleRPG
                 _rows[i] = row;
             }
 
-            _summaryText = MakeText("Summary", panel.transform, new Vector2(0, 1), new Vector2(30, -500), new Vector2(700, 100),
+            _summaryText = MakeText("Summary", panel.transform, new Vector2(0, 1), new Vector2(30, -500), new Vector2(700, 110),
                 20, new Color(0.92f, 0.92f, 0.92f), TextAnchor.UpperLeft);
 
             var close = MakeText("CloseHint", panel.transform, new Vector2(0, 1), new Vector2(30, -612), new Vector2(700, 28),
@@ -221,7 +221,8 @@ namespace SimpleRPG
             _summaryText.text =
                 $"Level {s.level}     Gold {s.gold}     HP {Mathf.CeilToInt(s.currentHealth)} / {Mathf.CeilToInt(s.maxHealth)}\n" +
                 $"Damage {s.baseDamage:0.#}     Armor {s.armor:0.#}     Attack Rate {s.attackRate:0.#}/s\n" +
-                $"Move Speed {s.moveSpeed:0.#}     Lifesteal {Mathf.RoundToInt(s.lifesteal * 100f)}%     Dash Cooldown {s.dashCooldown:0.#}s";
+                $"Move Speed {s.moveSpeed:0.#}     Lifesteal {Mathf.RoundToInt(s.lifesteal * 100f)}%     Dash Cooldown {s.dashCooldown:0.#}s\n" +
+                $"Crit Chance {Mathf.RoundToInt(Mathf.Min(s.critChance, CombatStats.MaxCritChance) * 100f)}%     Crit Damage x{s.critMultiplier:0.#}     Nova Cooldown {s.specialCooldown:0.#}s";
         }
 
         private static string StatsLine(EquipmentItem it)
@@ -233,6 +234,7 @@ namespace SimpleRPG
             if (it.moveSpeed > 0) parts.Add($"+{it.moveSpeed:0.#} Speed");
             if (it.attackRate > 0) parts.Add($"+{it.attackRate:0.#} Attack/s");
             if (it.lifesteal > 0) parts.Add($"+{Mathf.RoundToInt(it.lifesteal * 100f)}% Lifesteal");
+            if (it.critChance > 0) parts.Add($"+{Mathf.RoundToInt(it.critChance * 100f)}% Crit");
             return string.Join("     ", parts);
         }
 

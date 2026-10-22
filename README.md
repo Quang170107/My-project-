@@ -125,3 +125,8 @@ Inspired by Hades, Dead Cells and Soul Knight:
 - The blast also hurts other enemies (40 damage), so lead it into a crowd. Kills caused that way still count for your combo.
 - Kill it before the fuse ends and it never explodes. A self-destruct drops no loot and does not count for the combo.
 - 1 Bomber on floor 4, +1 every 2 floors, max 4. Not present on Swarm floors.
+
+### 🗡️ Crit on gear & stats
+
+- Weapons can now roll a **crit chance** affix (+2% × rarity/floor scaling, max +20% per weapon). It shows in the shop, the inventory item rows and the new fourth line of the inventory summary (Crit Chance / Crit Damage / Nova Cooldown).
+- The total crit chance used in combat is capped at 60%, no matter how much gear and upgrades stack.

@@ -85,6 +85,7 @@ namespace SimpleRPG
             _stats.moveSpeed += item.moveSpeed;
             _stats.attackRate += item.attackRate;
             _stats.lifesteal += item.lifesteal;
+            _stats.critChance += item.critChance;
         }
 
         private void Remove(EquipmentItem item)
@@ -96,6 +97,7 @@ namespace SimpleRPG
             _stats.moveSpeed -= item.moveSpeed;
             _stats.attackRate -= item.attackRate;
             _stats.lifesteal -= item.lifesteal;
+            _stats.critChance -= item.critChance;
         }
     }
 }
