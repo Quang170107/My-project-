@@ -190,7 +190,7 @@ namespace SimpleRPG
             }
             // Chance of equipment (boss luôn rơi)
             int floor = DungeonManager.Instance != null ? DungeonManager.Instance.currentFloor : 1;
-            bool isBoss = this is BossEnemy;
+            bool isBoss = this is BossEnemy || this is WardenEnemy;
             EquipmentPickup.TryDrop(transform.position + (Vector3)Random.insideUnitCircle * 0.4f, 0.12f, floor, isBoss);
         }
 

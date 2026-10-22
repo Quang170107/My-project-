@@ -326,7 +326,7 @@ namespace SimpleRPG
 
             var statsGo = CreateText("Stats", _gameOverRoot.transform, "Floor Reached: 1\nLevel: 1\nGold Collected: 0", 24, Color.white, TextAnchor.MiddleCenter);
             statsGo.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 30);
-            statsGo.GetComponent<RectTransform>().sizeDelta = new Vector2(600, 120);
+            statsGo.GetComponent<RectTransform>().sizeDelta = new Vector2(600, 180);
             _gameOverStatsText = statsGo.GetComponent<Text>();
 
             // Restart Button
@@ -523,7 +523,7 @@ namespace SimpleRPG
             }
         }
 
-        public void ShowGameOverModal(int floor, int level, int gold, int enemiesSlain, int bestFloor = 0, bool newRecord = false)
+        public void ShowGameOverModal(int floor, int level, int gold, int enemiesSlain, int bestFloor = 0, bool newRecord = false, int bestCombo = 0)
         {
             _gameOverRoot.SetActive(true);
             if (_gameOverStatsText != null)
@@ -532,6 +532,10 @@ namespace SimpleRPG
                 if (bestFloor > 0)
                 {
                     _gameOverStatsText.text += newRecord ? $"\nBest Floor: {bestFloor}  NEW RECORD!" : $"\nBest Floor: {bestFloor}";
+                }
+                if (bestCombo >= 2)
+                {
+                    _gameOverStatsText.text += $"\nBest Combo: x{bestCombo}";
                 }
             }
         }

@@ -136,3 +136,8 @@ Inspired by Hades, Dead Cells and Soul Knight:
 - **Ember Edge** (upgrade): melee hits and Nova set enemies on fire for 3s. Each level adds 25% of your base damage per second (ticks every 0.5s). Re-hitting refreshes the timer.
 - **Frost Touch** (upgrade): hits slow enemies for 2s, -15% speed per level, down to 40% speed at level 4.
 - Both stack with crits, combo and Bomber friendly fire. Burn kills count for your combo. New file: `Assets/Scripts/Enemies/EnemyStatus.cs`.
+
+### 🛡️ Mini-boss & run summary
+
+- **Warden Brute** appears on floors 3 and 8: a larger, golden Armored Slime (180 HP, ground slam, hits for 20) that always drops equipment.
+- The game-over screen now also shows your **Best Combo** for the run (reset every new run).

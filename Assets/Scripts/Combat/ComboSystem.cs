@@ -127,6 +127,13 @@ namespace SimpleRPG
             Refresh();
         }
 
+        /// <summary>Gọi khi bắt đầu lượt chơi mới: xoá combo và kỷ lục combo của lượt trước.</summary>
+        public void ResetRun()
+        {
+            BreakCombo();
+            BestCombo = 0;
+        }
+
         public void BreakCombo()
         {
             if (CurrentCombo == 0) return;

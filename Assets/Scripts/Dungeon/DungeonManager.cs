@@ -114,6 +114,7 @@ namespace SimpleRPG
         {
             currentFloor = 1;
             totalEnemiesSlain = 0;
+            ComboSystem.Instance?.ResetRun();
             _pendingLevelUps = 0;
             _upgradeModalOpen = false;
 
@@ -522,9 +523,12 @@ namespace SimpleRPG
                     ? Mathf.Min(1 + (currentFloor - 4) / 2, MaxBombers)
                     : 0;
 
+                // Mini-boss Warden ở tầng 3 và 8
+                bool wardenFloor = currentFloor == 3 || currentFloor == 8;
+
                 // Trần tổng số quái để màn chơi luôn đọc được
                 const int maxTotal = 28;
-                int overflow = chaserCount + rangerCount + bruteCount + bomberCount - maxTotal;
+                int overflow = chaserCount + rangerCount + bruteCount + bomberCount + (wardenFloor ? 1 : 0) - maxTotal;
                 if (overflow > 0) chaserCount = Mathf.Max(0, chaserCount - overflow);
 
                 for (int i = 0; i < chaserCount; i++)
@@ -542,6 +546,10 @@ namespace SimpleRPG
                 for (int i = 0; i < bomberCount; i++)
                 {
                     SpawnBomber(GetRandomSpawnPos());
+                }
+                if (wardenFloor)
+                {
+                    SpawnWarden(GetRandomSpawnPos());
                 }
             }
 
@@ -601,6 +609,16 @@ namespace SimpleRPG
             go.transform.SetParent(enemyContainer, false);
             go.transform.position = pos;
             var enemy = go.AddComponent<BruteEnemy>();
+            ScaleEnemy(enemy);
+            _activeEnemies.Add(enemy);
+        }
+
+        private void SpawnWarden(Vector3 pos)
+        {
+            var go = new GameObject("Warden_Brute");
+            go.transform.SetParent(enemyContainer, false);
+            go.transform.position = pos;
+            var enemy = go.AddComponent<WardenEnemy>();
             ScaleEnemy(enemy);
             _activeEnemies.Add(enemy);
         }
@@ -719,7 +737,8 @@ namespace SimpleRPG
                 PlayerPrefs.Save();
             }
 
-            GameUI.Instance?.ShowGameOverModal(currentFloor, lvl, gold, totalEnemiesSlain, best, newRecord);
+            int bestCombo = ComboSystem.Instance != null ? ComboSystem.Instance.BestCombo : 0;
+            GameUI.Instance?.ShowGameOverModal(currentFloor, lvl, gold, totalEnemiesSlain, best, newRecord, bestCombo);
         }
 
         public void RestartGame()
