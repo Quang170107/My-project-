@@ -34,7 +34,7 @@ namespace SimpleRPG
                     return EnemySpriteBytes.Create(key, 48f, new Vector2(0.5f, 0.18f))
                            ?? GenerateFallbackEnemy(key);
                 case "bomber":
-                    return CreateCircle(44, new Color(1f, 0.55f, 0.12f), new Color(0.45f, 0.12f, 0.05f), 3);
+                    return CreateBomberSprite();
                 case "projectile_player":
                     return CreateCircle(32, new Color(0.2f, 0.9f, 1f), Color.white, 2);
                 case "projectile_enemy":
@@ -304,6 +304,99 @@ namespace SimpleRPG
             tex.Apply();
             // Pivot at handle
             return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.2f), 32);
+        }
+
+        /// <summary>Sprite pixel-art cho Bomber Slime: thân cam đổ bóng, mắt giận, ngòi có tia lửa.</summary>
+        public static Sprite CreateBomberSprite()
+        {
+            const int w = 48, h = 56;
+            var px = new Color32[w * h];
+
+            Color32 outline = new Color32(92, 28, 12, 255);
+            Color32 dark = new Color32(214, 96, 24, 255);
+            Color32 mid = new Color32(255, 140, 38, 255);
+            Color32 light = new Color32(255, 196, 96, 255);
+            Color32 white = new Color32(255, 255, 255, 255);
+            Color32 pupil = new Color32(40, 12, 8, 255);
+            Color32 fuse = new Color32(110, 70, 40, 255);
+            Color32 spark = new Color32(255, 235, 90, 255);
+
+            void Put(int x, int y, Color32 c)
+            {
+                if (x < 0 || y < 0 || x >= w || y >= h) return;
+                px[y * w + x] = c;
+            }
+
+            // Thân tròn hơi bẹt, tâm (24, 24)
+            const float cx = 23.5f, cy = 24f, rx = 21f, ry = 19f;
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    float nx = (x - cx) / rx;
+                    float ny = (y - cy) / ry;
+                    float d = nx * nx + ny * ny;
+                    if (d > 1f) continue;
+
+                    // Viền: lớp ngoài cùng
+                    float inner = ((x - cx) / (rx - 2.2f)) * ((x - cx) / (rx - 2.2f)) + ((y - cy) / (ry - 2.2f)) * ((y - cy) / (ry - 2.2f));
+                    if (inner > 1f) { Put(x, y, outline); continue; }
+
+                    // Đổ bóng: sáng ở trên-trái, tối ở dưới-phải (chia 3 mức cho đúng kiểu pixel art)
+                    float shade = -nx * 0.55f + ny * 0.8f; // y tăng lên trên nên ny lớn = phía trên
+                    Put(x, y, shade > 0.35f ? light : (shade > -0.25f ? mid : dark));
+                }
+            }
+
+            // Vệt sáng nhỏ
+            Put(8, 30, white); Put(8, 31, white); Put(8, 32, white); Put(9, 33, white);
+
+            // Mắt giận dữ
+            void Eye(int ex, int ey)
+            {
+                for (int y = -4; y <= 4; y++)
+                    for (int x = -3; x <= 3; x++)
+                        if ((x * x) / 9f + (y * y) / 16f <= 1f) Put(ex + x, ey + y, white);
+                // Đồng tử nhìn xuống-giữa
+                for (int y = -2; y <= 1; y++)
+                    for (int x = -1; x <= 1; x++)
+                        Put(ex + x, ey + y - 1, pupil);
+            }
+            Eye(16, 27);
+            Eye(31, 27);
+
+            // Lông mày nhíu: dốc vào trong
+            for (int i = 0; i < 6; i++)
+            {
+                Put(12 + i, 34 - i / 2, outline);
+                Put(12 + i, 33 - i / 2, outline);
+                Put(35 - i, 34 - i / 2, outline);
+                Put(35 - i, 33 - i / 2, outline);
+            }
+
+            // Miệng nhe răng nhỏ
+            for (int x = 18; x <= 29; x++) Put(x, 15, outline);
+            for (int x = 19; x <= 28; x += 3) { Put(x, 14, white); Put(x + 1, 14, white); }
+
+            // Ngòi: đi lên từ đỉnh thân
+            int fx = 24, fy = 42;
+            for (int i = 0; i < 6; i++)
+            {
+                Put(fx + i / 2, fy + i, fuse);
+                Put(fx + 1 + i / 2, fy + i, fuse);
+            }
+            // Tia lửa ở đầu ngòi
+            int sx = fx + 3, sy = fy + 7;
+            Put(sx, sy, white);
+            Put(sx - 1, sy, spark); Put(sx + 1, sy, spark); Put(sx, sy - 1, spark); Put(sx, sy + 1, spark);
+            Put(sx - 2, sy + 1, spark); Put(sx + 2, sy + 1, spark); Put(sx, sy + 2, spark);
+            Put(sx - 2, sy - 2, new Color32(255, 160, 30, 255)); Put(sx + 2, sy - 2, new Color32(255, 160, 30, 255));
+
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Point;
+            tex.SetPixels32(px);
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.18f), 40f);
         }
 
         public static Sprite CreateChaserSprite()

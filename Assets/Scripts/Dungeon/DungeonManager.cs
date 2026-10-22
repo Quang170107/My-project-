@@ -177,6 +177,7 @@ namespace SimpleRPG
 
             // 4. Spawn Chests
             SpawnChests();
+            SpawnShrineMaybe();
 
             // 5. Spawn Enemies for Floor (hoặc Cửa hàng Thương nhân)
             if (ShopManager.IsShopFloor(currentFloor))
@@ -257,6 +258,9 @@ namespace SimpleRPG
 
             var cam = Camera.main;
             if (cam != null) cam.backgroundColor = _theme.background;
+
+            // Bụi lơ lửng theo màu bioma
+            VisualFX.SetAmbient(Color.Lerp(_theme.background, Color.white, 0.6f), roomWidth / 2f, roomHeight / 2f);
         }
 
         private void GenerateRoomGeometry()
@@ -450,6 +454,19 @@ namespace SimpleRPG
 
             exitPortal = portalGo.AddComponent<ExitPortal>();
             exitPortal.SetOpen(false);
+        }
+
+        /// <summary>Đôi khi (từ tầng 2, không phải tầng boss/cửa hàng/kho báu) có một bàn thờ máu trong phòng.</summary>
+        private void SpawnShrineMaybe()
+        {
+            if (currentFloor < 2 || currentFloor % 5 == 0) return;
+            if (ShopManager.IsShopFloor(currentFloor) || _mod == FloorMod.Treasure) return;
+            if (UnityEngine.Random.value > 0.3f) return;
+
+            var go = new GameObject("Blood_Shrine");
+            go.transform.SetParent(roomContainer, false);
+            go.transform.position = GetRandomSpawnPos();
+            go.AddComponent<ShrineAltar>();
         }
 
         private void SpawnChests()
@@ -719,6 +736,7 @@ namespace SimpleRPG
         private void HandleLevelUp(int newLevel)
         {
             _pendingLevelUps++;
+            if (PlayerController.Instance != null) VisualFX.LevelUpBurst(PlayerController.Instance.transform.position);
             if (!_upgradeModalOpen)
             {
                 ShowNextUpgrade();

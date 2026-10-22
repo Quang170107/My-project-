@@ -200,3 +200,26 @@ Inspired by Hades, Dead Cells and Soul Knight:
 ### 🔊 Sounds
 
 New generated SFX (no audio files needed): `explode` (Bomber blast), `fuse` (accelerating beeps while the Bomber's fuse burns) and `combo` (every 5th kill of a combo).
+
+### 🎨 Graphics upgrade
+
+All done in code, no scene/asset setup needed (`Assets/Scripts/Dungeon/VisualFX.cs`, starts automatically):
+
+- **Post-processing (URP):** bloom on bright effects, a soft vignette, and slightly boosted saturation/contrast. Skipped automatically if the project is not running URP.
+- **Damage feedback:** the screen edge pulses red when the player gets hurt (stronger for bigger hits).
+- **Particles (pooled):** white hit sparks on every hit, gold ones on crits, colour-matched debris when enemies die, and a fiery burst when a Bomber explodes. Capped to keep the frame rate stable on crowded floors.
+- **Shadows:** every enemy now has a soft ground shadow like the player.
+- **New Bomber Slime sprite:** hand-drawn pixel art (shaded orange body, angry eyes, lit fuse) instead of a plain circle.
+
+- **Ambient dust:** soft floating motes tinted by the floor's biome colour.
+- **Level-up and Nova bursts:** a golden/cyan burst when you level up, and a cyan shockwave of sparks when you cast Nova.
+
+- Press **F3** in game to toggle the post-processing (bloom/vignette) on or off.
+
+- **Pickup sparkles:** coins, XP gems, potions and opening a chest all pop small colour-matched sparks.
+
+### 🩸 Blood Shrine (random event)
+
+- From floor 2 (never on boss, shop or treasure floors) there is a 30% chance of a **Blood Shrine** in the room.
+- Touch it to pay 15% of your max HP (min 10) for one **random free upgrade** from the whole pool. One use per shrine.
+- It never kills you: if you are too weak it refuses and costs nothing. New file: `Assets/Scripts/Dungeon/ShrineAltar.cs`.

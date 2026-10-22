@@ -65,6 +65,7 @@ namespace SimpleRPG
                 playerTransform = PlayerController.Instance.transform;
             }
             PositionHealthBar();
+            VisualFX.AddShadow(transform, spriteRenderer);
         }
 
         public void MakeElite()
@@ -197,6 +198,9 @@ namespace SimpleRPG
             }
 
             // Relic trigger on hit
+            // Tia lửa khi trúng đòn (chí mạng nhiều và vàng hơn)
+            VisualFX.Burst(transform.position + Vector3.up * 0.3f, isCritical ? new Color(1f, 0.85f, 0.2f) : new Color(1f, 1f, 1f), isCritical ? 9 : 4, isCritical ? 4.5f : 3f, isCritical ? 0.4f : 0.28f);
+
             // triggerRelics = false cho sát thương phụ (đốt, nổ, tia sét chuỗi) để không kích hoạt relic lặp lại
             if (triggerRelics) RelicSystem.Instance?.OnHitEnemy(this, damage, isCritical);
 
@@ -241,6 +245,9 @@ namespace SimpleRPG
             // Relic kill trigger (explosions, blood chalice)
             RelicSystem.Instance?.OnEnemyKilled(this);
 
+            // Mảnh vỡ khi chết
+            VisualFX.Burst(transform.position + Vector3.up * 0.2f, DeathBurstColor(), 16, 4.5f, 0.6f);
+
             // Combo kill streak
             if (CountsForCombo) ComboSystem.RegisterKill(transform.position);
 
@@ -271,6 +278,17 @@ namespace SimpleRPG
             int floor = DungeonManager.Instance != null ? DungeonManager.Instance.currentFloor : 1;
             bool isBoss = this is BossEnemy || this is WardenEnemy;
             EquipmentPickup.TryDrop(transform.position + (Vector3)Random.insideUnitCircle * 0.4f, 0.12f, floor, isBoss);
+        }
+
+        private Color DeathBurstColor()
+        {
+            if (isElite) return new Color(1f, 0.85f, 0.4f);
+            if (this is BossEnemy) return new Color(0.95f, 0.3f, 0.3f);
+            if (this is WardenEnemy) return new Color(1f, 0.78f, 0.35f);
+            if (this is BomberEnemy) return new Color(1f, 0.6f, 0.15f);
+            if (this is BruteEnemy) return new Color(0.6f, 0.4f, 0.95f);
+            if (this is RangerEnemy) return new Color(0.95f, 0.3f, 0.35f);
+            return new Color(0.4f, 0.9f, 0.35f);
         }
 
         private IEnumerator DeathRoutine()

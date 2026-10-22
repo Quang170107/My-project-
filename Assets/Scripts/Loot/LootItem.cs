@@ -128,6 +128,7 @@ namespace SimpleRPG
                     if (player != null)
                     {
                         player.stats.Heal(healAmount);
+                        VisualFX.Burst(transform.position, new Color(1f, 0.4f, 0.5f), 8, 3f, 0.45f);
                         Destroy(gameObject);
                     }
                 }
@@ -145,10 +146,12 @@ namespace SimpleRPG
             if (lootType == LootType.XP)
             {
                 PlayerController.Instance.stats.AddXP(value);
+                VisualFX.Burst(transform.position, new Color(0.45f, 0.9f, 1f), 3, 2f, 0.3f);
             }
             else if (lootType == LootType.Coin)
             {
                 PlayerController.Instance.stats.AddGold(value);
+                VisualFX.Burst(transform.position, new Color(1f, 0.85f, 0.2f), 4, 2.5f, 0.35f);
             }
 
             Destroy(gameObject);
@@ -163,6 +166,7 @@ namespace SimpleRPG
 
             // Pop animation
             transform.localScale = Vector3.one * 1.3f;
+            VisualFX.Burst(transform.position + Vector3.up * 0.2f, new Color(1f, 0.85f, 0.25f), 24, 5.5f, 0.7f);
 
             // Spew rewards
             LootManager.Instance?.SpawnCoin(transform.position + Vector3.left * 0.5f, 15);

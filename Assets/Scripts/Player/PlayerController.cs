@@ -353,6 +353,7 @@ namespace SimpleRPG
         private void PerformSpecialNova()
         {
             specialCooldownTimer = stats.specialCooldown;
+            VisualFX.Burst(transform.position, new Color(0.4f, 0.95f, 1f), 34, 8f, 0.6f);
             AudioManager.Instance?.PlaySound("special");
             CameraFollow.Instance?.Shake(0.25f, 0.35f);
 
@@ -396,6 +397,7 @@ namespace SimpleRPG
 
             stats.TakeDamage(damage, knockbackDir, knockbackForce);
             ComboSystem.Instance?.BreakCombo();
+            VisualFX.DamagePulse(Mathf.Clamp01(0.45f + damage / 60f));
             AudioManager.Instance?.PlaySound("hurt");
             CameraFollow.Instance?.Shake(0.18f, 0.25f);
             if (stats.currentHealth <= 0) return;
