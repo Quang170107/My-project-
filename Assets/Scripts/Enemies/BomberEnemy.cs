@@ -84,6 +84,7 @@ namespace SimpleRPG
             Vector3 initScale = transform.localScale;
             Color origColor = spriteRenderer.color;
             float elapsed = 0f;
+            float nextBeep = 0f;
 
             while (elapsed < FuseTime)
             {
@@ -96,6 +97,13 @@ namespace SimpleRPG
                 elapsed += Time.deltaTime;
                 float t = elapsed / FuseTime;
                 transform.localScale = Vector3.Lerp(initScale, initScale * 1.35f, t);
+
+                // Tiếng bíp nhanh dần khi ngòi cháy
+                if (elapsed >= nextBeep)
+                {
+                    AudioManager.Instance?.PlaySound("fuse", 0.5f);
+                    nextBeep = elapsed + Mathf.Lerp(0.25f, 0.08f, t);
+                }
 
                 // Nhấp nháy nhanh dần
                 float blink = Mathf.Sin(t * t * 40f) > 0f ? 1f : 0f;
@@ -115,7 +123,7 @@ namespace SimpleRPG
             _selfDestructed = true;
             Vector3 center = transform.position;
 
-            AudioManager.Instance?.PlaySound("special");
+            AudioManager.Instance?.PlaySound("explode");
             CameraFollow.Instance?.Shake(0.3f, 0.4f);
 
             var ringGo = new GameObject("BomberBlast");

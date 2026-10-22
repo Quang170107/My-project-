@@ -141,3 +141,7 @@ Inspired by Hades, Dead Cells and Soul Knight:
 
 - **Warden Brute** appears on floors 3 and 8: a larger, golden Armored Slime (180 HP, ground slam, hits for 20) that always drops equipment.
 - The game-over screen now also shows your **Best Combo** for the run (reset every new run).
+
+### 🔊 Sounds
+
+New generated SFX (no audio files needed): `explode` (Bomber blast), `fuse` (accelerating beeps while the Bomber's fuse burns) and `combo` (every 5th kill of a combo).

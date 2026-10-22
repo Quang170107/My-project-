@@ -41,6 +41,9 @@ namespace SimpleRPG
             _clips["portal"] = CreateChimeClip(new float[] { 440f, 554.37f, 659.25f, 880f }, 0.15f);
             _clips["hurt"] = CreateToneClip(0.12f, 180, 90, ToneType.Sawtooth);
             _clips["special"] = CreateToneClip(0.35f, 180, 40, ToneType.Sine);
+            _clips["explode"] = CreateToneClip(0.4f, 140, 30, ToneType.NoiseBurst);
+            _clips["fuse"] = CreateToneClip(0.1f, 1200, 900, ToneType.Square);
+            _clips["combo"] = CreateChimeClip(new float[] { 784f, 987.77f, 1174.66f }, 0.06f);
         }
 
         public void PlaySound(string soundName, float volume = 1f)
