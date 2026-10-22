@@ -118,3 +118,10 @@ Inspired by Hades, Dead Cells and Soul Knight:
 - **2 new upgrade cards:** **Eagle Eye** (+8% crit chance, capped at 60%) and **Arcane Focus** (-0.8s Nova cooldown, min 2.5s). The Nova cooldown ring in the HUD follows the new value.
 - **Kill combo:** killing enemies within 3 seconds of each other builds a combo shown on the right side of the screen (colour heats up at x10 and x20). Every 5th kill pays out bonus gold that scales with the combo. Taking damage or dying breaks the combo.
 - New file: `Assets/Scripts/Combat/ComboSystem.cs` (creates itself on the first kill, no scene setup needed).
+
+### 💣 New enemy: Bomber Slime (floor 4+)
+
+- Rushes you, then stops and blinks for 0.75s with a red warning circle before exploding (20 damage in a 2.2m radius).
+- The blast also hurts other enemies (40 damage), so lead it into a crowd. Kills caused that way still count for your combo.
+- Kill it before the fuse ends and it never explodes. A self-destruct drops no loot and does not count for the combo.
+- 1 Bomber on floor 4, +1 every 2 floors, max 4. Not present on Swarm floors.

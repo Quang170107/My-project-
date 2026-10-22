@@ -69,6 +69,7 @@ namespace SimpleRPG
         private const int MaxChasers = 10;
         private const int MaxRangers = 8;
         private const int MaxBrutes = 5;
+        private const int MaxBombers = 4;
 
         private void Awake()
         {
@@ -516,9 +517,14 @@ namespace SimpleRPG
                 rangerCount = Mathf.Min(Mathf.RoundToInt(rangerCount * _theme.rangerMul), rangerCap);
                 bruteCount = Mathf.Min(Mathf.RoundToInt(bruteCount * _theme.bruteMul), bruteCap);
 
+                // Quái tự nổ xuất hiện từ tầng 4, không có ở tầng Swarm (đã quá đông)
+                int bomberCount = (currentFloor >= 4 && _mod != FloorMod.Swarm)
+                    ? Mathf.Min(1 + (currentFloor - 4) / 2, MaxBombers)
+                    : 0;
+
                 // Trần tổng số quái để màn chơi luôn đọc được
                 const int maxTotal = 28;
-                int overflow = chaserCount + rangerCount + bruteCount - maxTotal;
+                int overflow = chaserCount + rangerCount + bruteCount + bomberCount - maxTotal;
                 if (overflow > 0) chaserCount = Mathf.Max(0, chaserCount - overflow);
 
                 for (int i = 0; i < chaserCount; i++)
@@ -532,6 +538,10 @@ namespace SimpleRPG
                 for (int i = 0; i < bruteCount; i++)
                 {
                     SpawnBrute(GetRandomSpawnPos());
+                }
+                for (int i = 0; i < bomberCount; i++)
+                {
+                    SpawnBomber(GetRandomSpawnPos());
                 }
             }
 
@@ -591,6 +601,16 @@ namespace SimpleRPG
             go.transform.SetParent(enemyContainer, false);
             go.transform.position = pos;
             var enemy = go.AddComponent<BruteEnemy>();
+            ScaleEnemy(enemy);
+            _activeEnemies.Add(enemy);
+        }
+
+        private void SpawnBomber(Vector3 pos)
+        {
+            var go = new GameObject("Bomber_Slime");
+            go.transform.SetParent(enemyContainer, false);
+            go.transform.position = pos;
+            var enemy = go.AddComponent<BomberEnemy>();
             ScaleEnemy(enemy);
             _activeEnemies.Add(enemy);
         }

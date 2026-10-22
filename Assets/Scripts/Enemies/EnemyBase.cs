@@ -18,6 +18,9 @@ namespace SimpleRPG
 
         public bool IsAlive => currentHealth > 0;
 
+        /// <summary>Cái chết này có được tính vào combo hạ gục không (quái tự nổ thì không).</summary>
+        protected virtual bool CountsForCombo => true;
+
         protected Rigidbody2D rb;
         protected SpriteRenderer spriteRenderer;
         protected Transform playerTransform;
@@ -160,7 +163,7 @@ namespace SimpleRPG
             DropLoot();
 
             // Combo kill streak
-            ComboSystem.RegisterKill(transform.position);
+            if (CountsForCombo) ComboSystem.RegisterKill(transform.position);
 
             // Notify DungeonManager
             DungeonManager.Instance?.OnEnemyDefeated(this);
@@ -169,7 +172,7 @@ namespace SimpleRPG
             StartCoroutine(DeathRoutine());
         }
 
-        private void DropLoot()
+        protected virtual void DropLoot()
         {
             // Always drop XP gem
             LootManager.Instance?.SpawnXP(transform.position, xpDrop);
