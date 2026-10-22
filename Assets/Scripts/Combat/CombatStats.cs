@@ -38,7 +38,7 @@ namespace SimpleRPG
         public float critChance = 0.05f; // xác suất chí mạng (0..MaxCritChance)
         public float critMultiplier = 2f; // hệ số sát thương khi chí mạng
         public float specialCooldown = 6f; // hồi chiêu kỹ năng Nova (giây)
-        public int igniteLevel = 0; // cấp độ đốt: mỗi cấp = 25% sát thương cơ bản/giây trong 3s
+        public int igniteLevel = 0; // cấp độ đốt: mỗi cấp = 50% sát thương cơ bản/giây trong 3s
         public int frostbiteLevel = 0; // cấp độ làm chậm: mỗi cấp giảm 15% tốc độ quái (tối thiểu còn 40%)
 
         [Header("Mobility")]

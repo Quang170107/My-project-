@@ -133,7 +133,7 @@ Inspired by Hades, Dead Cells and Soul Knight:
 
 ### 🔥❄️ Status effects
 
-- **Ember Edge** (upgrade): melee hits and Nova set enemies on fire for 3s. Each level adds 25% of your base damage per second (ticks every 0.5s). Re-hitting refreshes the timer.
+- **Ember Edge** (upgrade): melee hits and Nova set enemies on fire for 3s. Each level adds 50% of your base damage per second (ticks every 0.5s). Re-hitting refreshes the timer.
 - **Frost Touch** (upgrade): hits slow enemies for 2s, -15% speed per level, down to 40% speed at level 4.
 - Both stack with crits, combo and Bomber friendly fire. Burn kills count for your combo. New file: `Assets/Scripts/Enemies/EnemyStatus.cs`.
 

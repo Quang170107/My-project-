@@ -338,7 +338,7 @@ namespace SimpleRPG
 
             if (stats.igniteLevel > 0)
             {
-                float dps = stats.baseDamage * 0.25f * stats.igniteLevel;
+                float dps = stats.baseDamage * 0.5f * stats.igniteLevel;
                 EnemyStatus.Ignite(enemy, dps, 3f);
             }
             if (stats.frostbiteLevel > 0)

@@ -498,7 +498,7 @@ namespace SimpleRPG
                 case UpgradeType.Armor: return "+2 Damage Reduction\nResist all hits";
                 case UpgradeType.CritChance: return "+8% Crit Chance\nCrits deal x2 damage";
                 case UpgradeType.NovaCooldown: return "-0.8s Nova Cooldown\nCast Nova more often";
-                case UpgradeType.Ignite: return "Hits set enemies on fire\n+25% damage/s for 3s per level";
+                case UpgradeType.Ignite: return "Hits set enemies on fire\n+50% damage/s for 3s per level";
                 case UpgradeType.Frostbite: return "Hits slow enemies\n-15% speed per level for 2s";
                 default: return "+Bonus Stats";
             }
