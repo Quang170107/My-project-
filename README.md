@@ -215,3 +215,5 @@ All done in code, no scene/asset setup needed (`Assets/Scripts/Dungeon/VisualFX.
 - **Level-up and Nova bursts:** a golden/cyan burst when you level up, and a cyan shockwave of sparks when you cast Nova.
 
 - Press **F3** in game to toggle the post-processing (bloom/vignette) on or off.
+
+- **Pickup sparkles:** coins, XP gems, potions and opening a chest all pop small colour-matched sparks.
