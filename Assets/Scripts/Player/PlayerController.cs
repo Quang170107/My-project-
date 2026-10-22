@@ -225,6 +225,7 @@ namespace SimpleRPG
                     Vector2 hitDir = ((Vector2)enemy.transform.position - (Vector2)transform.position).normalized;
                     float swingDamage = stats.RollDamage(stats.baseDamage, out bool swingCrit);
                     enemy.TakeDamage(swingDamage, hitDir, swingCrit ? 9f : 6f, swingCrit);
+                    ApplyOnHitEffects(enemy);
 
                     // Lifesteal (gộp lại, hồi 1 lần mỗi nhát chém)
                     if (stats.lifesteal > 0f)
@@ -330,6 +331,23 @@ namespace SimpleRPG
             }
         }
 
+        /// <summary>Áp hiệu ứng đốt / làm chậm từ nâng cấp lên quái vừa trúng đòn.</summary>
+        private void ApplyOnHitEffects(EnemyBase enemy)
+        {
+            if (enemy == null || !enemy.IsAlive) return;
+
+            if (stats.igniteLevel > 0)
+            {
+                float dps = stats.baseDamage * 0.25f * stats.igniteLevel;
+                EnemyStatus.Ignite(enemy, dps, 3f);
+            }
+            if (stats.frostbiteLevel > 0)
+            {
+                float factor = Mathf.Max(0.4f, 1f - 0.15f * stats.frostbiteLevel);
+                EnemyStatus.Slow(enemy, factor, 2f);
+            }
+        }
+
         private void PerformSpecialNova()
         {
             specialCooldownTimer = stats.specialCooldown;
@@ -357,6 +375,7 @@ namespace SimpleRPG
                     Vector2 pushDir = ((Vector2)enemy.transform.position - (Vector2)transform.position).normalized;
                     float novaDamage = stats.RollDamage(stats.baseDamage * 1.8f, out bool novaCrit);
                     enemy.TakeDamage(novaDamage, pushDir, 12f, novaCrit);
+                    ApplyOnHitEffects(enemy);
                 }
             }
         }

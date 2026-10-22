@@ -130,3 +130,9 @@ Inspired by Hades, Dead Cells and Soul Knight:
 
 - Weapons can now roll a **crit chance** affix (+2% × rarity/floor scaling, max +20% per weapon). It shows in the shop, the inventory item rows and the new fourth line of the inventory summary (Crit Chance / Crit Damage / Nova Cooldown).
 - The total crit chance used in combat is capped at 60%, no matter how much gear and upgrades stack.
+
+### 🔥❄️ Status effects
+
+- **Ember Edge** (upgrade): melee hits and Nova set enemies on fire for 3s. Each level adds 25% of your base damage per second (ticks every 0.5s). Re-hitting refreshes the timer.
+- **Frost Touch** (upgrade): hits slow enemies for 2s, -15% speed per level, down to 40% speed at level 4.
+- Both stack with crits, combo and Bomber friendly fire. Burn kills count for your combo. New file: `Assets/Scripts/Enemies/EnemyStatus.cs`.
