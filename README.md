@@ -217,3 +217,9 @@ All done in code, no scene/asset setup needed (`Assets/Scripts/Dungeon/VisualFX.
 - Press **F3** in game to toggle the post-processing (bloom/vignette) on or off.
 
 - **Pickup sparkles:** coins, XP gems, potions and opening a chest all pop small colour-matched sparks.
+
+### 🩸 Blood Shrine (random event)
+
+- From floor 2 (never on boss, shop or treasure floors) there is a 30% chance of a **Blood Shrine** in the room.
+- Touch it to pay 15% of your max HP (min 10) for one **random free upgrade** from the whole pool. One use per shrine.
+- It never kills you: if you are too weak it refuses and costs nothing. New file: `Assets/Scripts/Dungeon/ShrineAltar.cs`.
