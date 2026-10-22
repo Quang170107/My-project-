@@ -51,6 +51,12 @@ namespace SimpleRPG
             _particleRoot = rootGo.transform;
 
             SetupPostProcessing();
+
+            if (_hasPendingAmbient)
+            {
+                _hasPendingAmbient = false;
+                ApplyAmbient(_pendingTint, _pendingHalfW, _pendingHalfH);
+            }
         }
 
         private void OnDestroy()
@@ -206,6 +212,97 @@ namespace SimpleRPG
                 transform.localScale = Vector3.one * (_scale * (1f - k * 0.7f));
                 _sr.color = new Color(_color.r, _color.g, _color.b, 1f - k * k);
             }
+        }
+
+        // ───────────────────────── Bụi môi trường ─────────────────────────
+
+        private readonly List<AmbientMote> _motes = new List<AmbientMote>();
+        private const int MoteCount = 34;
+
+        /// <summary>Đặt bụi/đốm sáng lơ lửng trong phòng, tô theo màu bioma của tầng.</summary>
+        public static void SetAmbient(Color tint, float halfWidth, float halfHeight)
+        {
+            if (Instance == null)
+            {
+                // Chưa khởi động xong: nhớ lại để áp dụng ngay khi Awake
+                _hasPendingAmbient = true;
+                _pendingTint = tint;
+                _pendingHalfW = halfWidth;
+                _pendingHalfH = halfHeight;
+                return;
+            }
+            Instance.ApplyAmbient(tint, halfWidth, halfHeight);
+        }
+
+        private static bool _hasPendingAmbient;
+        private static Color _pendingTint;
+        private static float _pendingHalfW, _pendingHalfH;
+
+        private void ApplyAmbient(Color tint, float halfW, float halfH)
+        {
+            if (_particleSprite == null)
+                _particleSprite = SpriteFactory.CreateCircle(8, Color.white, Color.clear, 0);
+
+            while (_motes.Count < MoteCount)
+            {
+                var go = new GameObject("Mote");
+                go.transform.SetParent(_particleRoot, false);
+                var sr = go.AddComponent<SpriteRenderer>();
+                sr.sprite = _particleSprite;
+                sr.sortingOrder = 9;
+                var m = go.AddComponent<AmbientMote>();
+                m.Init(sr);
+                _motes.Add(m);
+            }
+
+            foreach (var m in _motes)
+                m.Configure(tint, halfW, halfH);
+        }
+
+        private class AmbientMote : MonoBehaviour
+        {
+            private SpriteRenderer _sr;
+            private Color _tint = Color.white;
+            private float _halfW = 11f, _halfH = 7f;
+            private float _speed, _phase, _twinkle, _baseAlpha, _sway;
+
+            public void Init(SpriteRenderer sr) { _sr = sr; }
+
+            public void Configure(Color tint, float halfW, float halfH)
+            {
+                _tint = tint;
+                _halfW = halfW + 0.5f;
+                _halfH = halfH + 0.5f;
+                _speed = Random.Range(0.15f, 0.45f);
+                _phase = Random.value * 10f;
+                _twinkle = Random.Range(0.8f, 2.2f);
+                _baseAlpha = Random.Range(0.12f, 0.32f);
+                _sway = Random.Range(0.15f, 0.4f);
+                transform.position = new Vector3(Random.Range(-_halfW, _halfW), Random.Range(-_halfH, _halfH), 0f);
+                transform.localScale = Vector3.one * Random.Range(0.35f, 0.9f);
+            }
+
+            private void Update()
+            {
+                Vector3 p = transform.position;
+                p.y += _speed * Time.deltaTime;
+                p.x += Mathf.Sin(Time.time * 0.7f + _phase) * _sway * Time.deltaTime;
+                if (p.y > _halfH) { p.y = -_halfH; p.x = Random.Range(-_halfW, _halfW); }
+                transform.position = p;
+
+                float a = _baseAlpha * (0.55f + 0.45f * Mathf.Sin(Time.time * _twinkle + _phase));
+                _sr.color = new Color(_tint.r, _tint.g, _tint.b, Mathf.Max(0f, a));
+            }
+        }
+
+        // ───────────────────────── Hiệu ứng lên cấp ─────────────────────────
+
+        /// <summary>Vòng sáng vàng-xanh toả ra khi người chơi lên cấp.</summary>
+        public static void LevelUpBurst(Vector3 pos)
+        {
+            if (Instance == null) return;
+            Burst(pos + Vector3.up * 0.3f, new Color(1f, 0.92f, 0.45f), 26, 6f, 0.8f);
+            Burst(pos + Vector3.up * 0.3f, new Color(0.5f, 0.95f, 1f), 14, 3.5f, 0.7f);
         }
 
         // ───────────────────────── Bóng đổ ─────────────────────────

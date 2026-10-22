@@ -257,6 +257,9 @@ namespace SimpleRPG
 
             var cam = Camera.main;
             if (cam != null) cam.backgroundColor = _theme.background;
+
+            // Bụi lơ lửng theo màu bioma
+            VisualFX.SetAmbient(Color.Lerp(_theme.background, Color.white, 0.6f), roomWidth / 2f, roomHeight / 2f);
         }
 
         private void GenerateRoomGeometry()
@@ -719,6 +722,7 @@ namespace SimpleRPG
         private void HandleLevelUp(int newLevel)
         {
             _pendingLevelUps++;
+            if (PlayerController.Instance != null) VisualFX.LevelUpBurst(PlayerController.Instance.transform.position);
             if (!_upgradeModalOpen)
             {
                 ShowNextUpgrade();

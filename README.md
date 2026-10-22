@@ -210,3 +210,6 @@ All done in code, no scene/asset setup needed (`Assets/Scripts/Dungeon/VisualFX.
 - **Particles (pooled):** white hit sparks on every hit, gold ones on crits, colour-matched debris when enemies die, and a fiery burst when a Bomber explodes. Capped to keep the frame rate stable on crowded floors.
 - **Shadows:** every enemy now has a soft ground shadow like the player.
 - **New Bomber Slime sprite:** hand-drawn pixel art (shaded orange body, angry eyes, lit fuse) instead of a plain circle.
+
+- **Ambient dust:** soft floating motes tinted by the floor's biome colour.
+- **Level-up and Nova bursts:** a golden/cyan burst when you level up, and a cyan shockwave of sparks when you cast Nova.

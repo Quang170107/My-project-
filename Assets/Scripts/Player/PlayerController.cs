@@ -353,6 +353,7 @@ namespace SimpleRPG
         private void PerformSpecialNova()
         {
             specialCooldownTimer = stats.specialCooldown;
+            VisualFX.Burst(transform.position, new Color(0.4f, 0.95f, 1f), 34, 8f, 0.6f);
             AudioManager.Instance?.PlaySound("special");
             CameraFollow.Instance?.Shake(0.25f, 0.35f);
 
