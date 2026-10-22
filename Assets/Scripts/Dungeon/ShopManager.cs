@@ -446,6 +446,7 @@ namespace SimpleRPG
             if (it.moveSpeed > 0)  parts.Add($"+{it.moveSpeed:0.#} SPD");
             if (it.attackRate > 0) parts.Add($"+{it.attackRate:0.#} ATK/s");
             if (it.lifesteal > 0)  parts.Add($"+{Mathf.RoundToInt(it.lifesteal * 100f)}% LS");
+            if (it.critChance > 0) parts.Add($"+{Mathf.RoundToInt(it.critChance * 100f)}% CRIT");
             return string.Join("\n", parts);
         }
 

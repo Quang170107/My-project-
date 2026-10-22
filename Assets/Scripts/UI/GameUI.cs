@@ -312,7 +312,7 @@ namespace SimpleRPG
 
             var statsGo = CreateText("Stats", _gameOverRoot.transform, "Floor Reached: 1\nLevel: 1\nGold Collected: 0", 24, Color.white, TextAnchor.MiddleCenter);
             statsGo.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 30);
-            statsGo.GetComponent<RectTransform>().sizeDelta = new Vector2(600, 120);
+            statsGo.GetComponent<RectTransform>().sizeDelta = new Vector2(600, 180);
             _gameOverStatsText = statsGo.GetComponent<Text>();
 
             // Restart Button
@@ -484,6 +484,8 @@ namespace SimpleRPG
                 case UpgradeType.Armor: return "Iron Aegis";
                 case UpgradeType.CritChance: return "Eagle Eye";
                 case UpgradeType.NovaCooldown: return "Arcane Focus";
+                case UpgradeType.Ignite: return "Ember Edge";
+                case UpgradeType.Frostbite: return "Frost Touch";
                 default: return "Mystery Boon";
             }
         }
@@ -501,6 +503,8 @@ namespace SimpleRPG
                 case UpgradeType.Armor: return "+2 Damage Reduction\nResist all hits";
                 case UpgradeType.CritChance: return "+8% Crit Chance\nCrits deal x2 damage";
                 case UpgradeType.NovaCooldown: return "-0.8s Nova Cooldown\nCast Nova more often";
+                case UpgradeType.Ignite: return "Hits set enemies on fire\n+50% damage/s for 3s per level";
+                case UpgradeType.Frostbite: return "Hits slow enemies\n-15% speed per level for 2s";
                 default: return "+Bonus Stats";
             }
         }
@@ -518,11 +522,13 @@ namespace SimpleRPG
                 case UpgradeType.Armor: return SpriteFactory.GetSprite("pillar");
                 case UpgradeType.CritChance: return SpriteFactory.GetSprite("slash");
                 case UpgradeType.NovaCooldown: return SpriteFactory.GetSprite("gem_xp");
+                case UpgradeType.Ignite: return SpriteFactory.GetSprite("sword");
+                case UpgradeType.Frostbite: return SpriteFactory.GetSprite("portal");
                 default: return SpriteFactory.GetSprite("coin");
             }
         }
 
-        public void ShowGameOverModal(int floor, int level, int gold, int enemiesSlain, int bestFloor = 0, bool newRecord = false)
+        public void ShowGameOverModal(int floor, int level, int gold, int enemiesSlain, int bestFloor = 0, bool newRecord = false, int bestCombo = 0)
         {
             _gameOverRoot.SetActive(true);
             if (_gameOverStatsText != null)
@@ -531,6 +537,10 @@ namespace SimpleRPG
                 if (bestFloor > 0)
                 {
                     _gameOverStatsText.text += newRecord ? $"\nBest Floor: {bestFloor}  NEW RECORD!" : $"\nBest Floor: {bestFloor}";
+                }
+                if (bestCombo >= 2)
+                {
+                    _gameOverStatsText.text += $"\nBest Combo: x{bestCombo}";
                 }
             }
         }

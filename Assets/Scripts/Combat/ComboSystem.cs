@@ -123,8 +123,16 @@ namespace SimpleRPG
                 int bonus = CurrentCombo / BonusEvery;
                 PlayerController.Instance.stats.AddGold(bonus);
                 DamageNumberManager.Instance?.SpawnNumber(worldPos + Vector3.up * 0.8f, bonus, new Color(1f, 0.85f, 0.2f), "COMBO +");
+                AudioManager.Instance?.PlaySound("combo", 0.8f);
             }
             Refresh();
+        }
+
+        /// <summary>Gọi khi bắt đầu lượt chơi mới: xoá combo và kỷ lục combo của lượt trước.</summary>
+        public void ResetRun()
+        {
+            BreakCombo();
+            BestCombo = 0;
         }
 
         public void BreakCombo()

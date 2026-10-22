@@ -19,6 +19,8 @@ namespace SimpleRPG
 
         public bool IsAlive => currentHealth > 0;
 
+        /// <summary>Cái chết này có được tính vào combo hạ gục không (quái tự nổ thì không).</summary>
+        protected virtual bool CountsForCombo => true;
         // Status effects
         private float _poisonTimer = 0f;
         private float _poisonDmgPerSec = 0f;
@@ -180,7 +182,7 @@ namespace SimpleRPG
 
         protected abstract void UpdateAI();
 
-        public virtual void TakeDamage(float damage, Vector2 knockbackDir, float knockbackForce = 5f, bool isCritical = false)
+        public virtual void TakeDamage(float damage, Vector2 knockbackDir, float knockbackForce = 5f, bool isCritical = false, bool triggerRelics = true)
         {
             if (!IsAlive) return;
 
@@ -195,7 +197,8 @@ namespace SimpleRPG
             }
 
             // Relic trigger on hit
-            RelicSystem.Instance?.OnHitEnemy(this, damage, isCritical);
+            // triggerRelics = false cho sát thương phụ (đốt, nổ, tia sét chuỗi) để không kích hoạt relic lặp lại
+            if (triggerRelics) RelicSystem.Instance?.OnHitEnemy(this, damage, isCritical);
 
             // Update mini health bar
             if (_healthBarRoot != null)
@@ -239,7 +242,7 @@ namespace SimpleRPG
             RelicSystem.Instance?.OnEnemyKilled(this);
 
             // Combo kill streak
-            ComboSystem.RegisterKill(transform.position);
+            if (CountsForCombo) ComboSystem.RegisterKill(transform.position);
 
             // Notify DungeonManager
             DungeonManager.Instance?.OnEnemyDefeated(this);
@@ -248,7 +251,7 @@ namespace SimpleRPG
             StartCoroutine(DeathRoutine());
         }
 
-        private void DropLoot()
+        protected virtual void DropLoot()
         {
             // Always drop XP gem
             LootManager.Instance?.SpawnXP(transform.position, xpDrop);
@@ -266,7 +269,7 @@ namespace SimpleRPG
             }
             // Chance of equipment (boss luôn rơi)
             int floor = DungeonManager.Instance != null ? DungeonManager.Instance.currentFloor : 1;
-            bool isBoss = this is BossEnemy;
+            bool isBoss = this is BossEnemy || this is WardenEnemy;
             EquipmentPickup.TryDrop(transform.position + (Vector3)Random.insideUnitCircle * 0.4f, 0.12f, floor, isBoss);
         }
 

@@ -160,7 +160,7 @@ namespace SimpleRPG
                 var enemy = col.GetComponent<EnemyBase>();
                 if (enemy != null && enemy != initialTarget && enemy.IsAlive)
                 {
-                    enemy.TakeDamage(chainDmg, (enemy.transform.position - (Vector3)origin).normalized, 3f, false);
+                    enemy.TakeDamage(chainDmg, (enemy.transform.position - (Vector3)origin).normalized, 3f, false, false);
                     SpawnLightningBoltVisual(origin, enemy.transform.position);
                     zaps++;
                     if (zaps >= 3) break;

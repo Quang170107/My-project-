@@ -33,6 +33,8 @@ namespace SimpleRPG
                 case "boss":
                     return EnemySpriteBytes.Create(key, 48f, new Vector2(0.5f, 0.18f))
                            ?? GenerateFallbackEnemy(key);
+                case "bomber":
+                    return CreateCircle(44, new Color(1f, 0.55f, 0.12f), new Color(0.45f, 0.12f, 0.05f), 3);
                 case "projectile_player":
                     return CreateCircle(32, new Color(0.2f, 0.9f, 1f), Color.white, 2);
                 case "projectile_enemy":

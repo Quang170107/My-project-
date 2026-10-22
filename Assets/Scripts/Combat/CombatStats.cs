@@ -13,7 +13,9 @@ namespace SimpleRPG
         Lifesteal,
         Armor,
         CritChance,
-        NovaCooldown
+        NovaCooldown,
+        Ignite,
+        Frostbite
     }
 
     public class CombatStats : MonoBehaviour
@@ -36,6 +38,8 @@ namespace SimpleRPG
         public float critChance = 0.05f; // xác suất chí mạng (0..MaxCritChance)
         public float critMultiplier = 2f; // hệ số sát thương khi chí mạng
         public float specialCooldown = 6f; // hồi chiêu kỹ năng Nova (giây)
+        public int igniteLevel = 0; // cấp độ đốt: mỗi cấp = 50% sát thương cơ bản/giây trong 3s
+        public int frostbiteLevel = 0; // cấp độ làm chậm: mỗi cấp giảm 15% tốc độ quái (tối thiểu còn 40%)
 
         [Header("Mobility")]
         public float moveSpeed = 5.5f;
@@ -74,6 +78,8 @@ namespace SimpleRPG
             critChance = 0.05f;
             critMultiplier = 2f;
             specialCooldown = 6f;
+            igniteLevel = 0;
+            frostbiteLevel = 0;
             level = 1;
             currentXP = 0;
             xpToNextLevel = 50;
@@ -113,7 +119,7 @@ namespace SimpleRPG
         /// <summary>Tung xúc xắc chí mạng. Trả về sát thương cuối cùng và cho biết có chí mạng không.</summary>
         public float RollDamage(float baseValue, out bool isCrit)
         {
-            isCrit = UnityEngine.Random.value < critChance;
+            isCrit = UnityEngine.Random.value < Mathf.Min(critChance, MaxCritChance);
             return isCrit ? baseValue * critMultiplier : baseValue;
         }
 
@@ -182,6 +188,12 @@ namespace SimpleRPG
                     break;
                 case UpgradeType.NovaCooldown:
                     specialCooldown = Mathf.Max(MinSpecialCooldown, specialCooldown - 0.8f);
+                    break;
+                case UpgradeType.Ignite:
+                    igniteLevel++;
+                    break;
+                case UpgradeType.Frostbite:
+                    frostbiteLevel++;
                     break;
             }
             OnHealthChanged?.Invoke(currentHealth, maxHealth);

@@ -169,3 +169,34 @@ Inspired by Hades, Dead Cells and Soul Knight:
 - Starting from Floor 3, monsters have a 20% chance to mutate into **Elite Slimes**:
   - Larger scale, 1.8x HP, 1.3x contact damage, golden glowing aura.
   - Guarantees 100% coin drop and 2x experience gems.
+
+---
+
+## Combat depth update (crits, combos, status effects)
+
+### 💣 New enemy: Bomber Slime (floor 4+)
+
+- Rushes you, then stops and blinks for 0.75s with a red warning circle before exploding (20 damage in a 2.2m radius).
+- The blast also hurts other enemies (40 damage), so lead it into a crowd. Kills caused that way still count for your combo.
+- Kill it before the fuse ends and it never explodes. A self-destruct drops no loot and does not count for the combo.
+- 1 Bomber on floor 4, +1 every 2 floors, max 4. Not present on Swarm floors.
+
+### 🗡️ Crit on gear & stats
+
+- Weapons can now roll a **crit chance** affix (+2% × rarity/floor scaling, max +20% per weapon). It shows in the shop, the inventory item rows and the new fourth line of the inventory summary (Crit Chance / Crit Damage / Nova Cooldown).
+- The total crit chance used in combat is capped at 60%, no matter how much gear and upgrades stack.
+
+### 🔥❄️ Status effects
+
+- **Ember Edge** (upgrade): melee hits and Nova set enemies on fire for 3s. Each level adds 50% of your base damage per second (ticks every 0.5s). Re-hitting refreshes the timer.
+- **Frost Touch** (upgrade): hits slow enemies for 2s, -15% speed per level, down to 40% speed at level 4.
+- Both stack with crits, combo and Bomber friendly fire. Burn kills count for your combo. New file: `Assets/Scripts/Enemies/EnemyStatus.cs`.
+
+### 🛡️ Mini-boss & run summary
+
+- **Warden Brute** appears on floors 3 and 8: a larger, golden Armored Slime (180 HP, ground slam, hits for 20) that always drops equipment.
+- The game-over screen now also shows your **Best Combo** for the run (reset every new run).
+
+### 🔊 Sounds
+
+New generated SFX (no audio files needed): `explode` (Bomber blast), `fuse` (accelerating beeps while the Bomber's fuse burns) and `combo` (every 5th kill of a combo).

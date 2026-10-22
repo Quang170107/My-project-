@@ -69,6 +69,7 @@ namespace SimpleRPG
         private const int MaxChasers = 10;
         private const int MaxRangers = 8;
         private const int MaxBrutes = 5;
+        private const int MaxBombers = 4;
 
         private void Awake()
         {
@@ -124,6 +125,7 @@ namespace SimpleRPG
         {
             currentFloor = 1;
             totalEnemiesSlain = 0;
+            ComboSystem.Instance?.ResetRun();
             _pendingLevelUps = 0;
             _upgradeModalOpen = false;
 
@@ -517,8 +519,17 @@ namespace SimpleRPG
                 rangerCount = Mathf.Min(Mathf.RoundToInt(rangerCount * _theme.rangerMul), rangerCap);
                 bruteCount = Mathf.Min(Mathf.RoundToInt(bruteCount * _theme.bruteMul), bruteCap);
 
+                // Quái tự nổ xuất hiện từ tầng 4, không có ở tầng Swarm (đã quá đông)
+                int bomberCount = (currentFloor >= 4 && _mod != FloorMod.Swarm)
+                    ? Mathf.Min(1 + (currentFloor - 4) / 2, MaxBombers)
+                    : 0;
+
+                // Mini-boss Warden ở tầng 3 và 8
+                bool wardenFloor = currentFloor == 3 || currentFloor == 8;
+
+                // Trần tổng số quái để màn chơi luôn đọc được
                 const int maxTotal = 28;
-                int overflow = chaserCount + rangerCount + bruteCount - maxTotal;
+                int overflow = chaserCount + rangerCount + bruteCount + bomberCount + (wardenFloor ? 1 : 0) - maxTotal;
                 if (overflow > 0) chaserCount = Mathf.Max(0, chaserCount - overflow);
 
                 for (int i = 0; i < chaserCount; i++)
@@ -532,6 +543,14 @@ namespace SimpleRPG
                 for (int i = 0; i < bruteCount; i++)
                 {
                     SpawnBrute(GetRandomSpawnPos());
+                }
+                for (int i = 0; i < bomberCount; i++)
+                {
+                    SpawnBomber(GetRandomSpawnPos());
+                }
+                if (wardenFloor)
+                {
+                    SpawnWarden(GetRandomSpawnPos());
                 }
             }
 
@@ -594,6 +613,26 @@ namespace SimpleRPG
             _activeEnemies.Add(enemy);
         }
 
+        private void SpawnWarden(Vector3 pos)
+        {
+            var go = new GameObject("Warden_Brute");
+            go.transform.SetParent(enemyContainer, false);
+            go.transform.position = pos;
+            var enemy = go.AddComponent<WardenEnemy>();
+            ScaleEnemy(enemy);
+            _activeEnemies.Add(enemy);
+        }
+
+        private void SpawnBomber(Vector3 pos)
+        {
+            var go = new GameObject("Bomber_Slime");
+            go.transform.SetParent(enemyContainer, false);
+            go.transform.position = pos;
+            var enemy = go.AddComponent<BomberEnemy>();
+            ScaleEnemy(enemy);
+            _activeEnemies.Add(enemy);
+        }
+
         private void SpawnBoss(Vector3 pos)
         {
             var go = new GameObject("Void_Sovereign_Boss");
@@ -613,7 +652,7 @@ namespace SimpleRPG
             enemy.contactDamage *= dmgMult;
 
             // Quái Tinh Anh (Elite Monster) xuất hiện từ tầng 3
-            if (!(enemy is BossEnemy) && currentFloor >= 3 && UnityEngine.Random.value < 0.20f)
+            if (!(enemy is BossEnemy) && !(enemy is WardenEnemy) && currentFloor >= 3 && UnityEngine.Random.value < 0.20f)
             {
                 enemy.MakeElite();
             }
@@ -724,7 +763,8 @@ namespace SimpleRPG
                 PlayerPrefs.Save();
             }
 
-            GameUI.Instance?.ShowGameOverModal(currentFloor, lvl, gold, totalEnemiesSlain, best, newRecord);
+            int bestCombo = ComboSystem.Instance != null ? ComboSystem.Instance.BestCombo : 0;
+            GameUI.Instance?.ShowGameOverModal(currentFloor, lvl, gold, totalEnemiesSlain, best, newRecord, bestCombo);
         }
 
         public void RestartGame()

@@ -23,11 +23,12 @@ namespace SimpleRPG
         public float moveSpeed;
         public float attackRate;
         public float lifesteal;
+        public float critChance; // vũ khí: cộng thêm tỉ lệ chí mạng (0.05 = 5%)
 
         /// <summary>Điểm sức mạnh, dùng để so sánh với đồ đang mặc.</summary>
         public float Score =>
             damage * 1f + maxHealth * 0.3f + armor * 4f +
-            moveSpeed * 6f + attackRate * 8f + lifesteal * 100f;
+            moveSpeed * 6f + attackRate * 8f + lifesteal * 100f + critChance * 80f;
 
         /// <summary>Số vàng nhận được nếu bán món đồ (khi không mặc).</summary>
         public int SellValue => Mathf.RoundToInt(Score * 0.5f) + 5;
@@ -56,6 +57,7 @@ namespace SimpleRPG
             if (moveSpeed > 0) sb.Append($"  +{moveSpeed} SPD");
             if (attackRate > 0) sb.Append($"  +{attackRate} ATK/s");
             if (lifesteal > 0) sb.Append($"  +{Mathf.RoundToInt(lifesteal * 100)}% LS");
+            if (critChance > 0) sb.Append($"  +{Mathf.RoundToInt(critChance * 100)}% CRIT");
             return sb.ToString();
         }
     }
@@ -101,6 +103,7 @@ namespace SimpleRPG
                 case EquipSlot.Weapon:
                     item.damage = Mathf.Round(6f * m);
                     item.attackRate = Mathf.Min(2f, R1(0.2f * m));
+                    item.critChance = Mathf.Min(0.2f, Mathf.Round(0.02f * m * 100f) / 100f);
                     break;
                 case EquipSlot.Armor:
                     item.armor = R1(1.2f * m);
