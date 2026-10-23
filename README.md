@@ -238,3 +238,5 @@ All done in code, no scene/asset setup needed (`Assets/Scripts/Dungeon/VisualFX.
 - **Game over** screen shows your Best Combo.
 
 The new exe is built statically (no `libraylib.dll` needed next to it). To rebuild it yourself, run `build_game.ps1` as before.
+- **Biome colours** (Crypt, Ruins, Molten, Frozen) now actually change the room's floor, walls, background and floating dust; the boss has a health bar and a drawn crown; relics show as coloured dots (emoji do not render in raylib's default font, they used to show as `?`).
+- Burning and slowed enemies get coloured rings instead of changing body colour.
