@@ -343,6 +343,17 @@ public:
         BuildFloor();
     }
 
+    // ── Bioma: đổi màu phòng mỗi 3 tầng ──
+    struct BiomeColors { Color bg, tileA, tileB, wall, mote; };
+    BiomeColors Biome() {
+        switch (((floor - 1) / 3) % 4) {
+            case 1: return { { 16, 26, 20, 255 }, { 36, 54, 44, 255 }, { 30, 46, 38, 255 }, { 72, 105, 78, 255 }, { 170, 235, 150, 255 } };  // Overgrown Ruins
+            case 2: return { { 30, 16, 14, 255 }, { 62, 40, 38, 255 }, { 52, 33, 32, 255 }, { 130, 72, 52, 255 }, { 255, 160, 70, 255 } };   // Molten Depths
+            case 3: return { { 14, 24, 34, 255 }, { 42, 62, 78, 255 }, { 35, 54, 70, 255 }, { 120, 165, 195, 255 }, { 235, 245, 255, 255 } }; // Frozen Halls
+            default: return { { 20, 24, 32, 255 }, { 38, 44, 58, 255 }, { 32, 38, 50, 255 }, { 60, 70, 90, 255 }, { 190, 205, 235, 255 } };  // Ancient Crypt
+        }
+    }
+
     // ── Hiệu ứng hạt ──
     void Burst(Vector2 pos, Color c, int count, float speed, float life) {
         if (particles.size() > 700) return;
@@ -1242,7 +1253,8 @@ public:
     // ── Drawing ──
     void Draw() {
         BeginDrawing();
-        ClearBackground({ 20, 24, 32, 255 });
+        BiomeColors biome = Biome();
+        ClearBackground(biome.bg);
 
         BeginMode2D(camera);
 
@@ -1253,18 +1265,18 @@ public:
         for (int y = -halfH; y < halfH; y += tileSize) {
             for (int x = -halfW; x < halfW; x += tileSize) {
                 bool alt = (((x / tileSize) + (y / tileSize)) & 1) == 0;
-                Color tileCol = alt ? Color{ 38, 44, 58, 255 } : Color{ 32, 38, 50, 255 };
+                Color tileCol = alt ? biome.tileA : biome.tileB;
                 DrawRectangle(x, y, tileSize, tileSize, tileCol);
             }
         }
 
         // Walls
-        DrawRectangleLinesEx({ -roomW / 2.0f, -roomH / 2.0f, roomW, roomH }, 8.0f, { 60, 70, 90, 255 });
+        DrawRectangleLinesEx({ -roomW / 2.0f, -roomH / 2.0f, roomW, roomH }, 8.0f, biome.wall);
 
         // Bụi lơ lửng
         for (const auto& m : motes) {
             float a = 0.10f + 0.16f * (0.5f + 0.5f * sinf((float)GetTime() * 1.6f + m.phase));
-            DrawCircleV(m.pos, m.size, Fade({ 190, 205, 235, 255 }, a));
+            DrawCircleV(m.pos, m.size, Fade(biome.mote, a));
         }
 
         // Pillars
@@ -1346,8 +1358,6 @@ public:
             if (e.isWarden) col = { 255, 190, 90, 255 };
             if (e.isElite && e.type != BOMBER) col = GOLD; // Bomber elite giữ màu cam, chỉ viền vàng
             if (e.chillTimer > 0) col = SKYBLUE;
-            if (e.slowTimer > 0) col = LerpColor(col, { 120, 200, 255, 255 }, 0.55f);
-            if (e.burnTimer > 0) col = LerpColor(col, { 255, 120, 30, 255 }, 0.45f);
 
             float drawR = e.radius;
             if (e.type == BOMBER && e.fusing) {
@@ -1362,6 +1372,17 @@ public:
             DrawCircle((int)e.pos.x, (int)e.pos.y, drawR, col);
             DrawCircleLines((int)e.pos.x, (int)e.pos.y, drawR, (e.isWarden || (e.isElite && e.type == BOMBER)) ? Color{ 255, 230, 150, 255 } : WHITE);
             if (e.isElite && e.type == BOMBER) DrawCircleLines((int)e.pos.x, (int)e.pos.y, drawR + 3.0f, GOLD);
+
+            // Viền trạng thái: giữ nguyên màu thân để vẫn nhận ra loại quái
+            if (e.slowTimer > 0) {
+                DrawCircleLines((int)e.pos.x, (int)e.pos.y, drawR + 4.0f, { 120, 200, 255, 255 });
+                DrawCircleLines((int)e.pos.x, (int)e.pos.y, drawR + 5.0f, { 120, 200, 255, 160 });
+            }
+            if (e.burnTimer > 0) {
+                float fl = 0.6f + 0.4f * sinf((float)GetTime() * 30.0f + e.pos.x);
+                DrawCircleLines((int)e.pos.x, (int)e.pos.y, drawR + 7.0f, Fade({ 255, 130, 30, 255 }, fl));
+                DrawCircleV({ e.pos.x - drawR * 0.5f, e.pos.y - drawR - 4.0f }, 3.0f + 2.0f * fl, Fade({ 255, 170, 40, 255 }, 0.9f));
+            }
 
             // Ngòi nổ của Bomber
             if (e.type == BOMBER) {
@@ -1380,7 +1401,12 @@ public:
 
             // Boss Crown
             if (e.type == BOSS) {
-                DrawText("👑", (int)e.pos.x - 14, (int)e.pos.y - e.radius - 22, 22, GOLD);
+                float cx = e.pos.x, cy = e.pos.y - e.radius - 6.0f;
+                DrawRectangle((int)cx - 14, (int)cy - 6, 28, 7, GOLD);
+                DrawTriangle({ cx - 14, cy - 6 }, { cx - 9, cy - 6 }, { cx - 14, cy - 16 }, GOLD);
+                DrawTriangle({ cx - 6, cy - 6 }, { cx + 6, cy - 6 }, { cx, cy - 20 }, GOLD);
+                DrawTriangle({ cx + 9, cy - 6 }, { cx + 14, cy - 6 }, { cx + 14, cy - 16 }, GOLD);
+                DrawCircle((int)cx, (int)cy - 2, 2, RED);
             }
 
             // Health bar
@@ -1452,12 +1478,18 @@ public:
         DrawText(goldTxt.c_str(), 24, 84, 20, GOLD);
 
         // Relics Row
-        std::string relicsStr = "Relics: ";
-        if (player.relics.empty()) relicsStr += "None";
-        else {
-            for (const auto& r : player.relics) relicsStr += r.symbol + " " + r.name + "  ";
+        DrawText("Relics:", 24, 110, 16, SKYBLUE);
+        if (player.relics.empty()) {
+            DrawText("None", 24 + MeasureText("Relics: ", 16), 110, 16, SKYBLUE);
+        } else {
+            int rx = 24 + MeasureText("Relics: ", 16);
+            for (const auto& r : player.relics) {
+                DrawCircle(rx + 6, 118, 6, r.color);
+                DrawCircleLines(rx + 6, 118, 6, WHITE);
+                DrawText(r.name.c_str(), rx + 16, 110, 16, r.color);
+                rx += 16 + MeasureText(r.name.c_str(), 16) + 14;
+            }
         }
-        DrawText(relicsStr.c_str(), 24, 110, 16, SKYBLUE);
 
         // Top-Center: Floor & Combo
         std::string floorStr = "FLOOR " + std::to_string(floor);
@@ -1467,6 +1499,20 @@ public:
             std::string comboStr = "COMBO x" + std::to_string(comboCount) + "!";
             Color cCol = comboCount >= 20 ? RED : (comboCount >= 10 ? ORANGE : YELLOW);
             DrawText(comboStr.c_str(), 1280 - 240, 160, 26, cCol);
+        }
+
+        // Thanh máu boss
+        for (const auto& e : enemies) {
+            if (e.type == BOSS && e.hp > 0) {
+                int bw = 460, bx = 1280 / 2 - bw / 2, by = 66;
+                float pct = std::max(0.0f, e.hp / e.maxHp);
+                DrawRectangle(bx - 3, by - 3, bw + 6, 22, { 10, 12, 20, 230 });
+                DrawRectangle(bx, by, (int)(bw * pct), 16, e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 190, 60, 200, 255 });
+                DrawRectangleLines(bx - 3, by - 3, bw + 6, 22, GOLD);
+                const char* nm = e.enraged ? "THE VOID SOVEREIGN - ENRAGED" : "THE VOID SOVEREIGN";
+                DrawText(nm, 1280 / 2 - MeasureText(nm, 14) / 2, by + 1, 14, WHITE);
+                break;
+            }
         }
 
         // Mini-Map Radar (Top-Right)
