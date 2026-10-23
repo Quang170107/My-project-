@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <algorithm>
 #include <sstream>
+#include <random>
 
 // ── Audio Procedural Synthesizer ───────────────────────────────────────────
 struct SoundManager {
@@ -123,9 +124,9 @@ private:
 };
 
 // ── Game Data Structures ───────────────────────────────────────────────────
-enum EnemyType { CHASER, RANGER, BRUTE, BOSS };
+enum EnemyType { CHASER, RANGER, BRUTE, BOSS, BOMBER };
 enum RelicType { RELIC_LIGHTNING, RELIC_TOXIC, RELIC_FROST, RELIC_AEGIS, RELIC_CHALICE, RELIC_COMBUSTION };
-enum UpgradeType { UP_HP, UP_DMG, UP_SPEED, UP_ATTACK_RATE, UP_DASH, UP_LIFESTEAL, UP_ARMOR, UP_CRIT, UP_NOVA };
+enum UpgradeType { UP_HP, UP_DMG, UP_SPEED, UP_ATTACK_RATE, UP_DASH, UP_LIFESTEAL, UP_ARMOR, UP_CRIT, UP_NOVA, UP_IGNITE, UP_FROST };
 
 struct Relic {
     RelicType type;
@@ -164,6 +165,8 @@ struct Player {
     std::vector<Relic> relics;
     bool shieldActive = false;
     float shieldTimer = 0.0f;
+    int igniteLevel = 0; // Ember Edge: mỗi cấp = 50% sát thương cơ bản/giây trong 3s
+    int frostLevel = 0;  // Frost Touch: mỗi cấp giảm 15% tốc độ quái (tối thiểu còn 40%)
 };
 
 struct Enemy {
@@ -185,6 +188,14 @@ struct Enemy {
     float poisonDmg = 0.0f;
     float chillTimer = 0.0f;
     bool enraged = false;
+    bool isWarden = false;   // mini-boss ở tầng 3 và 8
+    bool fusing = false;     // Bomber đang cháy ngòi
+    float fuseTimer = 0.0f;
+    bool exploded = false;   // Bomber đã tự nổ (không rơi loot, không tính combo)
+    float burnTimer = 0.0f;  // Ember Edge
+    float burnDps = 0.0f;
+    float slowTimer = 0.0f;  // Frost Touch
+    float slowFactor = 1.0f;
 };
 
 struct Projectile {
@@ -235,6 +246,30 @@ struct GhostTrail {
     float maxTimer = 0.22f;
 };
 
+struct Particle {
+    Vector2 pos;
+    Vector2 vel;
+    Color color;
+    float life;
+    float maxLife;
+    float size;
+};
+
+struct Mote {
+    Vector2 pos;
+    float speed;
+    float phase;
+    float size;
+};
+
+static Color LerpColor(Color a, Color b, float t) {
+    t = std::max(0.0f, std::min(1.0f, t));
+    return { (unsigned char)(a.r + (b.r - a.r) * t), (unsigned char)(a.g + (b.g - a.g) * t),
+             (unsigned char)(a.b + (b.b - a.b) * t), (unsigned char)(a.a + (b.a - a.a) * t) };
+}
+
+static float Rand01() { return (float)rand() / (float)RAND_MAX; }
+
 // ── Game State ─────────────────────────────────────────────────────────────
 class Game {
 public:
@@ -272,10 +307,24 @@ public:
     float bannerTimer = 0.0f;
     bool showMiniMap = true;
 
+    // Hiệu ứng hình ảnh & sự kiện
+    std::vector<Particle> particles;
+    std::vector<Mote> motes;
+    float damagePulse = 0.0f;   // viền màn hình nhấp đỏ khi bị đau
+    float hitStop = 0.0f;       // khựng khung hình ngắn khi chí mạng
+    int bestCombo = 0;
+    bool hasShrine = false;
+    bool shrineUsed = false;
+    bool shrineHinted = false;
+    Vector2 shrinePos = { 0, 0 };
+    float shrineRefuse = 0.0f;
+    float shrinePulse = 0.0f;
+
     void Init() {
         snd.Init();
         camera.zoom = 1.0f;
         camera.offset = { 1280 / 2.0f, 720 / 2.0f };
+        InitMotes();
         RestartRun();
     }
 
@@ -285,9 +334,107 @@ public:
         floor = 1;
         enemiesSlain = 0;
         comboCount = 0;
+        bestCombo = 0;
+        damagePulse = 0.0f;
+        hitStop = 0.0f;
+        particles.clear();
         newRecord = false;
         state = PLAYING;
         BuildFloor();
+    }
+
+    // ── Hiệu ứng hạt ──
+    void Burst(Vector2 pos, Color c, int count, float speed, float life) {
+        if (particles.size() > 700) return;
+        if (particles.size() > 350) count = std::max(1, count / 3);
+        for (int i = 0; i < count; ++i) {
+            float a = Rand01() * 2.0f * PI;
+            float sp = speed * (0.4f + 0.6f * Rand01());
+            float shade = 0.8f + 0.35f * Rand01();
+            Particle p;
+            p.pos = pos;
+            p.vel = { cosf(a) * sp, sinf(a) * sp };
+            p.color = { (unsigned char)std::min(255.0f, c.r * shade), (unsigned char)std::min(255.0f, c.g * shade),
+                        (unsigned char)std::min(255.0f, c.b * shade), 255 };
+            p.maxLife = life * (0.7f + 0.4f * Rand01());
+            p.life = p.maxLife;
+            p.size = 2.0f + 3.0f * Rand01();
+            particles.push_back(p);
+        }
+    }
+
+    void InitMotes() {
+        motes.clear();
+        for (int i = 0; i < 40; ++i) {
+            Mote m;
+            m.pos = { (Rand01() - 0.5f) * roomW, (Rand01() - 0.5f) * roomH };
+            m.speed = 8.0f + 22.0f * Rand01();
+            m.phase = Rand01() * 10.0f;
+            m.size = 1.2f + 2.0f * Rand01();
+            motes.push_back(m);
+        }
+    }
+
+    void UpdateEffects(float dt) {
+        for (size_t i = 0; i < particles.size();) {
+            Particle& p = particles[i];
+            p.life -= dt;
+            if (p.life <= 0) { particles[i] = particles.back(); particles.pop_back(); continue; }
+            p.pos = Vector2Add(p.pos, Vector2Scale(p.vel, dt));
+            p.vel = Vector2Scale(p.vel, std::max(0.0f, 1.0f - 4.5f * dt));
+            ++i;
+        }
+        for (auto& m : motes) {
+            m.pos.y -= m.speed * dt;
+            m.pos.x += sinf((float)GetTime() * 0.7f + m.phase) * 6.0f * dt;
+            if (m.pos.y < -roomH / 2.0f) { m.pos.y = roomH / 2.0f; m.pos.x = (Rand01() - 0.5f) * roomW; }
+        }
+        if (damagePulse > 0) damagePulse = std::max(0.0f, damagePulse - dt * 2.2f);
+    }
+
+    Color DeathColor(const Enemy& e) {
+        if (e.isElite) return { 255, 217, 102, 255 };
+        if (e.isWarden) return { 255, 199, 89, 255 };
+        if (e.type == BOSS) return { 242, 77, 77, 255 };
+        if (e.type == BOMBER) return { 255, 153, 38, 255 };
+        if (e.type == BRUTE) return { 153, 102, 242, 255 };
+        if (e.type == RANGER) return { 242, 77, 89, 255 };
+        return { 102, 230, 89, 255 };
+    }
+
+    // ── Nâng cấp ──
+    std::string UpgradeTitle(UpgradeType u) {
+        switch (u) {
+            case UP_HP: return "Titan's Heart";
+            case UP_DMG: return "Sharpened Edge";
+            case UP_SPEED: return "Swift Wind";
+            case UP_ATTACK_RATE: return "Flurry";
+            case UP_DASH: return "Blink Step";
+            case UP_LIFESTEAL: return "Vampiric Touch";
+            case UP_ARMOR: return "Iron Aegis";
+            case UP_CRIT: return "Eagle Eye";
+            case UP_NOVA: return "Arcane Focus";
+            case UP_IGNITE: return "Ember Edge";
+            case UP_FROST: return "Frost Touch";
+        }
+        return "";
+    }
+
+    std::string UpgradeDesc(UpgradeType u) {
+        switch (u) {
+            case UP_HP: return "+25 Max Health\n& Instant Recovery";
+            case UP_DMG: return "+8 Melee Damage\nFor all attacks";
+            case UP_SPEED: return "+15% Move Speed\nOutrun dangers";
+            case UP_ATTACK_RATE: return "+30% Attack Speed\nRapid strikes";
+            case UP_DASH: return "-0.2s Dash Cooldown\nGreater mobility";
+            case UP_LIFESTEAL: return "+8% Lifesteal\nHeal on hit";
+            case UP_ARMOR: return "+2 Flat Armor\nReduce damage";
+            case UP_CRIT: return "+8% Crit Chance\nCrits deal x2 dmg";
+            case UP_NOVA: return "-0.8s Nova Cooldown\nSpam Nova";
+            case UP_IGNITE: return "Hits burn enemies 3s\n+50% dmg/s per level";
+            case UP_FROST: return "Hits slow enemies 2s\n-15% speed per level";
+        }
+        return "";
     }
 
     void ShowBanner(const std::string& txt, float dur = 2.5f) {
@@ -308,6 +455,7 @@ public:
         novas.clear();
         ghosts.clear();
         pillars.clear();
+        particles.clear();
 
         portalOpen = false;
         portalPos = { 0, -roomH / 2.0f + 70.0f };
@@ -339,7 +487,42 @@ public:
             for (int i = 0; i < chasers; ++i) SpawnEnemy(CHASER, GetRandomSpawnPos());
             for (int i = 0; i < spitters; ++i) SpawnEnemy(RANGER, GetRandomSpawnPos());
             for (int i = 0; i < brutes; ++i) SpawnEnemy(BRUTE, GetRandomSpawnPos());
+
+            // Bomber Slime: quái tự nổ từ tầng 4
+            int bombers = (floor >= 4) ? std::min(4, 1 + (floor - 4) / 2) : 0;
+            for (int i = 0; i < bombers; ++i) SpawnEnemy(BOMBER, GetRandomSpawnPos());
+
+            // Warden Brute: mini-boss ở tầng 3 và 8
+            if (floor == 3 || floor == 8) {
+                SpawnWarden(GetRandomSpawnPos());
+            }
         }
+
+        // Bàn thờ máu: từ tầng 2, không phải tầng boss
+        hasShrine = (floor >= 2 && floor % 5 != 0 && Rand01() < 0.3f);
+        shrineUsed = false;
+        shrineHinted = false;
+        shrineRefuse = 0.0f;
+        if (hasShrine) {
+            for (int tries = 0; tries < 40; ++tries) {
+                shrinePos = GetRandomSpawnPos();
+                bool nearPillar = false;
+                for (const auto& pl : pillars) if (Vector2Distance(shrinePos, pl) < 80.0f) nearPillar = true;
+                if (!nearPillar) break;
+            }
+        }
+    }
+
+    void SpawnWarden(Vector2 pos) {
+        SpawnEnemy(BRUTE, pos);
+        Enemy& w = enemies.back();
+        w.isWarden = true;
+        w.isElite = false;
+        w.maxHp = 180.0f * (1.0f + (floor - 1) * 0.15f);
+        w.hp = w.maxHp;
+        w.speed = 85.0f;
+        w.contactDmg = 20.0f * (1.0f + (floor - 1) * 0.10f);
+        w.radius = 36.0f;
     }
 
     Vector2 GetRandomSpawnPos() {
@@ -375,6 +558,11 @@ public:
             e.speed = 95.0f;
             e.contactDmg = 16.0f * multDmg;
             e.radius = 26.0f;
+        } else if (type == BOMBER) {
+            e.maxHp = 22.0f * multHp;
+            e.speed = 190.0f;
+            e.contactDmg = 6.0f * multDmg;
+            e.radius = 17.0f;
         } else if (type == BOSS) {
             e.maxHp = 260.0f * multHp;
             e.speed = 115.0f;
@@ -428,6 +616,11 @@ public:
     void Update(float dt) {
         if (bannerTimer > 0) bannerTimer -= dt;
         if (screenShakeTimer > 0) screenShakeTimer -= dt;
+
+        // Hit-stop: khựng khung hình rất ngắn khi chí mạng
+        if (hitStop > 0) { hitStop -= dt; return; }
+
+        UpdateEffects(dt);
 
         if (state == LEVEL_UP) {
             // Number keys 1, 2, 3 to choose
@@ -543,6 +736,7 @@ public:
             player.specialTimer = player.specialCooldown;
             PlaySound(snd.sndSpecial);
             Shake(0.25f, 6.0f);
+            Burst(player.pos, SKYBLUE, 34, 380.0f, 0.6f);
 
             NovaVisual nv;
             nv.pos = player.pos;
@@ -579,6 +773,18 @@ public:
             if (e.chillTimer > 0) {
                 e.chillTimer -= dt;
                 speedMod = 0.5f;
+            }
+            // Frost Touch: làm chậm
+            if (e.slowTimer > 0) {
+                e.slowTimer -= dt;
+                speedMod *= e.slowFactor;
+            }
+            // Ember Edge: đốt
+            if (e.burnTimer > 0) {
+                e.burnTimer -= dt;
+                e.hp -= e.burnDps * dt;
+                if (Rand01() < 0.15f) Burst(e.pos, { 255, 140, 40, 255 }, 1, 70.0f, 0.4f);
+                if (e.hp <= 0) { OnEnemyKilled(e); continue; }
             }
 
             Vector2 toPlayer = Vector2Subtract(player.pos, e.pos);
@@ -632,6 +838,21 @@ public:
                     }
                 } else {
                     e.pos = Vector2Add(e.pos, Vector2Scale(dir, e.speed * speedMod * dt));
+                }
+            } else if (e.type == BOMBER) {
+                if (!e.fusing) {
+                    e.pos = Vector2Add(e.pos, Vector2Scale(dir, e.speed * speedMod * dt));
+                    if (dist < 78.0f) {
+                        e.fusing = true;
+                        e.fuseTimer = 0.0f;
+                        PlaySound(snd.sndShoot);
+                    }
+                } else {
+                    e.fuseTimer += dt;
+                    if (e.fuseTimer >= 0.75f) {
+                        BomberExplode(e);
+                        continue;
+                    }
                 }
             } else if (e.type == BOSS) {
                 if (!e.enraged && e.hp <= e.maxHp * 0.5f) {
@@ -705,6 +926,7 @@ public:
             if (d < 24.0f) {
                 if (l.type == 0) { // XP
                     player.xp += l.value;
+                    Burst(l.pos, SKYBLUE, 3, 100.0f, 0.3f);
                     PlaySound(snd.sndCoin);
                     while (player.xp >= player.xpNext) {
                         player.xp -= player.xpNext;
@@ -714,10 +936,12 @@ public:
                     }
                 } else if (l.type == 1) { // Gold
                     player.gold += l.value;
+                    Burst(l.pos, GOLD, 4, 120.0f, 0.35f);
                     PlaySound(snd.sndCoin);
                 } else if (l.type == 2) { // Potion
                     player.hp = std::min(player.maxHp, player.hp + l.value);
                     SpawnPopup(player.pos, "+" + std::to_string(l.value), GREEN);
+                    Burst(l.pos, { 255, 100, 128, 255 }, 8, 150.0f, 0.45f);
                     PlaySound(snd.sndPotion);
                 }
                 loots.erase(loots.begin() + i);
@@ -751,6 +975,18 @@ public:
             else ++i;
         }
 
+        // ── Bàn thờ máu ──
+        if (hasShrine && !shrineUsed) {
+            shrinePulse += dt * 3.0f;
+            if (shrineRefuse > 0) shrineRefuse -= dt;
+            float sd = Vector2Distance(player.pos, shrinePos);
+            if (!shrineHinted && sd < 160.0f) {
+                shrineHinted = true;
+                ShowBanner("Blood Shrine - touch it to trade HP for a free upgrade", 3.0f);
+            }
+            if (sd < 44.0f && shrineRefuse <= 0) UseShrine();
+        }
+
         // ── Check Room Clearance ──
         bool anyAlive = false;
         for (const auto& e : enemies) {
@@ -781,6 +1017,18 @@ public:
         e.hp -= dmg;
         e.pos = Vector2Add(e.pos, Vector2Scale(kb, kbForce * 0.05f));
         SpawnPopup(e.pos, (isCrit ? "!" : "") + std::to_string((int)dmg), isCrit ? YELLOW : WHITE);
+        Burst(e.pos, isCrit ? Color{ 255, 217, 51, 255 } : WHITE, isCrit ? 9 : 4, isCrit ? 230.0f : 160.0f, isCrit ? 0.4f : 0.28f);
+        if (isCrit) hitStop = 0.035f;
+
+        // Ember Edge / Frost Touch
+        if (player.igniteLevel > 0) {
+            e.burnTimer = 3.0f;
+            e.burnDps = std::max(e.burnDps, player.baseDmg * 0.5f * player.igniteLevel);
+        }
+        if (player.frostLevel > 0) {
+            e.slowTimer = 2.0f;
+            e.slowFactor = std::max(0.4f, 1.0f - 0.15f * player.frostLevel);
+        }
 
         // Relics on hit
         if (HasRelic(RELIC_FROST) && isCrit) {
@@ -808,8 +1056,17 @@ public:
     }
 
     void OnEnemyKilled(Enemy& e) {
+        Burst(e.pos, DeathColor(e), e.type == BOSS ? 40 : 16, 260.0f, 0.6f);
+
+        // Bomber tự nổ: không rơi loot, không tính combo
+        if (e.type == BOMBER && e.exploded) {
+            PlaySound(snd.sndDeath);
+            return;
+        }
+
         enemiesSlain++;
         comboCount++;
+        if (comboCount > bestCombo) bestCombo = comboCount;
         comboTimer = 3.0f;
         PlaySound(snd.sndDeath);
 
@@ -820,7 +1077,14 @@ public:
         }
 
         // Drops
-        loots.push_back({ 0, e.pos, (e.type == BOSS ? 150 : (e.isElite ? 35 : 15)), 20.0f });
+        if (e.isWarden) {
+            loots.push_back({ 2, Vector2Add(e.pos, { 0, 18 }), 35, 20.0f });
+            loots.push_back({ 1, Vector2Add(e.pos, { 18, 0 }), 8, 20.0f });
+            ShowBanner("WARDEN BRUTE DEFEATED!");
+            hitStop = 0.08f;
+        }
+        if (e.type == BOSS) hitStop = 0.12f;
+        loots.push_back({ 0, e.pos, (e.type == BOSS ? 150 : (e.isWarden ? 90 : (e.isElite ? 35 : 15))), 20.0f });
         if ((float)rand() / RAND_MAX < 0.6f || e.isElite) {
             loots.push_back({ 1, Vector2Add(e.pos, { 10, 0 }), rand() % 4 + 1, 20.0f });
         }
@@ -871,6 +1135,7 @@ public:
         float effDmg = std::max(1.0f, dmg * 100.0f / (100.0f + player.armor * 10.0f));
         player.hp = std::max(0.0f, player.hp - effDmg);
         comboCount = 0;
+        damagePulse = std::min(1.0f, 0.45f + effDmg / 60.0f);
         player.invulnTimer = 0.45f;
         PlaySound(snd.sndHurt);
         Shake(0.18f, 5.0f);
@@ -886,16 +1151,81 @@ public:
         }
     }
 
+    void BomberExplode(Enemy& e) {
+        const float blastRadius = 120.0f;
+        e.exploded = true;
+        PlaySound(snd.sndSpecial);
+        Shake(0.3f, 9.0f);
+
+        NovaVisual nv;
+        nv.pos = e.pos;
+        nv.radius = 0;
+        nv.maxRadius = blastRadius;
+        nv.timer = 0.3f;
+        nv.maxTimer = 0.3f;
+        nv.color = ORANGE;
+        novas.push_back(nv);
+        Burst(e.pos, { 255, 179, 51, 255 }, 30, 330.0f, 0.65f);
+        Burst(e.pos, { 255, 77, 26, 255 }, 14, 200.0f, 0.5f);
+
+        if (Vector2Distance(e.pos, player.pos) <= blastRadius + 18.0f) DamagePlayer(20.0f);
+
+        // Friendly fire: vụ nổ cũng làm đau quái khác (không kích hoạt relic)
+        for (auto& other : enemies) {
+            if (&other == &e || other.hp <= 0) continue;
+            if (Vector2Distance(e.pos, other.pos) <= blastRadius + other.radius * 0.5f) {
+                other.hp -= 40.0f;
+                SpawnPopup(other.pos, "40", ORANGE);
+                if (other.hp <= 0) OnEnemyKilled(other);
+            }
+        }
+
+        e.hp = 0;
+        OnEnemyKilled(e);
+    }
+
+    void UseShrine() {
+        float cost = std::max(10.0f, roundf(player.maxHp * 0.15f));
+
+        // Không bao giờ giết người chơi
+        if (player.hp <= cost + 5.0f) {
+            shrineRefuse = 2.0f;
+            SpawnPopup({ shrinePos.x, shrinePos.y - 50.0f }, "NEED " + std::to_string((int)cost) + " HP", LIGHTGRAY);
+            return;
+        }
+
+        shrineUsed = true;
+        player.hp -= cost;
+        UpgradeType up = (UpgradeType)(rand() % 11);
+        ApplyUpgrade(up);
+
+        ShowBanner("BLOOD SHRINE: -" + std::to_string((int)cost) + " HP  ->  " + UpgradeTitle(up), 3.0f);
+        SpawnPopup(player.pos, "-" + std::to_string((int)cost), RED);
+        PlaySound(snd.sndSpecial);
+        Shake(0.2f, 5.0f);
+        Burst({ shrinePos.x, shrinePos.y - 34.0f }, { 255, 51, 64, 255 }, 28, 300.0f, 0.8f);
+        damagePulse = 0.6f;
+    }
+
     void TriggerLevelUp() {
         state = LEVEL_UP;
         PlaySound(snd.sndLevelUp);
+        Burst(player.pos, { 255, 235, 115, 255 }, 26, 300.0f, 0.8f);
+        Burst(player.pos, { 128, 242, 255, 255 }, 14, 180.0f, 0.7f);
         levelChoices = { UP_HP, UP_DMG, UP_ATTACK_RATE };
-        std::vector<UpgradeType> all = { UP_HP, UP_DMG, UP_SPEED, UP_ATTACK_RATE, UP_DASH, UP_LIFESTEAL, UP_ARMOR, UP_CRIT, UP_NOVA };
-        std::random_shuffle(all.begin(), all.end());
+        std::vector<UpgradeType> all = { UP_HP, UP_DMG, UP_SPEED, UP_ATTACK_RATE, UP_DASH, UP_LIFESTEAL, UP_ARMOR, UP_CRIT, UP_NOVA, UP_IGNITE, UP_FROST };
+        std::mt19937 rng((unsigned)rand());
+        std::shuffle(all.begin(), all.end(), rng);
         levelChoices = { all[0], all[1], all[2] };
     }
 
     void ChooseUpgrade(UpgradeType up) {
+        ApplyUpgrade(up);
+        PlaySound(snd.sndPotion);
+        state = PLAYING;
+    }
+
+    void ApplyUpgrade(UpgradeType up) {
         if (up == UP_HP) { player.maxHp += 25; player.hp += 25; }
         else if (up == UP_DMG) { player.baseDmg += 8; }
         else if (up == UP_SPEED) { player.speed += 30; }
@@ -905,9 +1235,8 @@ public:
         else if (up == UP_ARMOR) { player.armor += 2.0f; }
         else if (up == UP_CRIT) { player.critChance = std::min(0.6f, player.critChance + 0.08f); }
         else if (up == UP_NOVA) { player.specialCooldown = std::max(2.5f, player.specialCooldown - 0.8f); }
-
-        PlaySound(snd.sndPotion);
-        state = PLAYING;
+        else if (up == UP_IGNITE) { player.igniteLevel++; }
+        else if (up == UP_FROST) { player.frostLevel++; }
     }
 
     // ── Drawing ──
@@ -932,11 +1261,38 @@ public:
         // Walls
         DrawRectangleLinesEx({ -roomW / 2.0f, -roomH / 2.0f, roomW, roomH }, 8.0f, { 60, 70, 90, 255 });
 
+        // Bụi lơ lửng
+        for (const auto& m : motes) {
+            float a = 0.10f + 0.16f * (0.5f + 0.5f * sinf((float)GetTime() * 1.6f + m.phase));
+            DrawCircleV(m.pos, m.size, Fade({ 190, 205, 235, 255 }, a));
+        }
+
         // Pillars
         for (const auto& p : pillars) {
             DrawCircle((int)p.x, (int)p.y + 4, 28, { 0, 0, 0, 80 }); // Shadow
             DrawCircle((int)p.x, (int)p.y, 26, { 75, 85, 105, 255 });
             DrawCircleLines((int)p.x, (int)p.y, 26, { 110, 125, 150, 255 });
+        }
+
+        // Blood Shrine
+        if (hasShrine) {
+            float sx = shrinePos.x, sy = shrinePos.y;
+            DrawEllipse((int)sx, (int)sy + 26, 30, 10, { 0, 0, 0, 100 });
+            Color stone = shrineUsed ? Color{ 90, 88, 100, 255 } : Color{ 110, 104, 130, 255 };
+            DrawRectangle((int)sx - 22, (int)sy + 14, 44, 14, stone);
+            DrawRectangle((int)sx - 14, (int)sy - 20, 28, 36, stone);
+            DrawRectangle((int)sx - 20, (int)sy - 28, 40, 10, stone);
+            DrawRectangleLines((int)sx - 14, (int)sy - 20, 28, 36, { 34, 30, 44, 255 });
+            DrawRectangleLines((int)sx - 20, (int)sy - 28, 40, 10, { 34, 30, 44, 255 });
+            if (!shrineUsed) {
+                float k = 0.75f + 0.25f * sinf(shrinePulse);
+                DrawCircle((int)sx, (int)sy - 42, 18 + 3 * sinf(shrinePulse), Fade({ 255, 40, 70, 255 }, 0.18f));
+                DrawCircle((int)sx, (int)sy - 42, 9, { 255, (unsigned char)(90 * k), (unsigned char)(100 * k), 255 });
+                DrawCircleLines((int)sx, (int)sy - 42, 9, { 255, 170, 180, 255 });
+                DrawText("BLOOD SHRINE", (int)sx - 52, (int)sy + 34, 14, { 255, 120, 130, 255 });
+            } else {
+                DrawCircle((int)sx, (int)sy - 42, 8, { 64, 50, 56, 255 });
+            }
         }
 
         // Exit Portal
@@ -985,12 +1341,37 @@ public:
             if (e.type == RANGER) col = RED;
             else if (e.type == BRUTE) col = PURPLE;
             else if (e.type == BOSS) col = DARKPURPLE;
+            else if (e.type == BOMBER) col = { 255, 140, 38, 255 };
 
-            if (e.isElite) col = GOLD;
+            if (e.isWarden) col = { 255, 190, 90, 255 };
+            if (e.isElite && e.type != BOMBER) col = GOLD; // Bomber elite giữ màu cam, chỉ viền vàng
             if (e.chillTimer > 0) col = SKYBLUE;
+            if (e.slowTimer > 0) col = LerpColor(col, { 120, 200, 255, 255 }, 0.55f);
+            if (e.burnTimer > 0) col = LerpColor(col, { 255, 120, 30, 255 }, 0.45f);
 
-            DrawCircle((int)e.pos.x, (int)e.pos.y, e.radius, col);
-            DrawCircleLines((int)e.pos.x, (int)e.pos.y, e.radius, WHITE);
+            float drawR = e.radius;
+            if (e.type == BOMBER && e.fusing) {
+                float t = e.fuseTimer / 0.75f;
+                drawR = e.radius * (1.0f + 0.35f * t);
+                bool blink = sinf(t * t * 40.0f) > 0.0f;
+                DrawCircle((int)e.pos.x, (int)e.pos.y, 120.0f, Fade({ 255, 60, 30, 255 }, blink ? 0.22f : 0.10f));
+                DrawCircleLines((int)e.pos.x, (int)e.pos.y, 120.0f, Fade({ 255, 90, 40, 255 }, blink ? 1.0f : 0.55f));
+                if (blink) col = { 255, 60, 50, 255 };
+            }
+
+            DrawCircle((int)e.pos.x, (int)e.pos.y, drawR, col);
+            DrawCircleLines((int)e.pos.x, (int)e.pos.y, drawR, (e.isWarden || (e.isElite && e.type == BOMBER)) ? Color{ 255, 230, 150, 255 } : WHITE);
+            if (e.isElite && e.type == BOMBER) DrawCircleLines((int)e.pos.x, (int)e.pos.y, drawR + 3.0f, GOLD);
+
+            // Ngòi nổ của Bomber
+            if (e.type == BOMBER) {
+                Vector2 top = { e.pos.x, e.pos.y - drawR };
+                Vector2 tip = { e.pos.x + 5.0f, e.pos.y - drawR - 11.0f };
+                DrawLineEx(top, tip, 3.0f, { 110, 70, 40, 255 });
+                float tw = 0.6f + 0.4f * sinf((float)GetTime() * 25.0f);
+                DrawCircleV(tip, 4.0f * tw + 1.5f, { 255, 235, 90, 255 });
+                DrawCircleV(tip, 2.0f, WHITE);
+            }
 
             // Eyes
             float eyeDir = e.facingLeft ? -1.0f : 1.0f;
@@ -1029,12 +1410,29 @@ public:
             DrawCircleLines((int)player.pos.x, (int)player.pos.y, 28, Fade(GOLD, 0.8f));
         }
 
+        // Hạt
+        for (const auto& pt : particles) {
+            float k = pt.life / pt.maxLife;
+            DrawCircleV(pt.pos, pt.size * (0.3f + 0.7f * k), Fade(pt.color, k * k));
+        }
+
         // Damage Popups
         for (const auto& p : popups) {
             DrawText(p.text.c_str(), (int)p.pos.x - 10, (int)p.pos.y, 18, p.color);
         }
 
         EndMode2D();
+
+        // Vignette + viền đỏ khi bị đau
+        {
+            Color edge = LerpColor({ 0, 0, 0, 120 }, { 170, 0, 20, 200 }, damagePulse);
+            Color clear = { edge.r, edge.g, edge.b, 0 };
+            int bh = 150, bw = 240;
+            DrawRectangleGradientV(0, 0, 1280, bh, edge, clear);
+            DrawRectangleGradientV(0, 720 - bh, 1280, bh, clear, edge);
+            DrawRectangleGradientH(0, 0, bw, 720, edge, clear);
+            DrawRectangleGradientH(1280 - bw, 0, bw, 720, clear, edge);
+        }
 
         // ── 2D Screen Space UI ──
         // Top-Left: HP, XP, Gold
@@ -1136,17 +1534,8 @@ public:
                 DrawRectangle((int)cx, (int)cy, (int)cardW, 280, { 25, 32, 45, 245 });
                 DrawRectangleLines((int)cx, (int)cy, (int)cardW, 280, SKYBLUE);
 
-                std::string title = "";
-                std::string desc = "";
-                if (levelChoices[i] == UP_HP) { title = "Titan's Heart"; desc = "+25 Max Health\n& Instant Recovery"; }
-                else if (levelChoices[i] == UP_DMG) { title = "Sharpened Edge"; desc = "+8 Melee Damage\nFor all attacks"; }
-                else if (levelChoices[i] == UP_SPEED) { title = "Swift Wind"; desc = "+15% Move Speed\nOutrun dangers"; }
-                else if (levelChoices[i] == UP_ATTACK_RATE) { title = "Flurry"; desc = "+30% Attack Speed\nRapid strikes"; }
-                else if (levelChoices[i] == UP_DASH) { title = "Blink Step"; desc = "-0.2s Dash Cooldown\nGreater mobility"; }
-                else if (levelChoices[i] == UP_LIFESTEAL) { title = "Vampiric Touch"; desc = "+8% Lifesteal\nHeal on hit"; }
-                else if (levelChoices[i] == UP_ARMOR) { title = "Iron Aegis"; desc = "+2 Flat Armor\nReduce damage"; }
-                else if (levelChoices[i] == UP_CRIT) { title = "Eagle Eye"; desc = "+8% Crit Chance\nCrits deal x2 dmg"; }
-                else if (levelChoices[i] == UP_NOVA) { title = "Arcane Focus"; desc = "-0.8s Nova Cooldown\nSpam Nova"; }
+                std::string title = UpgradeTitle(levelChoices[i]);
+                std::string desc = UpgradeDesc(levelChoices[i]);
 
                 DrawText(title.c_str(), (int)cx + 20, (int)cy + 30, 22, GOLD);
                 DrawText(desc.c_str(), (int)cx + 20, (int)cy + 85, 17, RAYWHITE);
@@ -1173,6 +1562,10 @@ public:
             DrawText(st3.c_str(), 1280 / 2 - 140, 330, 22, RAYWHITE);
             DrawText(st4.c_str(), 1280 / 2 - 140, 365, 22, GOLD);
             DrawText(st5.c_str(), 1280 / 2 - 140, 400, 22, newRecord ? GREEN : SKYBLUE);
+            if (bestCombo >= 2) {
+                std::string st6 = "Best Combo: x" + std::to_string(bestCombo);
+                DrawText(st6.c_str(), 1280 / 2 - 140, 428, 22, ORANGE);
+            }
 
             DrawRectangle(1280 / 2 - 130, 460, 260, 52, MAROON);
             DrawText("PLAY AGAIN (R)", 1280 / 2 - 75, 476, 22, WHITE);

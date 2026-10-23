@@ -223,3 +223,18 @@ All done in code, no scene/asset setup needed (`Assets/Scripts/Dungeon/VisualFX.
 - From floor 2 (never on boss, shop or treasure floors) there is a 30% chance of a **Blood Shrine** in the room.
 - Touch it to pay 15% of your max HP (min 10) for one **random free upgrade** from the whole pool. One use per shrine.
 - It never kills you: if you are too weak it refuses and costs nothing. New file: `Assets/Scripts/Dungeon/ShrineAltar.cs`.
+
+---
+
+## Standalone EXE update (C++ / raylib)
+
+`GeometricDungeon.exe` is a **separate C++ port** (`StandaloneApp/main.cpp`), not the Unity project, so it needs its own updates. It now has:
+
+- **Bomber Slime** (floor 4+): rushes you, blinks with a red warning circle, then explodes (20 damage, hurts other enemies too). A self-destruct drops no loot and does not count for the combo.
+- **Warden Brute** mini-boss on floors 3 and 8 (golden, 180 HP, always drops a potion and gold).
+- **Blood Shrine** (floor 2+, 30% chance, never on boss floors): touch it to pay 15% max HP for a random free upgrade. It never kills you.
+- **Ember Edge** (burn) and **Frost Touch** (slow) upgrade cards.
+- **Effects:** hit sparks, death debris, level-up/Nova/pickup bursts, floating dust, vignette with a red pulse when hurt, short hit-stop on crits and boss kills.
+- **Game over** screen shows your Best Combo.
+
+The new exe is built statically (no `libraylib.dll` needed next to it). To rebuild it yourself, run `build_game.ps1` as before.
