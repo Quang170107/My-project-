@@ -308,8 +308,10 @@ public:
     float screenShakeTimer = 0.0f;
     float screenShakeMag = 0.0f;
 
-    enum State { PLAYING, LEVEL_UP, GAME_OVER };
+    enum State { PLAYING, LEVEL_UP, GAME_OVER, TITLE, PAUSED };
     State state = PLAYING;
+    bool quitRequested = false;
+    bool showHelp = false;
     std::vector<UpgradeType> levelChoices;
     std::string bannerText = "";
     float bannerTimer = 0.0f;
@@ -339,6 +341,7 @@ public:
         InitMotes();
         lightmap = LoadRenderTexture(1280, 720);
         RestartRun();
+        state = TITLE;
     }
 
     void RestartRun() {
@@ -644,6 +647,30 @@ public:
 
         // Hit-stop: khựng khung hình rất ngắn khi chí mạng
         if (hitStop > 0) { hitStop -= dt; return; }
+
+        if (state == TITLE) {
+            UpdateEffects(dt);
+            bannerTimer = 3.0f; // giữ thông báo tầng 1 cho đến khi bắt đầu chơi
+            if (IsKeyPressed(KEY_F1) || IsKeyPressed(KEY_H)) showHelp = !showHelp;
+            else if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                showHelp = false;
+                state = PLAYING;
+                PlaySound(snd.sndPotion);
+            }
+            if (IsKeyPressed(KEY_ESCAPE)) quitRequested = true;
+            return;
+        }
+        if (state == PAUSED) {
+            if (IsKeyPressed(KEY_F1) || IsKeyPressed(KEY_H)) showHelp = !showHelp;
+            if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ENTER)) { showHelp = false; state = PLAYING; }
+            if (IsKeyPressed(KEY_R)) { showHelp = false; RestartRun(); }
+            if (IsKeyPressed(KEY_Q)) quitRequested = true;
+            return;
+        }
+        if (state == PLAYING && (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P))) {
+            state = PAUSED;
+            return;
+        }
 
         UpdateEffects(dt);
 
@@ -1681,6 +1708,73 @@ public:
         EndBlendMode();
     }
 
+    // ── Màn hình tiêu đề / tạm dừng / hướng dẫn ──
+    static void OutlinedText(const char* txt, int x, int y, int size, Color col, Color outline) {
+        for (int ox = -2; ox <= 2; ox += 2)
+            for (int oy = -2; oy <= 2; oy += 2)
+                if (ox != 0 || oy != 0) DrawText(txt, x + ox, y + oy, size, outline);
+        DrawText(txt, x, y, size, col);
+    }
+
+    void DrawHelpPanel() {
+        int w = 720, h = 420, x = 1280 / 2 - w / 2, y = 150;
+        DrawRectangle(x, y, w, h, { 14, 18, 30, 245 });
+        DrawRectangleLines(x, y, w, h, GOLD);
+        DrawText("CONTROLS", x + w / 2 - MeasureText("CONTROLS", 30) / 2, y + 18, 30, GOLD);
+        const char* rows[][2] = {
+            { "W A S D / Arrows", "Move" },
+            { "Mouse", "Aim your sword" },
+            { "Left Click / Space / J", "Slash (hold to keep attacking)" },
+            { "Right Click / Shift / K", "Dash (brief invulnerability)" },
+            { "Q / E / U", "Nova shockwave" },
+            { "1 / 2 / 3", "Pick an upgrade on level-up" },
+            { "M", "Toggle the radar" },
+            { "Esc / P", "Pause" },
+            { "F1 / H", "Show or hide this help" },
+        };
+        for (int i = 0; i < 9; ++i) {
+            DrawText(rows[i][0], x + 36, y + 76 + i * 34, 20, SKYBLUE);
+            DrawText(rows[i][1], x + 340, y + 76 + i * 34, 20, RAYWHITE);
+        }
+        DrawText("Clear a room, enter the portal. Blood Shrines trade HP for upgrades.", x + 36, y + h - 40, 16, { 190, 200, 220, 255 });
+    }
+
+    void DrawTitleScreen() {
+        float t = (float)GetTime();
+        DrawRectangleGradientV(0, 0, 1280, 720, Fade(BLACK, 0.86f), Fade(BLACK, 0.70f));
+        if (showHelp) { DrawHelpPanel(); return; }
+        const char* title = "GEOMETRIC DUNGEON";
+        int tw = MeasureText(title, 72);
+        int ty = 120 + (int)(sinf(t * 1.6f) * 5.0f);
+        DrawText(title, 1280 / 2 - tw / 2 + 4, ty + 5, 72, Fade(BLACK, 0.8f));
+        OutlinedText(title, 1280 / 2 - tw / 2, ty, 72, GOLD, { 120, 60, 10, 255 });
+        const char* sub = "a tiny roguelike RPG";
+        DrawText(sub, 1280 / 2 - MeasureText(sub, 24) / 2, ty + 88, 24, { 170, 190, 230, 255 });
+
+        std::string rec = "Best Record: Floor " + std::to_string(bestFloor);
+        DrawText(rec.c_str(), 1280 / 2 - MeasureText(rec.c_str(), 22) / 2, 330, 22, SKYBLUE);
+
+        if (((int)(t * 2.0f)) % 2 == 0) {
+            const char* start = "PRESS ENTER OR CLICK TO START";
+            OutlinedText(start, 1280 / 2 - MeasureText(start, 30) / 2, 410, 30, WHITE, { 20, 24, 40, 255 });
+        }
+        const char* hint = "F1 - Controls      Esc - Quit";
+        DrawText(hint, 1280 / 2 - MeasureText(hint, 20) / 2, 470, 20, { 150, 165, 200, 255 });
+        if (showHelp) DrawHelpPanel();
+    }
+
+    void DrawPauseScreen() {
+        DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.72f));
+        const char* t1 = "PAUSED";
+        OutlinedText(t1, 1280 / 2 - MeasureText(t1, 60) / 2, 190, 60, WHITE, { 20, 24, 40, 255 });
+        const char* opts[] = { "ESC / P / ENTER   Resume", "R   Restart run", "F1   Controls", "Q   Quit game" };
+        for (int i = 0; i < 4; ++i)
+            DrawText(opts[i], 1280 / 2 - 150, 290 + i * 44, 26, i == 3 ? Color{ 255, 130, 130, 255 } : RAYWHITE);
+        std::string info = "Floor " + std::to_string(floor) + "   Level " + std::to_string(player.level) + "   Slain " + std::to_string(enemiesSlain);
+        DrawText(info.c_str(), 1280 / 2 - MeasureText(info.c_str(), 20) / 2, 500, 20, SKYBLUE);
+        if (showHelp) DrawHelpPanel();
+    }
+
     // ── Drawing ──
     void Draw() {
         BeginDrawing();
@@ -1933,7 +2027,7 @@ public:
         }
 
         // Banner Toast
-        if (bannerTimer > 0) {
+        if (bannerTimer > 0 && state != TITLE && state != PAUSED) {
             int bw = MeasureText(bannerText.c_str(), 26) + 60;
             DrawRectangle(1280 / 2 - bw / 2, 140, bw, 46, { 10, 15, 25, 230 });
             DrawRectangleLines(1280 / 2 - bw / 2, 140, bw, 46, GOLD);
@@ -1991,6 +2085,9 @@ public:
             DrawText("PLAY AGAIN (R)", 1280 / 2 - 75, 476, 22, WHITE);
         }
 
+        if (state == TITLE) DrawTitleScreen();
+        if (state == PAUSED) DrawPauseScreen();
+
         EndDrawing();
     }
 };
@@ -1998,11 +2095,12 @@ public:
 int main() {
     InitWindow(1280, 720, "Geometric Dungeon - Standalone Roguelike RPG");
     SetTargetFPS(60);
+    SetExitKey(KEY_NULL); // Esc dùng để tạm dừng, không thoát ngay
 
     Game game;
     game.Init();
 
-    while (!WindowShouldClose()) {
+    while (!WindowShouldClose() && !game.quitRequested) {
         float dt = GetFrameTime();
         if (dt > 0.05f) dt = 0.05f;
         game.Update(dt);
