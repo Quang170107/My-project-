@@ -196,6 +196,7 @@ struct Enemy {
     float burnDps = 0.0f;
     float slowTimer = 0.0f;  // Frost Touch
     float slowFactor = 1.0f;
+    float hitFlash = 0.0f;   // nháy trắng khi trúng đòn
 };
 
 struct Projectile {
@@ -313,6 +314,7 @@ public:
     float damagePulse = 0.0f;   // viền màn hình nhấp đỏ khi bị đau
     float hitStop = 0.0f;       // khựng khung hình ngắn khi chí mạng
     int bestCombo = 0;
+    Vector2 aimDirDraw = { 1, 0 };
     bool hasShrine = false;
     bool shrineUsed = false;
     bool shrineHinted = false;
@@ -685,6 +687,7 @@ public:
         Vector2 mouseWorld = GetScreenToWorld2D(GetMousePosition(), camera);
         Vector2 aimDir = Vector2Normalize(Vector2Subtract(mouseWorld, player.pos));
         if (fabs(aimDir.x) > 0.1f) player.facingLeft = (aimDir.x < 0);
+        aimDirDraw = aimDir;
 
         if (player.isDashing) {
             player.pos = Vector2Add(player.pos, Vector2Scale(player.dashDir, player.speed * 2.8f * dt));
@@ -772,6 +775,8 @@ public:
         // ── Enemies AI & Update ──
         for (auto& e : enemies) {
             if (e.hp <= 0) continue;
+
+            if (e.hitFlash > 0) e.hitFlash -= dt;
 
             // Poison DoT
             if (e.poisonTimer > 0) {
@@ -1028,6 +1033,7 @@ public:
         e.hp -= dmg;
         e.pos = Vector2Add(e.pos, Vector2Scale(kb, kbForce * 0.05f));
         SpawnPopup(e.pos, (isCrit ? "!" : "") + std::to_string((int)dmg), isCrit ? YELLOW : WHITE);
+        e.hitFlash = 0.09f;
         Burst(e.pos, isCrit ? Color{ 255, 217, 51, 255 } : WHITE, isCrit ? 9 : 4, isCrit ? 230.0f : 160.0f, isCrit ? 0.4f : 0.28f);
         if (isCrit) hitStop = 0.035f;
 
@@ -1250,6 +1256,246 @@ public:
         else if (up == UP_FROST) { player.frostLevel++; }
     }
 
+    // ── Vẽ nhân vật & quái bằng hình học có đổ bóng ──
+    static void Tri(Vector2 a, Vector2 b, Vector2 c, Color col) {
+        DrawTriangle(a, b, c, col);
+        DrawTriangle(a, c, b, col); // vẽ cả hai chiều để không bị culling
+    }
+
+    static Color Shade(Color c, float k) { // k < 1: tối hơn, k > 1: sáng hơn
+        return { (unsigned char)std::min(255.0f, c.r * k), (unsigned char)std::min(255.0f, c.g * k),
+                 (unsigned char)std::min(255.0f, c.b * k), c.a };
+    }
+
+    // Thân dạng blob: viền tối, mảng tối ở đáy, thân sáng, vệt highlight
+    static void Blob(Vector2 c, float rx, float ry, Color base) {
+        DrawEllipse((int)c.x, (int)c.y, rx + 2.5f, ry + 2.5f, Shade(base, 0.25f));
+        DrawEllipse((int)c.x, (int)c.y, rx, ry, Shade(base, 0.55f));
+        DrawEllipse((int)c.x, (int)(c.y - ry * 0.10f), rx * 0.96f, ry * 0.88f, base);
+        DrawEllipse((int)(c.x - rx * 0.30f), (int)(c.y - ry * 0.42f), rx * 0.34f, ry * 0.20f, Fade(Shade(base, 1.7f), 0.75f));
+    }
+
+    // Mắt nhìn theo hướng look (vector chuẩn hoá)
+    static void Eye(Vector2 c, float rx, float ry, Vector2 look, Color iris) {
+        DrawEllipse((int)c.x, (int)c.y, rx + 1.3f, ry + 1.3f, { 18, 18, 26, 255 });
+        DrawEllipse((int)c.x, (int)c.y, rx, ry, WHITE);
+        float px = c.x + look.x * rx * 0.42f, py = c.y + look.y * ry * 0.42f;
+        DrawEllipse((int)px, (int)py, rx * 0.60f, ry * 0.66f, iris);
+        DrawEllipse((int)px, (int)py, rx * 0.30f, ry * 0.36f, { 12, 10, 16, 255 });
+        DrawCircle((int)(px - rx * 0.2f), (int)(py - ry * 0.25f), std::max(1.0f, rx * 0.18f), WHITE);
+    }
+
+    void DrawEnemyBody(const Enemy& e) {
+        const float t = (float)GetTime();
+        const Vector2 c = e.pos;
+        float r = e.radius;
+        Vector2 look = Vector2Subtract(player.pos, e.pos);
+        look = (Vector2Length(look) > 0.01f) ? Vector2Normalize(look) : Vector2{ 0, 1 };
+
+        Color base = { 90, 210, 90, 255 };
+        if (e.type == RANGER) base = { 228, 72, 88, 255 };
+        else if (e.type == BRUTE) base = e.isWarden ? Color{ 214, 156, 62, 255 } : Color{ 146, 92, 206, 255 };
+        else if (e.type == BOSS) base = e.enraged ? Color{ 150, 40, 70, 255 } : Color{ 88, 46, 142, 255 };
+        else if (e.type == BOMBER) base = { 255, 140, 38, 255 };
+
+        // Bomber cháy ngòi: phồng lên, nháy đỏ, vòng cảnh báo bán kính nổ
+        if (e.type == BOMBER && e.fusing) {
+            float f = e.fuseTimer / 0.75f;
+            r = e.radius * (1.0f + 0.35f * f);
+            bool blink = sinf(f * f * 40.0f) > 0.0f;
+            DrawCircle((int)c.x, (int)c.y, 120.0f, Fade({ 255, 60, 30, 255 }, blink ? 0.22f : 0.10f));
+            DrawCircleLines((int)c.x, (int)c.y, 120.0f, Fade({ 255, 90, 40, 255 }, blink ? 1.0f : 0.55f));
+            if (blink) base = { 255, 60, 50, 255 };
+        }
+        if (e.chillTimer > 0) base = LerpColor(base, SKYBLUE, 0.6f);
+        if (e.hitFlash > 0) base = LerpColor(base, WHITE, 0.8f);
+
+        // Hào quang elite / boss
+        if (e.isElite) {
+            float k = 0.5f + 0.5f * sinf(t * 5.0f + c.x);
+            DrawCircle((int)c.x, (int)c.y, r + 10.0f, Fade(GOLD, 0.07f + 0.07f * k));
+            DrawCircleLines((int)c.x, (int)c.y, r + 10.0f, Fade(GOLD, 0.45f + 0.4f * k));
+        }
+        if (e.type == BOSS) {
+            float k = 0.5f + 0.5f * sinf(t * 3.0f);
+            Color aura = e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 170, 80, 255, 255 };
+            DrawCircle((int)c.x, (int)c.y, r * 1.55f, Fade(aura, 0.07f + 0.05f * k));
+            DrawCircle((int)c.x, (int)c.y, r * 1.25f, Fade(aura, 0.10f + 0.05f * k));
+            for (int i = 0; i < 4; ++i) {
+                float a = t * (e.enraged ? 2.4f : 1.5f) + i * (PI / 2.0f);
+                Vector2 o = { c.x + cosf(a) * r * 1.4f, c.y + sinf(a) * r * 1.4f * 0.8f };
+                DrawCircleV(o, 9.0f, Fade(aura, 0.25f));
+                DrawCircleV(o, 5.5f, { 255, 220, 120, 255 });
+                DrawCircleV(o, 2.5f, WHITE);
+            }
+        }
+
+        if (e.type == CHASER) {
+            // Slime nhảy: co giãn theo nhịp nhảy
+            float hop = std::max(0.2f, sinf(e.bounceTimer));
+            float rx = r * (1.0f + 0.14f * (1.0f - hop));
+            float ry = r * (0.80f + 0.22f * hop);
+            Vector2 bc = { c.x, c.y + (r - ry) - hop * 5.0f };
+            Blob(bc, rx, ry, base);
+            DrawCircle((int)(bc.x - rx * 0.55f), (int)(bc.y + ry * 0.92f), 3.0f, Shade(base, 0.75f)); // giọt nhầy
+            DrawCircle((int)(bc.x + rx * 0.45f), (int)(bc.y + ry * 0.98f), 2.2f, Shade(base, 0.75f));
+            Eye({ bc.x - rx * 0.36f, bc.y - ry * 0.12f }, rx * 0.21f, ry * 0.27f, look, { 30, 120, 40, 255 });
+            Eye({ bc.x + rx * 0.36f, bc.y - ry * 0.12f }, rx * 0.21f, ry * 0.27f, look, { 30, 120, 40, 255 });
+            DrawEllipse((int)bc.x, (int)(bc.y + ry * 0.38f), rx * 0.20f, ry * 0.09f, { 30, 60, 30, 255 });
+        } else if (e.type == RANGER) {
+            float charge = std::min(1.0f, e.attackTimer / 2.2f);
+            Color dark = Shade(base, 0.5f);
+            Tri({ c.x - r * 0.75f, c.y - r * 0.30f }, { c.x - r * 0.30f, c.y - r * 0.85f }, { c.x - r * 1.05f, c.y - r * 1.20f }, dark); // tai nhọn
+            Tri({ c.x + r * 0.75f, c.y - r * 0.30f }, { c.x + r * 0.30f, c.y - r * 0.85f }, { c.x + r * 1.05f, c.y - r * 1.20f }, dark);
+            Blob(c, r, r * 0.95f, base);
+            for (int s2 = -1; s2 <= 1; s2 += 2) {
+                Vector2 ec = { c.x + s2 * r * 0.38f, c.y - r * 0.18f };
+                DrawCircleV(ec, r * 0.42f, Fade({ 255, 220, 60, 255 }, 0.22f)); // mắt phát sáng
+                Eye(ec, r * 0.22f, r * 0.26f, look, { 255, 190, 40, 255 });
+                DrawLineEx({ ec.x - s2 * r * 0.28f, ec.y - r * 0.34f }, { ec.x + s2 * r * 0.18f, ec.y - r * 0.20f }, 3.0f, Shade(base, 0.3f)); // lông mày
+            }
+            // Miệng mở rộng dần và phát sáng khi sắp bắn
+            DrawEllipse((int)c.x, (int)(c.y + r * 0.40f), r * (0.20f + 0.16f * charge), r * (0.10f + 0.18f * charge), { 60, 10, 20, 255 });
+            if (charge > 0.55f)
+                DrawCircleV({ c.x, c.y + r * 0.40f }, r * 0.14f * charge, Fade({ 255, 170, 50, 255 }, 0.5f + 0.5f * charge));
+        } else if (e.type == BRUTE) {
+            Color steel = e.isWarden ? Color{ 236, 192, 84, 255 } : Color{ 152, 158, 180, 255 };
+            Color horn = e.isWarden ? Color{ 255, 240, 190, 255 } : Color{ 232, 226, 210, 255 };
+            float hs = e.isWarden ? 1.35f : 1.0f;
+            Tri({ c.x - r * 0.72f, c.y - r * 0.62f }, { c.x - r * 0.40f, c.y - r * 0.92f }, { c.x - r * 1.00f * hs, c.y - r * 1.38f * hs }, horn); // sừng
+            Tri({ c.x + r * 0.72f, c.y - r * 0.62f }, { c.x + r * 0.40f, c.y - r * 0.92f }, { c.x + r * 1.00f * hs, c.y - r * 1.38f * hs }, horn);
+            Blob(c, r, r * 0.96f, base);
+            DrawCircleSector({ c.x, c.y - r * 0.08f }, r * 1.0f, 180.0f, 360.0f, 28, steel);     // mũ giáp
+            DrawCircleSectorLines({ c.x, c.y - r * 0.08f }, r * 1.0f, 180.0f, 360.0f, 28, Shade(steel, 0.45f));
+            DrawLineEx({ c.x - r, c.y - r * 0.08f }, { c.x + r, c.y - r * 0.08f }, 4.0f, Shade(steel, 0.5f));
+            DrawEllipse((int)(c.x - r * 0.35f), (int)(c.y - r * 0.55f), r * 0.2f, r * 0.10f, Fade(WHITE, 0.45f)); // ánh kim loại
+            for (int s2 = -1; s2 <= 1; s2 += 2) {
+                Vector2 ec = { c.x + s2 * r * 0.36f, c.y + r * 0.16f };
+                Eye(ec, r * 0.17f, r * 0.17f, look, { 255, 90, 60, 255 });
+                DrawLineEx({ ec.x - s2 * r * 0.26f, ec.y - r * 0.28f }, { ec.x + s2 * r * 0.14f, ec.y - r * 0.12f }, 3.5f, { 20, 12, 30, 255 }); // lông mày giận dữ
+            }
+            Tri({ c.x - r * 0.34f, c.y + r * 0.50f }, { c.x - r * 0.14f, c.y + r * 0.50f }, { c.x - r * 0.24f, c.y + r * 0.78f }, horn); // răng nanh
+            Tri({ c.x + r * 0.34f, c.y + r * 0.50f }, { c.x + r * 0.14f, c.y + r * 0.50f }, { c.x + r * 0.24f, c.y + r * 0.78f }, horn);
+            // Báo hiệu đập đất
+            if (e.attackTimer > 2.8f && Vector2Distance(c, player.pos) < 150.0f) {
+                float k = (e.attackTimer - 2.8f) / 0.7f;
+                DrawCircleLines((int)c.x, (int)c.y, 140.0f * std::min(1.0f, k), Fade({ 200, 120, 255, 255 }, 0.8f));
+            }
+        } else if (e.type == BOSS) {
+            Blob(c, r, r * 0.98f, base);
+            for (int i = -2; i <= 2; ++i) // vết nứt phát sáng
+                DrawLineEx({ c.x + i * r * 0.28f, c.y + r * 0.2f }, { c.x + i * r * 0.40f, c.y + r * 0.75f }, 2.0f, Fade({ 220, 140, 255, 255 }, 0.6f));
+            Color eyeC = e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 255, 210, 80, 255 };
+            for (int s2 = -1; s2 <= 1; s2 += 2) {
+                Vector2 ec = { c.x + s2 * r * 0.38f, c.y - r * 0.12f };
+                DrawCircleV(ec, r * 0.30f, Fade(eyeC, 0.25f));
+                Eye(ec, r * 0.18f, r * 0.22f, look, eyeC);
+                DrawLineEx({ ec.x - s2 * r * 0.30f, ec.y - r * 0.32f }, { ec.x + s2 * r * 0.16f, ec.y - r * 0.16f }, 4.0f, { 20, 10, 30, 255 });
+            }
+            for (int i = 0; i < 6; ++i) { // miệng răng cưa
+                float x0 = c.x - r * 0.42f + i * r * 0.168f;
+                Tri({ x0, c.y + r * 0.42f }, { x0 + r * 0.168f, c.y + r * 0.42f }, { x0 + r * 0.084f, c.y + r * 0.62f }, WHITE);
+            }
+            // Vương miện
+            float cx = c.x, cy = c.y - r * 0.98f - 2.0f;
+            DrawRectangle((int)cx - 16, (int)cy - 7, 32, 8, GOLD);
+            Tri({ cx - 16, cy - 7 }, { cx - 10, cy - 7 }, { cx - 16, cy - 20 }, GOLD);
+            Tri({ cx - 7, cy - 7 }, { cx + 7, cy - 7 }, { cx, cy - 26 }, GOLD);
+            Tri({ cx + 10, cy - 7 }, { cx + 16, cy - 7 }, { cx + 16, cy - 20 }, GOLD);
+            DrawCircle((int)cx, (int)cy - 3, 2.5f, RED);
+        } else if (e.type == BOMBER) {
+            Blob(c, r, r * 0.95f, base);
+            for (int s2 = -1; s2 <= 1; s2 += 2) {
+                Vector2 ec = { c.x + s2 * r * 0.36f, c.y - r * 0.08f };
+                Eye(ec, r * 0.20f, r * 0.24f, look, { 120, 40, 20, 255 });
+                DrawLineEx({ ec.x - s2 * r * 0.30f, ec.y - r * 0.34f }, { ec.x + s2 * r * 0.14f, ec.y - r * 0.16f }, 3.0f, { 70, 20, 10, 255 });
+            }
+            DrawLineEx({ c.x - r * 0.40f, c.y + r * 0.42f }, { c.x + r * 0.40f, c.y + r * 0.42f }, 3.0f, { 70, 20, 10, 255 }); // miệng
+            for (int i = 0; i < 4; ++i)
+                DrawRectangle((int)(c.x - r * 0.36f + i * r * 0.2f), (int)(c.y + r * 0.42f), 4, 5, WHITE);
+            Vector2 top = { c.x, c.y - r * 0.95f };
+            Vector2 tip = { c.x + 6.0f, c.y - r * 0.95f - 12.0f };
+            DrawLineEx(top, tip, 3.5f, { 110, 70, 40, 255 });
+            float tw = 0.6f + 0.4f * sinf(t * 25.0f);
+            DrawCircleV(tip, 6.0f * tw + 2.0f, Fade({ 255, 200, 60, 255 }, 0.4f));
+            DrawCircleV(tip, 3.2f * tw + 1.2f, { 255, 235, 90, 255 });
+            DrawCircleV(tip, 1.6f, WHITE);
+        }
+
+        // Viền trạng thái
+        if (e.slowTimer > 0) {
+            DrawCircleLines((int)c.x, (int)c.y, r + 4.0f, { 120, 200, 255, 255 });
+            DrawCircleLines((int)c.x, (int)c.y, r + 5.0f, { 120, 200, 255, 160 });
+        }
+        if (e.burnTimer > 0) {
+            float fl = 0.6f + 0.4f * sinf(t * 30.0f + c.x);
+            DrawCircleLines((int)c.x, (int)c.y, r + 7.0f, Fade({ 255, 130, 30, 255 }, fl));
+            DrawCircleV({ c.x - r * 0.5f, c.y - r - 4.0f }, 3.0f + 2.0f * fl, Fade({ 255, 170, 40, 255 }, 0.9f));
+        }
+    }
+
+    void DrawPlayerSprite() {
+        const float t = (float)GetTime();
+        const Vector2 p = player.pos;
+        const float face = player.facingLeft ? -1.0f : 1.0f;
+        const float back = -face;
+        const bool moving = player.walkTimer > 0.01f && (IsKeyDown(KEY_W) || IsKeyDown(KEY_A) || IsKeyDown(KEY_S) || IsKeyDown(KEY_D)
+                              || IsKeyDown(KEY_UP) || IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_RIGHT));
+        float bob = moving ? fabsf(sinf(player.walkTimer)) * -2.5f : sinf(t * 3.0f) * 1.2f;
+        float sway = sinf(t * 8.0f) * 2.5f + (moving ? 4.0f : 0.0f);
+        Vector2 body = { p.x, p.y + bob };
+
+        // Áo choàng (sau lưng)
+        Color cape = { 44, 74, 168, 255 };
+        Vector2 A = { body.x + back * 6.0f, body.y - 11.0f }, B = { body.x + back * 6.0f, body.y + 11.0f };
+        Vector2 C = { body.x + back * (31.0f + sway), body.y + 20.0f + sway * 0.4f }, D = { body.x + back * (31.0f + sway), body.y - 4.0f };
+        Tri(A, B, C, cape); Tri(A, C, D, cape);
+        DrawLineEx(A, D, 2.0f, Shade(cape, 0.55f));
+        DrawLineEx(B, C, 2.0f, Shade(cape, 0.55f));
+
+        // Ủng bước chân
+        float step = moving ? sinf(player.walkTimer) * 4.0f : 0.0f;
+        DrawEllipse((int)(p.x - 7.0f), (int)(p.y + 16.0f + step * 0.5f), 6.0f, 4.0f, { 52, 46, 64, 255 });
+        DrawEllipse((int)(p.x + 7.0f), (int)(p.y + 16.0f - step * 0.5f), 6.0f, 4.0f, { 52, 46, 64, 255 });
+
+        // Lông vũ mũ
+        Tri({ body.x, body.y - 16.0f }, { body.x + back * (30.0f + sway * 0.5f), body.y - 26.0f + sway * 0.3f }, { body.x + back * 9.0f, body.y - 8.0f }, { 224, 52, 66, 255 });
+        DrawLineEx({ body.x, body.y - 16.0f }, { body.x + back * (30.0f + sway * 0.5f), body.y - 26.0f + sway * 0.3f }, 2.0f, { 140, 24, 36, 255 });
+
+        // Thân giáp
+        Blob(body, 17.0f, 17.5f, { 222, 228, 244, 255 });
+        // Mũ giáp nửa trên
+        DrawCircleSector({ body.x, body.y - 1.0f }, 17.0f, 180.0f, 360.0f, 28, { 176, 188, 214, 255 });
+        DrawLineEx({ body.x - 17.0f, body.y - 1.0f }, { body.x + 17.0f, body.y - 1.0f }, 2.0f, { 98, 110, 140, 255 });
+        DrawEllipse((int)(body.x - 6.0f), (int)(body.y - 11.0f), 5.0f, 2.2f, Fade(WHITE, 0.7f));
+        // Kính ngắm phát sáng hướng về phía nhìn
+        DrawEllipse((int)(body.x + face * 5.5f), (int)(body.y + 2.0f), 9.0f, 3.6f, { 18, 24, 48, 255 });
+        DrawEllipse((int)(body.x + face * 8.0f), (int)(body.y + 2.0f), 4.5f, 1.8f, { 90, 230, 255, 255 });
+        DrawCircleV({ body.x + face * 3.0f, body.y + 2.0f }, 4.0f, Fade({ 90, 230, 255, 255 }, 0.18f));
+
+        // Kiếm vung theo hướng ngắm
+        float a = atan2f(aimDirDraw.y, aimDirDraw.x);
+        float sinceAtk = (1.0f / player.attackRate) - player.attackTimer;
+        float off = (player.attackTimer > 0.0f && sinceAtk < 0.16f) ? Lerp(-1.25f, 1.25f, sinceAtk / 0.16f) : 0.5f;
+        float sa = a + off;
+        Vector2 dir = { cosf(sa), sinf(sa) };
+        Vector2 hand = { body.x + dir.x * 16.0f, body.y + dir.y * 16.0f };
+        Vector2 tip = { hand.x + dir.x * 27.0f, hand.y + dir.y * 27.0f };
+        DrawLineEx(hand, tip, 6.0f, { 90, 100, 130, 255 });
+        DrawLineEx(hand, tip, 4.0f, { 232, 238, 250, 255 });
+        DrawLineEx(hand, tip, 1.5f, WHITE);
+        Vector2 perp = { -dir.y, dir.x };
+        DrawLineEx({ hand.x + perp.x * 7.0f, hand.y + perp.y * 7.0f }, { hand.x - perp.x * 7.0f, hand.y - perp.y * 7.0f }, 4.0f, GOLD);
+        DrawCircleV(hand, 4.2f, { 140, 150, 176, 255 });
+        DrawCircleV(hand, 4.2f, Fade(WHITE, 0.0f));
+
+        // Nhấp nháy khi bất tử tạm thời
+        if (player.isInvuln) {
+            float k = 0.5f + 0.5f * sinf(t * 30.0f);
+            DrawCircleLines((int)body.x, (int)body.y, 24.0f, Fade(SKYBLUE, 0.4f + 0.5f * k));
+        }
+    }
+
     // ── Drawing ──
     void Draw() {
         BeginDrawing();
@@ -1328,12 +1574,13 @@ public:
             DrawCircle((int)g.pos.x, (int)g.pos.y, 20, Fade(SKYBLUE, a));
         }
 
-        // Slashes
-        for (const auto& s : slashes) {
-            float rad = s.angle * DEG2RAD;
-            Vector2 end = Vector2Add(s.pos, { cosf(rad) * 45.0f, sinf(rad) * 45.0f });
-            DrawLineEx(s.pos, end, 6.0f, WHITE);
-            DrawCircleV(end, 8.0f, Fade(SKYBLUE, 0.8f));
+        // Slashes: vệt cung kiếm
+        for (const auto& sl : slashes) {
+            float rad = sl.angle * DEG2RAD;
+            float k = sl.timer / sl.maxTimer;
+            Vector2 centre = Vector2Subtract(sl.pos, { cosf(rad) * 35.0f, sinf(rad) * 35.0f });
+            DrawRing(centre, 36.0f, 52.0f, sl.angle - 60.0f, sl.angle + 60.0f, 24, Fade(WHITE, 0.85f * k));
+            DrawRing(centre, 30.0f, 38.0f, sl.angle - 45.0f, sl.angle + 45.0f, 20, Fade({ 120, 220, 255, 255 }, 0.7f * k));
         }
 
         // Novas
@@ -1349,65 +1596,7 @@ public:
             // Shadow
             DrawEllipse((int)e.pos.x, (int)e.pos.y + e.radius * 0.8f, e.radius, e.radius * 0.4f, { 0, 0, 0, 90 });
 
-            Color col = GREEN;
-            if (e.type == RANGER) col = RED;
-            else if (e.type == BRUTE) col = PURPLE;
-            else if (e.type == BOSS) col = DARKPURPLE;
-            else if (e.type == BOMBER) col = { 255, 140, 38, 255 };
-
-            if (e.isWarden) col = { 255, 190, 90, 255 };
-            if (e.isElite && e.type != BOMBER) col = GOLD; // Bomber elite giữ màu cam, chỉ viền vàng
-            if (e.chillTimer > 0) col = SKYBLUE;
-
-            float drawR = e.radius;
-            if (e.type == BOMBER && e.fusing) {
-                float t = e.fuseTimer / 0.75f;
-                drawR = e.radius * (1.0f + 0.35f * t);
-                bool blink = sinf(t * t * 40.0f) > 0.0f;
-                DrawCircle((int)e.pos.x, (int)e.pos.y, 120.0f, Fade({ 255, 60, 30, 255 }, blink ? 0.22f : 0.10f));
-                DrawCircleLines((int)e.pos.x, (int)e.pos.y, 120.0f, Fade({ 255, 90, 40, 255 }, blink ? 1.0f : 0.55f));
-                if (blink) col = { 255, 60, 50, 255 };
-            }
-
-            DrawCircle((int)e.pos.x, (int)e.pos.y, drawR, col);
-            DrawCircleLines((int)e.pos.x, (int)e.pos.y, drawR, (e.isWarden || (e.isElite && e.type == BOMBER)) ? Color{ 255, 230, 150, 255 } : WHITE);
-            if (e.isElite && e.type == BOMBER) DrawCircleLines((int)e.pos.x, (int)e.pos.y, drawR + 3.0f, GOLD);
-
-            // Viền trạng thái: giữ nguyên màu thân để vẫn nhận ra loại quái
-            if (e.slowTimer > 0) {
-                DrawCircleLines((int)e.pos.x, (int)e.pos.y, drawR + 4.0f, { 120, 200, 255, 255 });
-                DrawCircleLines((int)e.pos.x, (int)e.pos.y, drawR + 5.0f, { 120, 200, 255, 160 });
-            }
-            if (e.burnTimer > 0) {
-                float fl = 0.6f + 0.4f * sinf((float)GetTime() * 30.0f + e.pos.x);
-                DrawCircleLines((int)e.pos.x, (int)e.pos.y, drawR + 7.0f, Fade({ 255, 130, 30, 255 }, fl));
-                DrawCircleV({ e.pos.x - drawR * 0.5f, e.pos.y - drawR - 4.0f }, 3.0f + 2.0f * fl, Fade({ 255, 170, 40, 255 }, 0.9f));
-            }
-
-            // Ngòi nổ của Bomber
-            if (e.type == BOMBER) {
-                Vector2 top = { e.pos.x, e.pos.y - drawR };
-                Vector2 tip = { e.pos.x + 5.0f, e.pos.y - drawR - 11.0f };
-                DrawLineEx(top, tip, 3.0f, { 110, 70, 40, 255 });
-                float tw = 0.6f + 0.4f * sinf((float)GetTime() * 25.0f);
-                DrawCircleV(tip, 4.0f * tw + 1.5f, { 255, 235, 90, 255 });
-                DrawCircleV(tip, 2.0f, WHITE);
-            }
-
-            // Eyes
-            float eyeDir = e.facingLeft ? -1.0f : 1.0f;
-            DrawCircle((int)(e.pos.x + eyeDir * (e.radius * 0.35f)), (int)(e.pos.y - 3), 4, WHITE);
-            DrawCircle((int)(e.pos.x + eyeDir * (e.radius * 0.35f) + eyeDir * 1), (int)(e.pos.y - 3), 2, BLACK);
-
-            // Boss Crown
-            if (e.type == BOSS) {
-                float cx = e.pos.x, cy = e.pos.y - e.radius - 6.0f;
-                DrawRectangle((int)cx - 14, (int)cy - 6, 28, 7, GOLD);
-                DrawTriangle({ cx - 14, cy - 6 }, { cx - 9, cy - 6 }, { cx - 14, cy - 16 }, GOLD);
-                DrawTriangle({ cx - 6, cy - 6 }, { cx + 6, cy - 6 }, { cx, cy - 20 }, GOLD);
-                DrawTriangle({ cx + 9, cy - 6 }, { cx + 14, cy - 6 }, { cx + 14, cy - 16 }, GOLD);
-                DrawCircle((int)cx, (int)cy - 2, 2, RED);
-            }
+            DrawEnemyBody(e);
 
             // Health bar
             float barW = e.radius * 2.2f;
@@ -1418,18 +1607,14 @@ public:
 
         // Projectiles
         for (const auto& p : projectiles) {
+            DrawCircleV(p.pos, p.radius * 2.0f, Fade(p.color, 0.22f));
             DrawCircleV(p.pos, p.radius, p.color);
             DrawCircleLines((int)p.pos.x, (int)p.pos.y, p.radius, WHITE);
         }
 
         // Player
         DrawEllipse((int)player.pos.x, (int)player.pos.y + 16, 20, 8, { 0, 0, 0, 100 }); // Shadow
-        Color pCol = player.isInvuln ? Fade(SKYBLUE, 0.7f) : RAYWHITE;
-        DrawCircle((int)player.pos.x, (int)player.pos.y, 18, pCol);
-        DrawCircleLines((int)player.pos.x, (int)player.pos.y, 18, DARKBLUE);
-        // Knight visor
-        float pEyeDir = player.facingLeft ? -1.0f : 1.0f;
-        DrawRectangle((int)(player.pos.x + (pEyeDir > 0 ? 0 : -10)), (int)player.pos.y - 4, 10, 4, DARKBLUE);
+        DrawPlayerSprite();
 
         // Aegis Barrier Glow
         if (player.shieldActive) {
