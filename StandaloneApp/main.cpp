@@ -124,7 +124,7 @@ private:
 };
 
 // ── Game Data Structures ───────────────────────────────────────────────────
-enum EnemyType { CHASER, RANGER, BRUTE, BOSS, BOMBER };
+enum EnemyType { CHASER, RANGER, BRUTE, BOSS, BOMBER, CHARGER };
 enum RelicType { RELIC_LIGHTNING, RELIC_TOXIC, RELIC_FROST, RELIC_AEGIS, RELIC_CHALICE, RELIC_COMBUSTION };
 enum UpgradeType { UP_HP, UP_DMG, UP_SPEED, UP_ATTACK_RATE, UP_DASH, UP_LIFESTEAL, UP_ARMOR, UP_CRIT, UP_NOVA, UP_IGNITE, UP_FROST };
 
@@ -197,6 +197,10 @@ struct Enemy {
     float slowTimer = 0.0f;  // Frost Touch
     float slowFactor = 1.0f;
     float hitFlash = 0.0f;   // nháy trắng khi trúng đòn
+    int chargeState = 0;     // Charger: 0 tiến lại, 1 báo hiệu, 2 lao tới, 3 choáng
+    float chargeTimer = 0.0f;
+    float chargeCooldown = 1.2f;
+    Vector2 chargeDir = { 1, 0 };
 };
 
 struct Projectile {
@@ -424,6 +428,7 @@ public:
         if (e.isWarden) return { 255, 199, 89, 255 };
         if (e.type == BOSS) return { 242, 77, 77, 255 };
         if (e.type == BOMBER) return { 255, 153, 38, 255 };
+        if (e.type == CHARGER) return { 235, 140, 70, 255 };
         if (e.type == BRUTE) return { 153, 102, 242, 255 };
         if (e.type == RANGER) return { 242, 77, 89, 255 };
         return { 102, 230, 89, 255 };
@@ -517,6 +522,10 @@ public:
             for (int i = 0; i < brutes; ++i) SpawnEnemy(BRUTE, GetRandomSpawnPos());
 
             // Bomber Slime: quái tự nổ từ tầng 4
+            // Charger: quái lao thẳng có báo hiệu, từ tầng 2
+            int chargers = (floor >= 2) ? std::min(3, 1 + (floor - 2) / 3) : 0;
+            for (int i = 0; i < chargers; ++i) SpawnEnemy(CHARGER, GetRandomSpawnPos());
+
             int bombers = (floor >= 4) ? std::min(4, 1 + (floor - 4) / 2) : 0;
             for (int i = 0; i < bombers; ++i) SpawnEnemy(BOMBER, GetRandomSpawnPos());
 
@@ -586,6 +595,12 @@ public:
             e.speed = 95.0f;
             e.contactDmg = 16.0f * multDmg;
             e.radius = 26.0f;
+        } else if (type == CHARGER) {
+            e.maxHp = 48.0f * multHp;
+            e.speed = 120.0f;
+            e.contactDmg = 12.0f * multDmg;
+            e.radius = 21.0f;
+            e.chargeCooldown = 0.8f + 1.4f * Rand01();
         } else if (type == BOMBER) {
             e.maxHp = 22.0f * multHp;
             e.speed = 190.0f;
@@ -894,6 +909,49 @@ public:
                 } else {
                     e.pos = Vector2Add(e.pos, Vector2Scale(dir, e.speed * speedMod * dt));
                 }
+            } else if (e.type == CHARGER) {
+                if (e.chargeState == 0) {
+                    e.chargeCooldown -= dt;
+                    e.pos = Vector2Add(e.pos, Vector2Scale(dir, e.speed * speedMod * dt));
+                    if (e.chargeCooldown <= 0 && dist < 440.0f && dist > 90.0f) {
+                        e.chargeState = 1;
+                        e.chargeTimer = 0.75f;
+                        e.chargeDir = dir;
+                        PlaySound(snd.sndShoot);
+                    }
+                } else if (e.chargeState == 1) {
+                    // Báo hiệu: đứng yên, vẫn ngắm theo người chơi, khoá hướng ở 0.25s cuối
+                    e.chargeTimer -= dt;
+                    if (e.chargeTimer > 0.25f) e.chargeDir = dir;
+                    if (e.chargeTimer <= 0) {
+                        e.chargeState = 2;
+                        e.chargeTimer = 0.55f;
+                        PlaySound(snd.sndDash);
+                    }
+                } else if (e.chargeState == 2) {
+                    e.chargeTimer -= dt;
+                    e.pos = Vector2Add(e.pos, Vector2Scale(e.chargeDir, 560.0f * speedMod * dt));
+                    if (Rand01() < 0.5f) Burst(Vector2Subtract(e.pos, Vector2Scale(e.chargeDir, e.radius)), { 230, 200, 150, 255 }, 1, 60.0f, 0.3f);
+                    float bx = roomW / 2.0f - e.radius - 6.0f, by = roomH / 2.0f - e.radius - 6.0f;
+                    bool wall = fabsf(e.pos.x) > bx || fabsf(e.pos.y) > by;
+                    e.pos.x = Clamp(e.pos.x, -bx, bx);
+                    e.pos.y = Clamp(e.pos.y, -by, by);
+                    if (wall) {
+                        Shake(0.18f, 5.0f);
+                        Burst(e.pos, { 200, 190, 170, 255 }, 12, 200.0f, 0.4f);
+                        e.chargeTimer = 0;
+                    }
+                    if (e.chargeTimer <= 0) {
+                        e.chargeState = 3;
+                        e.chargeTimer = wall ? 1.3f : 0.8f; // đâm tường thì choáng lâu hơn
+                    }
+                } else {
+                    e.chargeTimer -= dt;
+                    if (e.chargeTimer <= 0) {
+                        e.chargeState = 0;
+                        e.chargeCooldown = 2.0f + 1.2f * Rand01();
+                    }
+                }
             } else if (e.type == BOMBER) {
                 if (!e.fusing) {
                     e.pos = Vector2Add(e.pos, Vector2Scale(dir, e.speed * speedMod * dt));
@@ -946,7 +1004,8 @@ public:
 
             // Contact damage with player
             if (Vector2Distance(e.pos, player.pos) < e.radius + 18.0f) {
-                DamagePlayer(e.contactDmg);
+                float contactMul = (e.type == CHARGER && e.chargeState == 2) ? 1.8f : 1.0f;
+                DamagePlayer(e.contactDmg * contactMul);
             }
         }
 
@@ -1069,6 +1128,7 @@ public:
     }
 
     void DamageEnemy(Enemy& e, float dmg, Vector2 kb, float kbForce, bool isCrit) {
+        if (e.type == CHARGER && e.chargeState == 3) dmg *= 1.5f; // choáng sau cú lao: dễ trúng đòn
         e.hp -= dmg;
         e.pos = Vector2Add(e.pos, Vector2Scale(kb, kbForce * 0.05f));
         SpawnPopup(e.pos, (isCrit ? "!" : "") + std::to_string((int)dmg), isCrit ? YELLOW : WHITE);
@@ -1336,6 +1396,7 @@ public:
         else if (e.type == BRUTE) base = e.isWarden ? Color{ 214, 156, 62, 255 } : Color{ 146, 92, 206, 255 };
         else if (e.type == BOSS) base = e.enraged ? Color{ 150, 40, 70, 255 } : Color{ 88, 46, 142, 255 };
         else if (e.type == BOMBER) base = { 255, 140, 38, 255 };
+        else if (e.type == CHARGER) base = { 205, 120, 66, 255 };
 
         // Bomber cháy ngòi: phồng lên, nháy đỏ, vòng cảnh báo bán kính nổ
         if (e.type == BOMBER && e.fusing) {
@@ -1442,6 +1503,41 @@ public:
             Tri({ cx - 7, cy - 7 }, { cx + 7, cy - 7 }, { cx, cy - 26 }, GOLD);
             Tri({ cx + 10, cy - 7 }, { cx + 16, cy - 7 }, { cx + 16, cy - 20 }, GOLD);
             DrawCircle((int)cx, (int)cy - 3, 2.5f, RED);
+        } else if (e.type == CHARGER) {
+            // Báo hiệu hướng lao: vệt đỏ nhấp nháy
+            if (e.chargeState == 1) {
+                float k = 0.5f + 0.5f * sinf(t * 30.0f);
+                Vector2 end = { c.x + e.chargeDir.x * 460.0f, c.y + e.chargeDir.y * 460.0f };
+                DrawLineEx(c, end, r * 1.9f, Fade({ 255, 60, 40, 255 }, 0.10f + 0.10f * k));
+                DrawLineEx(c, end, 3.0f, Fade({ 255, 90, 60, 255 }, 0.6f + 0.4f * k));
+                OutlinedText("!", (int)c.x - 5, (int)(c.y - r - 34.0f), 30, { 255, 220, 60, 255 }, { 80, 10, 10, 255 });
+            }
+            Vector2 fwd = (e.chargeState >= 1 && e.chargeState <= 2) ? e.chargeDir : look;
+            float sq = (e.chargeState == 2) ? 1.18f : (e.chargeState == 1 ? 0.92f : 1.0f);
+            if (e.chargeState == 2) // vệt tốc độ phía sau
+                for (int i = 1; i <= 4; ++i)
+                    DrawCircleV(Vector2Subtract(c, Vector2Scale(fwd, i * r * 0.7f)), r * (1.0f - i * 0.18f), Fade(base, 0.22f - i * 0.04f));
+            Vector2 bc = { c.x + (e.chargeState == 1 ? sinf(t * 60.0f) * 2.0f : 0.0f), c.y };
+            Blob(bc, r * sq, r * (2.0f - sq) * 0.95f, base);
+            // Sừng / ngà hướng về phía trước
+            Vector2 perp = { -fwd.y, fwd.x };
+            for (int s2 = -1; s2 <= 1; s2 += 2) {
+                Vector2 b0 = { bc.x + fwd.x * r * 0.55f + perp.x * s2 * r * 0.45f, bc.y + fwd.y * r * 0.55f + perp.y * s2 * r * 0.45f };
+                Vector2 b1 = { b0.x + perp.x * s2 * r * 0.12f, b0.y + perp.y * s2 * r * 0.12f };
+                Vector2 tip2 = { b0.x + fwd.x * r * 0.75f + perp.x * s2 * r * 0.28f, b0.y + fwd.y * r * 0.75f + perp.y * s2 * r * 0.28f };
+                Tri({ b0.x - perp.x * s2 * 3.0f, b0.y - perp.y * s2 * 3.0f }, { b1.x + perp.x * s2 * 3.0f, b1.y + perp.y * s2 * 3.0f }, tip2, { 240, 232, 210, 255 });
+            }
+            for (int s2 = -1; s2 <= 1; s2 += 2) {
+                Vector2 ec = { c.x + s2 * r * 0.36f, c.y - r * 0.12f };
+                Eye(ec, r * 0.19f, r * 0.22f, (e.chargeState == 3) ? Vector2{ 0, 0 } : fwd, e.chargeState == 3 ? Color{ 200, 200, 80, 255 } : Color{ 255, 70, 40, 255 });
+                DrawLineEx({ ec.x - s2 * r * 0.30f, ec.y - r * 0.32f }, { ec.x + s2 * r * 0.16f, ec.y - r * 0.14f }, 3.0f, { 60, 20, 10, 255 });
+            }
+            // Choáng: sao quay quanh đầu
+            if (e.chargeState == 3)
+                for (int i = 0; i < 3; ++i) {
+                    float a3 = t * 6.0f + i * 2.094f;
+                    DrawCircleV({ c.x + cosf(a3) * r * 0.8f, c.y - r - 8.0f + sinf(a3) * 5.0f }, 4.0f, { 255, 230, 80, 255 });
+                }
         } else if (e.type == BOMBER) {
             Blob(c, r, r * 0.95f, base);
             for (int s2 = -1; s2 <= 1; s2 += 2) {
