@@ -244,3 +244,11 @@ The new exe is built statically (no `libraylib.dll` needed next to it). To rebui
 - **World art and lighting (standalone):** brick walls, wall torches with flickering glow, stone pillars with depth, floor decals per biome (bones in the Crypt, moss in the Ruins, lava cracks and pools in the Molten Depths, ice shards in the Frozen Halls), soft shadows under the walls, and dynamic lighting: the knight carries a light, torches/portal/shrine/projectiles/Nova/burning enemies/bosses light up their surroundings and everything else fades into the dark.
 - **Menus (standalone):** a title screen with your best record, a pause menu (Esc / P: resume, R restart, Q quit), and a controls panel (F1 / H). Esc no longer closes the game instantly.
 - **Charger (standalone, floor 2+):** a tusked boar that stops, shows a red lane and a `!`, locks its direction and then charges (1.8x contact damage). If it slams into a wall it is stunned longer, and while stunned it takes 50% more damage. 1 on floor 2, up to 3 later.
+
+### Equipment and settings in the standalone exe
+
+The Unity version already had a settings menu and an equipment system; the standalone exe was missing both. They are now ported:
+
+- **Equipment:** 4 slots (weapon, armor, boots, ring) and 4 rarities (common 60%, rare 27%, epic 10%, legendary 3%). Enemies drop gear (12%, elites 30%, bosses and Wardens always). Walking over gear equips it if it is better than what you wear, otherwise it is sold for gold. Press **I** (also from the pause menu) for the equipment screen with your full stats; your four slots are also shown under the relics in the HUD.
+- **Settings** (`O` or `F2` from the title screen, `O` from the pause menu): resolution (only sizes that fit your monitor), fullscreen, VSync, **FPS limit** (30 / 60 / 120 / 144 / unlimited), show FPS, **vibration** (screen shake), lighting, particle quality, vignette and volume. Saved automatically to `settings.cfg` next to the exe, together with your best floor.
+- The window is now resizable and the game is letterboxed to keep its 16:9 shape; the mouse position is mapped correctly at any size.
