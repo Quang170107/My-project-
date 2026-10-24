@@ -124,7 +124,7 @@ private:
 };
 
 // ── Game Data Structures ───────────────────────────────────────────────────
-enum EnemyType { CHASER, RANGER, BRUTE, BOSS, BOMBER };
+enum EnemyType { CHASER, RANGER, BRUTE, BOSS, BOMBER, CHARGER };
 enum RelicType { RELIC_LIGHTNING, RELIC_TOXIC, RELIC_FROST, RELIC_AEGIS, RELIC_CHALICE, RELIC_COMBUSTION };
 enum UpgradeType { UP_HP, UP_DMG, UP_SPEED, UP_ATTACK_RATE, UP_DASH, UP_LIFESTEAL, UP_ARMOR, UP_CRIT, UP_NOVA, UP_IGNITE, UP_FROST };
 
@@ -197,6 +197,10 @@ struct Enemy {
     float slowTimer = 0.0f;  // Frost Touch
     float slowFactor = 1.0f;
     float hitFlash = 0.0f;   // nháy trắng khi trúng đòn
+    int chargeState = 0;     // Charger: 0 tiến lại, 1 báo hiệu, 2 lao tới, 3 choáng
+    float chargeTimer = 0.0f;
+    float chargeCooldown = 1.2f;
+    Vector2 chargeDir = { 1, 0 };
 };
 
 struct Projectile {
@@ -278,6 +282,104 @@ static Color LerpColor(Color a, Color b, float t) {
 
 static float Rand01() { return (float)rand() / (float)RAND_MAX; }
 
+// ── Trang bị (4 ô: vũ khí, giáp, giày, nhẫn) ─────────────────────────────
+enum EquipSlot { SLOT_WEAPON, SLOT_ARMOR, SLOT_BOOTS, SLOT_RING };
+
+struct EquipItem {
+    std::string name;
+    int slot = 0;
+    int rarity = 0; // 0 thường, 1 hiếm, 2 sử thi, 3 huyền thoại
+    float damage = 0, maxHp = 0, armor = 0, moveSpeed = 0, attackRate = 0, lifesteal = 0, crit = 0;
+
+    float Score() const { return damage + maxHp * 0.3f + armor * 4.0f + moveSpeed * 6.0f + attackRate * 8.0f + lifesteal * 100.0f + crit * 80.0f; }
+    int SellValue() const { return (int)roundf(Score() * 0.5f) + 5; }
+    Color RarityColor() const {
+        switch (rarity) {
+            case 1: return { 77, 153, 255, 255 };
+            case 2: return { 179, 77, 255, 255 };
+            case 3: return { 255, 153, 26, 255 };
+            default: return { 217, 217, 217, 255 };
+        }
+    }
+    const char* RarityName() const {
+        static const char* n[4] = { "Common", "Rare", "Epic", "Legendary" };
+        return n[std::max(0, std::min(3, rarity))];
+    }
+    std::vector<std::string> StatLines() const {
+        std::vector<std::string> v;
+        auto fmt = [](float x) { std::ostringstream ss; ss << (x == (int)x ? (int)x : roundf(x * 10) / 10); return ss.str(); };
+        if (damage > 0) v.push_back("+" + fmt(damage) + " Damage");
+        if (maxHp > 0) v.push_back("+" + fmt(maxHp) + " Max HP");
+        if (armor > 0) v.push_back("+" + fmt(armor) + " Armor");
+        if (moveSpeed > 0) v.push_back("+" + fmt(moveSpeed) + " Move Speed");
+        if (attackRate > 0) v.push_back("+" + fmt(attackRate) + " Attacks/s");
+        if (lifesteal > 0) v.push_back("+" + std::to_string((int)roundf(lifesteal * 100)) + "% Lifesteal");
+        if (crit > 0) v.push_back("+" + std::to_string((int)roundf(crit * 100)) + "% Crit");
+        return v;
+    }
+};
+
+struct ItemDrop {
+    Vector2 pos;
+    EquipItem item;
+    float life;
+    float phase;
+};
+
+static float R1(float v) { return roundf(v * 10.0f) / 10.0f; }
+
+static EquipItem GenerateItem(int floor) {
+    static const char* names[4][4] = {
+        { "Sword", "Blade", "Axe", "Spear" }, { "Plate", "Mail", "Vest", "Cuirass" },
+        { "Boots", "Greaves", "Sandals", "Treads" }, { "Ring", "Band", "Signet", "Loop" } };
+    static const char* prefix[4][4] = {
+        { "Rusty", "Worn", "Plain", "Sturdy" }, { "Fine", "Tempered", "Keen", "Reinforced" },
+        { "Runed", "Shadow", "Storm", "Arcane" }, { "Void", "Dragon", "Eternal", "Sovereign's" } };
+    EquipItem it;
+    it.slot = rand() % 4;
+    float roll = Rand01();
+    it.rarity = roll < 0.03f ? 3 : (roll < 0.13f ? 2 : (roll < 0.40f ? 1 : 0));
+    float rm = it.rarity == 3 ? 3.2f : (it.rarity == 2 ? 2.2f : (it.rarity == 1 ? 1.5f : 1.0f));
+    float m = rm * (1.0f + (std::max(1, floor) - 1) * 0.12f);
+    switch (it.slot) {
+        case SLOT_WEAPON:
+            it.damage = roundf(6.0f * m);
+            it.attackRate = std::min(2.0f, R1(0.2f * m));
+            it.crit = std::min(0.2f, roundf(0.02f * m * 100.0f) / 100.0f);
+            break;
+        case SLOT_ARMOR:
+            it.armor = R1(1.2f * m);
+            it.maxHp = roundf(10.0f * m);
+            break;
+        case SLOT_BOOTS:
+            it.moveSpeed = std::min(2.5f, R1(0.3f * m));
+            it.maxHp = roundf(6.0f * m);
+            break;
+        default:
+            it.lifesteal = std::min(0.15f, roundf(0.02f * m * 100.0f) / 100.0f);
+            it.attackRate = std::min(2.0f, R1(0.25f * m));
+            break;
+    }
+    it.name = std::string(prefix[it.rarity][rand() % 4]) + " " + names[it.slot][rand() % 4];
+    return it;
+}
+
+// ── Cài đặt (lưu vào settings.cfg cạnh file exe) ─────────────────────────
+struct Settings {
+    int resW = 1280, resH = 720;
+    bool fullscreen = false;
+    bool vsync = true;
+    int fpsIndex = 1;     // chỉ số trong kFpsOptions
+    bool showFps = false;
+    bool vibration = true; // rung màn hình
+    bool lighting = true;
+    int particles = 2;    // 0 thấp, 1 vừa, 2 cao
+    bool vignette = true;
+    int volume = 10;      // 0..10
+};
+static const int kFpsOptions[5] = { 30, 60, 120, 144, 0 }; // 0 = không giới hạn
+static const int kResOptions[5][2] = { { 1280, 720 }, { 1366, 768 }, { 1600, 900 }, { 1920, 1080 }, { 2560, 1440 } };
+
 // ── Game State ─────────────────────────────────────────────────────────────
 class Game {
 public:
@@ -308,10 +410,19 @@ public:
     float screenShakeTimer = 0.0f;
     float screenShakeMag = 0.0f;
 
-    enum State { PLAYING, LEVEL_UP, GAME_OVER, TITLE, PAUSED };
+    enum State { PLAYING, LEVEL_UP, GAME_OVER, TITLE, PAUSED, INVENTORY, SETTINGS };
     State state = PLAYING;
     bool quitRequested = false;
     bool showHelp = false;
+    State prevState = PLAYING;
+    EquipItem equipped[4];
+    bool hasEquip[4] = { false, false, false, false };
+    std::vector<ItemDrop> itemDrops;
+    Settings settings;
+    std::vector<int> resList;
+    RenderTexture2D screenRT = { 0 };
+    int setSel = 0;
+    State settingsReturn = TITLE;
     std::vector<UpgradeType> levelChoices;
     std::string bannerText = "";
     float bannerTimer = 0.0f;
@@ -340,6 +451,11 @@ public:
         camera.offset = { 1280 / 2.0f, 720 / 2.0f };
         InitMotes();
         lightmap = LoadRenderTexture(1280, 720);
+        screenRT = LoadRenderTexture(1280, 720);
+        SetTextureFilter(screenRT.texture, TEXTURE_FILTER_BILINEAR);
+        LoadSettings();
+        BuildResList();
+        ApplySettings();
         RestartRun();
         state = TITLE;
     }
@@ -354,6 +470,8 @@ public:
         damagePulse = 0.0f;
         hitStop = 0.0f;
         particles.clear();
+        for (int i = 0; i < 4; ++i) hasEquip[i] = false;
+        itemDrops.clear();
         newRecord = false;
         state = PLAYING;
         BuildFloor();
@@ -374,6 +492,8 @@ public:
     void Burst(Vector2 pos, Color c, int count, float speed, float life) {
         if (particles.size() > 700) return;
         if (particles.size() > 350) count = std::max(1, count / 3);
+        if (settings.particles == 0) count = std::max(1, count / 3);
+        else if (settings.particles == 1) count = std::max(1, count * 2 / 3);
         for (int i = 0; i < count; ++i) {
             float a = Rand01() * 2.0f * PI;
             float sp = speed * (0.4f + 0.6f * Rand01());
@@ -424,6 +544,7 @@ public:
         if (e.isWarden) return { 255, 199, 89, 255 };
         if (e.type == BOSS) return { 242, 77, 77, 255 };
         if (e.type == BOMBER) return { 255, 153, 38, 255 };
+        if (e.type == CHARGER) return { 235, 140, 70, 255 };
         if (e.type == BRUTE) return { 153, 102, 242, 255 };
         if (e.type == RANGER) return { 242, 77, 89, 255 };
         return { 102, 230, 89, 255 };
@@ -470,6 +591,7 @@ public:
     }
 
     void Shake(float dur, float mag) {
+        if (!settings.vibration) return;
         screenShakeTimer = dur;
         screenShakeMag = mag;
     }
@@ -483,6 +605,7 @@ public:
         ghosts.clear();
         pillars.clear();
         particles.clear();
+        itemDrops.clear();
         BuildDecor();
 
         portalOpen = false;
@@ -517,6 +640,10 @@ public:
             for (int i = 0; i < brutes; ++i) SpawnEnemy(BRUTE, GetRandomSpawnPos());
 
             // Bomber Slime: quái tự nổ từ tầng 4
+            // Charger: quái lao thẳng có báo hiệu, từ tầng 2
+            int chargers = (floor >= 2) ? std::min(3, 1 + (floor - 2) / 3) : 0;
+            for (int i = 0; i < chargers; ++i) SpawnEnemy(CHARGER, GetRandomSpawnPos());
+
             int bombers = (floor >= 4) ? std::min(4, 1 + (floor - 4) / 2) : 0;
             for (int i = 0; i < bombers; ++i) SpawnEnemy(BOMBER, GetRandomSpawnPos());
 
@@ -586,6 +713,12 @@ public:
             e.speed = 95.0f;
             e.contactDmg = 16.0f * multDmg;
             e.radius = 26.0f;
+        } else if (type == CHARGER) {
+            e.maxHp = 48.0f * multHp;
+            e.speed = 120.0f;
+            e.contactDmg = 12.0f * multDmg;
+            e.radius = 21.0f;
+            e.chargeCooldown = 0.8f + 1.4f * Rand01();
         } else if (type == BOMBER) {
             e.maxHp = 22.0f * multHp;
             e.speed = 190.0f;
@@ -651,6 +784,7 @@ public:
         if (state == TITLE) {
             UpdateEffects(dt);
             bannerTimer = 3.0f; // giữ thông báo tầng 1 cho đến khi bắt đầu chơi
+            if (IsKeyPressed(KEY_O) || IsKeyPressed(KEY_F2)) { settingsReturn = TITLE; setSel = 0; state = SETTINGS; return; }
             if (IsKeyPressed(KEY_F1) || IsKeyPressed(KEY_H)) showHelp = !showHelp;
             else if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
                 showHelp = false;
@@ -664,7 +798,22 @@ public:
             if (IsKeyPressed(KEY_F1) || IsKeyPressed(KEY_H)) showHelp = !showHelp;
             if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ENTER)) { showHelp = false; state = PLAYING; }
             if (IsKeyPressed(KEY_R)) { showHelp = false; RestartRun(); }
+            if (IsKeyPressed(KEY_I)) { prevState = PAUSED; state = INVENTORY; }
+            if (IsKeyPressed(KEY_O)) { settingsReturn = PAUSED; setSel = 0; state = SETTINGS; }
             if (IsKeyPressed(KEY_Q)) quitRequested = true;
+            return;
+        }
+        if (state == SETTINGS) {
+            UpdateSettingsMenu();
+            return;
+        }
+        if (state == INVENTORY) {
+            if (IsKeyPressed(KEY_I) || IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_ENTER)) state = prevState;
+            return;
+        }
+        if (state == PLAYING && IsKeyPressed(KEY_I)) {
+            prevState = PLAYING;
+            state = INVENTORY;
             return;
         }
         if (state == PLAYING && (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P))) {
@@ -894,6 +1043,49 @@ public:
                 } else {
                     e.pos = Vector2Add(e.pos, Vector2Scale(dir, e.speed * speedMod * dt));
                 }
+            } else if (e.type == CHARGER) {
+                if (e.chargeState == 0) {
+                    e.chargeCooldown -= dt;
+                    e.pos = Vector2Add(e.pos, Vector2Scale(dir, e.speed * speedMod * dt));
+                    if (e.chargeCooldown <= 0 && dist < 440.0f && dist > 90.0f) {
+                        e.chargeState = 1;
+                        e.chargeTimer = 0.75f;
+                        e.chargeDir = dir;
+                        PlaySound(snd.sndShoot);
+                    }
+                } else if (e.chargeState == 1) {
+                    // Báo hiệu: đứng yên, vẫn ngắm theo người chơi, khoá hướng ở 0.25s cuối
+                    e.chargeTimer -= dt;
+                    if (e.chargeTimer > 0.25f) e.chargeDir = dir;
+                    if (e.chargeTimer <= 0) {
+                        e.chargeState = 2;
+                        e.chargeTimer = 0.55f;
+                        PlaySound(snd.sndDash);
+                    }
+                } else if (e.chargeState == 2) {
+                    e.chargeTimer -= dt;
+                    e.pos = Vector2Add(e.pos, Vector2Scale(e.chargeDir, 560.0f * speedMod * dt));
+                    if (Rand01() < 0.5f) Burst(Vector2Subtract(e.pos, Vector2Scale(e.chargeDir, e.radius)), { 230, 200, 150, 255 }, 1, 60.0f, 0.3f);
+                    float bx = roomW / 2.0f - e.radius - 6.0f, by = roomH / 2.0f - e.radius - 6.0f;
+                    bool wall = fabsf(e.pos.x) > bx || fabsf(e.pos.y) > by;
+                    e.pos.x = Clamp(e.pos.x, -bx, bx);
+                    e.pos.y = Clamp(e.pos.y, -by, by);
+                    if (wall) {
+                        Shake(0.18f, 5.0f);
+                        Burst(e.pos, { 200, 190, 170, 255 }, 12, 200.0f, 0.4f);
+                        e.chargeTimer = 0;
+                    }
+                    if (e.chargeTimer <= 0) {
+                        e.chargeState = 3;
+                        e.chargeTimer = wall ? 1.3f : 0.8f; // đâm tường thì choáng lâu hơn
+                    }
+                } else {
+                    e.chargeTimer -= dt;
+                    if (e.chargeTimer <= 0) {
+                        e.chargeState = 0;
+                        e.chargeCooldown = 2.0f + 1.2f * Rand01();
+                    }
+                }
             } else if (e.type == BOMBER) {
                 if (!e.fusing) {
                     e.pos = Vector2Add(e.pos, Vector2Scale(dir, e.speed * speedMod * dt));
@@ -946,7 +1138,8 @@ public:
 
             // Contact damage with player
             if (Vector2Distance(e.pos, player.pos) < e.radius + 18.0f) {
-                DamagePlayer(e.contactDmg);
+                float contactMul = (e.type == CHARGER && e.chargeState == 2) ? 1.8f : 1.0f;
+                DamagePlayer(e.contactDmg * contactMul);
             }
         }
 
@@ -1030,6 +1223,8 @@ public:
             else ++i;
         }
 
+        UpdateItemDrops(dt);
+
         // ── Bàn thờ máu ──
         if (hasShrine && !shrineUsed) {
             shrinePulse += dt * 3.0f;
@@ -1069,6 +1264,7 @@ public:
     }
 
     void DamageEnemy(Enemy& e, float dmg, Vector2 kb, float kbForce, bool isCrit) {
+        if (e.type == CHARGER && e.chargeState == 3) dmg *= 1.5f; // choáng sau cú lao: dễ trúng đòn
         e.hp -= dmg;
         e.pos = Vector2Add(e.pos, Vector2Scale(kb, kbForce * 0.05f));
         SpawnPopup(e.pos, (isCrit ? "!" : "") + std::to_string((int)dmg), isCrit ? YELLOW : WHITE);
@@ -1141,6 +1337,10 @@ public:
         }
         if (e.type == BOSS) hitStop = 0.12f;
         loots.push_back({ 0, e.pos, (e.type == BOSS ? 150 : (e.isWarden ? 90 : (e.isElite ? 35 : 15))), 20.0f });
+        {
+            float dropChance = (e.type == BOSS || e.isWarden) ? 1.0f : (e.isElite ? 0.30f : 0.12f);
+            if (Rand01() < dropChance) SpawnItemDrop(e.pos);
+        }
         if ((float)rand() / RAND_MAX < 0.6f || e.isElite) {
             loots.push_back({ 1, Vector2Add(e.pos, { 10, 0 }), rand() % 4 + 1, 20.0f });
         }
@@ -1202,6 +1402,7 @@ public:
             PlaySound(snd.sndDeath);
             if (floor > bestFloor) {
                 bestFloor = floor;
+                SaveSettings();
                 newRecord = true;
             }
         }
@@ -1336,6 +1537,7 @@ public:
         else if (e.type == BRUTE) base = e.isWarden ? Color{ 214, 156, 62, 255 } : Color{ 146, 92, 206, 255 };
         else if (e.type == BOSS) base = e.enraged ? Color{ 150, 40, 70, 255 } : Color{ 88, 46, 142, 255 };
         else if (e.type == BOMBER) base = { 255, 140, 38, 255 };
+        else if (e.type == CHARGER) base = { 205, 120, 66, 255 };
 
         // Bomber cháy ngòi: phồng lên, nháy đỏ, vòng cảnh báo bán kính nổ
         if (e.type == BOMBER && e.fusing) {
@@ -1442,6 +1644,41 @@ public:
             Tri({ cx - 7, cy - 7 }, { cx + 7, cy - 7 }, { cx, cy - 26 }, GOLD);
             Tri({ cx + 10, cy - 7 }, { cx + 16, cy - 7 }, { cx + 16, cy - 20 }, GOLD);
             DrawCircle((int)cx, (int)cy - 3, 2.5f, RED);
+        } else if (e.type == CHARGER) {
+            // Báo hiệu hướng lao: vệt đỏ nhấp nháy
+            if (e.chargeState == 1) {
+                float k = 0.5f + 0.5f * sinf(t * 30.0f);
+                Vector2 end = { c.x + e.chargeDir.x * 460.0f, c.y + e.chargeDir.y * 460.0f };
+                DrawLineEx(c, end, r * 1.9f, Fade({ 255, 60, 40, 255 }, 0.10f + 0.10f * k));
+                DrawLineEx(c, end, 3.0f, Fade({ 255, 90, 60, 255 }, 0.6f + 0.4f * k));
+                OutlinedText("!", (int)c.x - 5, (int)(c.y - r - 34.0f), 30, { 255, 220, 60, 255 }, { 80, 10, 10, 255 });
+            }
+            Vector2 fwd = (e.chargeState >= 1 && e.chargeState <= 2) ? e.chargeDir : look;
+            float sq = (e.chargeState == 2) ? 1.18f : (e.chargeState == 1 ? 0.92f : 1.0f);
+            if (e.chargeState == 2) // vệt tốc độ phía sau
+                for (int i = 1; i <= 4; ++i)
+                    DrawCircleV(Vector2Subtract(c, Vector2Scale(fwd, i * r * 0.7f)), r * (1.0f - i * 0.18f), Fade(base, 0.22f - i * 0.04f));
+            Vector2 bc = { c.x + (e.chargeState == 1 ? sinf(t * 60.0f) * 2.0f : 0.0f), c.y };
+            Blob(bc, r * sq, r * (2.0f - sq) * 0.95f, base);
+            // Sừng / ngà hướng về phía trước
+            Vector2 perp = { -fwd.y, fwd.x };
+            for (int s2 = -1; s2 <= 1; s2 += 2) {
+                Vector2 b0 = { bc.x + fwd.x * r * 0.55f + perp.x * s2 * r * 0.45f, bc.y + fwd.y * r * 0.55f + perp.y * s2 * r * 0.45f };
+                Vector2 b1 = { b0.x + perp.x * s2 * r * 0.12f, b0.y + perp.y * s2 * r * 0.12f };
+                Vector2 tip2 = { b0.x + fwd.x * r * 0.75f + perp.x * s2 * r * 0.28f, b0.y + fwd.y * r * 0.75f + perp.y * s2 * r * 0.28f };
+                Tri({ b0.x - perp.x * s2 * 3.0f, b0.y - perp.y * s2 * 3.0f }, { b1.x + perp.x * s2 * 3.0f, b1.y + perp.y * s2 * 3.0f }, tip2, { 240, 232, 210, 255 });
+            }
+            for (int s2 = -1; s2 <= 1; s2 += 2) {
+                Vector2 ec = { c.x + s2 * r * 0.36f, c.y - r * 0.12f };
+                Eye(ec, r * 0.19f, r * 0.22f, (e.chargeState == 3) ? Vector2{ 0, 0 } : fwd, e.chargeState == 3 ? Color{ 200, 200, 80, 255 } : Color{ 255, 70, 40, 255 });
+                DrawLineEx({ ec.x - s2 * r * 0.30f, ec.y - r * 0.32f }, { ec.x + s2 * r * 0.16f, ec.y - r * 0.14f }, 3.0f, { 60, 20, 10, 255 });
+            }
+            // Choáng: sao quay quanh đầu
+            if (e.chargeState == 3)
+                for (int i = 0; i < 3; ++i) {
+                    float a3 = t * 6.0f + i * 2.094f;
+                    DrawCircleV({ c.x + cosf(a3) * r * 0.8f, c.y - r - 8.0f + sinf(a3) * 5.0f }, 4.0f, { 255, 230, 80, 255 });
+                }
         } else if (e.type == BOMBER) {
             Blob(c, r, r * 0.95f, base);
             for (int s2 = -1; s2 <= 1; s2 += 2) {
@@ -1533,6 +1770,365 @@ public:
             float k = 0.5f + 0.5f * sinf(t * 30.0f);
             DrawCircleLines((int)body.x, (int)body.y, 24.0f, Fade(SKYBLUE, 0.4f + 0.5f * k));
         }
+    }
+
+    // ── Cài đặt ──
+    void LoadSettings() {
+        if (!FileExists("settings.cfg")) return;
+        char* txt = LoadFileText("settings.cfg");
+        if (!txt) return;
+        std::istringstream in(txt);
+        UnloadFileText(txt);
+        std::string line;
+        while (std::getline(in, line)) {
+            size_t eq = line.find('=');
+            if (eq == std::string::npos) continue;
+            std::string k = line.substr(0, eq);
+            int v = atoi(line.substr(eq + 1).c_str());
+            if (k == "resW") settings.resW = v;
+            else if (k == "resH") settings.resH = v;
+            else if (k == "fullscreen") settings.fullscreen = v != 0;
+            else if (k == "vsync") settings.vsync = v != 0;
+            else if (k == "fpsIndex") settings.fpsIndex = std::max(0, std::min(4, v));
+            else if (k == "showFps") settings.showFps = v != 0;
+            else if (k == "vibration") settings.vibration = v != 0;
+            else if (k == "lighting") settings.lighting = v != 0;
+            else if (k == "particles") settings.particles = std::max(0, std::min(2, v));
+            else if (k == "vignette") settings.vignette = v != 0;
+            else if (k == "volume") settings.volume = std::max(0, std::min(10, v));
+            else if (k == "best") bestFloor = std::max(1, v);
+        }
+    }
+
+    void SaveSettings() {
+        std::ostringstream o;
+        o << "resW=" << settings.resW << "\nresH=" << settings.resH << "\nfullscreen=" << settings.fullscreen
+          << "\nvsync=" << settings.vsync << "\nfpsIndex=" << settings.fpsIndex << "\nshowFps=" << settings.showFps
+          << "\nvibration=" << settings.vibration << "\nlighting=" << settings.lighting << "\nparticles=" << settings.particles
+          << "\nvignette=" << settings.vignette << "\nvolume=" << settings.volume << "\nbest=" << bestFloor << "\n";
+        std::string s = o.str();
+        SaveFileText("settings.cfg", (char*)s.c_str());
+    }
+
+    void BuildResList() {
+        resList.clear();
+        int mw = GetMonitorWidth(GetCurrentMonitor()), mh = GetMonitorHeight(GetCurrentMonitor());
+        for (int i = 0; i < 5; ++i)
+            if (kResOptions[i][0] <= mw && kResOptions[i][1] <= mh) resList.push_back(i);
+        if (resList.empty()) resList.push_back(0);
+        // Nếu độ phân giải đã lưu không còn khả dụng thì quay về lựa chọn lớn nhất hiện có
+        bool ok = false;
+        for (int idx : resList) if (kResOptions[idx][0] == settings.resW && kResOptions[idx][1] == settings.resH) ok = true;
+        if (!ok) { settings.resW = kResOptions[resList.back()][0]; settings.resH = kResOptions[resList.back()][1]; }
+    }
+
+    void ApplySettings() {
+        if (settings.fullscreen != IsWindowFullscreen()) ToggleFullscreen();
+        if (!settings.fullscreen) SetWindowSize(settings.resW, settings.resH);
+        if (settings.vsync) SetWindowState(FLAG_VSYNC_HINT); else ClearWindowState(FLAG_VSYNC_HINT);
+        SetTargetFPS(kFpsOptions[settings.fpsIndex]);
+        SetMasterVolume(settings.volume / 10.0f);
+    }
+
+    void ChangeSetting(int row, int d) {
+        switch (row) {
+            case 0: {
+                int cur = 0;
+                for (size_t i = 0; i < resList.size(); ++i)
+                    if (kResOptions[resList[i]][0] == settings.resW && kResOptions[resList[i]][1] == settings.resH) cur = (int)i;
+                cur = (cur + d + (int)resList.size()) % (int)resList.size();
+                settings.resW = kResOptions[resList[cur]][0];
+                settings.resH = kResOptions[resList[cur]][1];
+                break;
+            }
+            case 1: settings.fullscreen = !settings.fullscreen; break;
+            case 2: settings.vsync = !settings.vsync; break;
+            case 3: settings.fpsIndex = (settings.fpsIndex + d + 5) % 5; break;
+            case 4: settings.showFps = !settings.showFps; break;
+            case 5: settings.vibration = !settings.vibration; break;
+            case 6: settings.lighting = !settings.lighting; break;
+            case 7: settings.particles = (settings.particles + d + 3) % 3; break;
+            case 8: settings.vignette = !settings.vignette; break;
+            case 9: settings.volume = std::max(0, std::min(10, settings.volume + d)); break;
+        }
+    }
+
+    std::string SettingValue(int row) {
+        switch (row) {
+            case 0: return settings.fullscreen ? "Native (fullscreen)" : std::to_string(settings.resW) + " x " + std::to_string(settings.resH);
+            case 1: return settings.fullscreen ? "ON" : "OFF";
+            case 2: return settings.vsync ? "ON" : "OFF";
+            case 3: return kFpsOptions[settings.fpsIndex] == 0 ? "Unlimited" : std::to_string(kFpsOptions[settings.fpsIndex]);
+            case 4: return settings.showFps ? "ON" : "OFF";
+            case 5: return settings.vibration ? "ON" : "OFF";
+            case 6: return settings.lighting ? "ON" : "OFF";
+            case 7: return settings.particles == 0 ? "Low" : (settings.particles == 1 ? "Medium" : "High");
+            case 8: return settings.vignette ? "ON" : "OFF";
+            case 9: return std::to_string(settings.volume * 10) + "%";
+        }
+        return "";
+    }
+
+    void UpdateSettingsMenu() {
+        const int rows = 11; // 10 mục + Back
+        if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) setSel = (setSel + 1) % rows;
+        if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) setSel = (setSel + rows - 1) % rows;
+        int delta = 0;
+        if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D) || IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) delta = 1;
+        if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A)) delta = -1;
+
+        Vector2 m = GetMousePosition();
+        for (int i = 0; i < rows; ++i) {
+            Rectangle r = { 330.0f, 150.0f + i * 40.0f, 620.0f, 36.0f };
+            if (CheckCollisionPointRec(m, r)) {
+                if (GetMouseDelta().x != 0 || GetMouseDelta().y != 0) setSel = i;
+                if (setSel == i) {
+                    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) delta = 1;
+                    if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) delta = -1;
+                }
+            }
+        }
+        if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_BACKSPACE)) { state = settingsReturn; return; }
+        if (delta != 0) {
+            if (setSel == 10) { state = settingsReturn; return; }
+            ChangeSetting(setSel, delta);
+            SaveSettings();
+            ApplySettings();
+        }
+    }
+
+    void DrawSettingsScreen() {
+        DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.86f));
+        const char* title = "SETTINGS";
+        OutlinedText(title, 1280 / 2 - MeasureText(title, 48) / 2, 70, 48, GOLD, { 90, 50, 10, 255 });
+        static const char* labels[10] = { "Resolution", "Fullscreen", "VSync", "FPS Limit", "Show FPS", "Vibration (screen shake)", "Lighting", "Particles", "Vignette", "Volume" };
+        for (int i = 0; i < 11; ++i) {
+            Rectangle r = { 330.0f, 150.0f + i * 40.0f, 620.0f, 36.0f };
+            bool sel = (setSel == i);
+            DrawRectangleRec(r, sel ? Color{ 40, 52, 84, 255 } : Color{ 20, 26, 42, 255 });
+            if (sel) DrawRectangleLinesEx(r, 2.0f, GOLD);
+            if (i < 10) {
+                DrawText(labels[i], (int)r.x + 16, (int)r.y + 8, 20, sel ? WHITE : Color{ 190, 205, 235, 255 });
+                std::string v = SettingValue(i);
+                Color vc = (v == "ON") ? Color{ 120, 235, 140, 255 } : (v == "OFF" ? Color{ 255, 130, 130, 255 } : Color{ 255, 215, 90, 255 });
+                int vw = MeasureText(v.c_str(), 20);
+                DrawText(v.c_str(), (int)(r.x + r.width) - 40 - vw, (int)r.y + 8, 20, vc);
+                if (sel) {
+                    DrawText("<", (int)(r.x + r.width) - 40 - vw - 22, (int)r.y + 8, 20, GOLD);
+                    DrawText(">", (int)(r.x + r.width) - 28, (int)r.y + 8, 20, GOLD);
+                }
+                if (i == 9) { // thanh âm lượng
+                    for (int b = 0; b < 10; ++b)
+                        DrawRectangle((int)r.x + 220 + b * 12, (int)r.y + 11, 9, 14, b < settings.volume ? Color{ 255, 215, 90, 255 } : Color{ 50, 58, 84, 255 });
+                }
+            } else {
+                const char* back = "Back";
+                DrawText(back, (int)(r.x + r.width / 2) - MeasureText(back, 22) / 2, (int)r.y + 7, 22, sel ? WHITE : Color{ 190, 205, 235, 255 });
+            }
+        }
+        DrawText("W/S or mouse: select     A/D, Enter or click: change     Esc: back", 1280 / 2 - MeasureText("W/S or mouse: select     A/D, Enter or click: change     Esc: back", 16) / 2, 612, 16, { 150, 165, 200, 255 });
+        DrawText("Resolution applies in windowed mode; fullscreen uses your desktop resolution. Settings are saved automatically.", 1280 / 2 - MeasureText("Resolution applies in windowed mode; fullscreen uses your desktop resolution. Settings are saved automatically.", 14) / 2, 638, 14, { 120, 135, 165, 255 });
+    }
+
+    // Vẽ khung 1280x720 lên cửa sổ với viền đen giữ tỉ lệ, và ánh xạ chuột về toạ độ ảo
+    void Present() {
+        int sw = GetScreenWidth(), sh = GetScreenHeight();
+        float scale = std::min(sw / 1280.0f, sh / 720.0f);
+        float dw = 1280.0f * scale, dh = 720.0f * scale;
+        float dx = (sw - dw) * 0.5f, dy = (sh - dh) * 0.5f;
+        BeginDrawing();
+        ClearBackground(BLACK);
+        DrawTexturePro(screenRT.texture, { 0, 0, 1280.0f, -720.0f }, { dx, dy, dw, dh }, { 0, 0 }, 0.0f, WHITE);
+        EndDrawing();
+        SetMouseOffset(-(int)dx, -(int)dy);
+        SetMouseScale(1.0f / scale, 1.0f / scale);
+    }
+
+    // ── Trang bị ──
+    void ApplyItem(const EquipItem& it, float sign) {
+        player.baseDmg += sign * it.damage;
+        player.maxHp += sign * it.maxHp;
+        if (sign > 0) player.hp += it.maxHp;
+        else player.hp = std::max(1.0f, std::min(player.hp - it.maxHp, player.maxHp));
+        player.armor += sign * it.armor;
+        player.speed += sign * it.moveSpeed * 50.0f;
+        player.attackRate += sign * it.attackRate;
+        player.lifesteal += sign * it.lifesteal;
+        player.critChance += sign * it.crit;
+    }
+
+    // Mặc nếu mạnh hơn món đang đeo (món cũ được bán lấy vàng). Trả về false nếu không mặc.
+    bool TryEquipItem(const EquipItem& it, int& soldGold) {
+        soldGold = 0;
+        int s = it.slot;
+        if (hasEquip[s]) {
+            if (it.Score() <= equipped[s].Score()) return false;
+            ApplyItem(equipped[s], -1.0f);
+            soldGold = equipped[s].SellValue();
+            player.gold += soldGold;
+        }
+        equipped[s] = it;
+        hasEquip[s] = true;
+        ApplyItem(it, 1.0f);
+        return true;
+    }
+
+    void SpawnItemDrop(Vector2 pos) {
+        ItemDrop d;
+        d.pos = Vector2Add(pos, { (Rand01() - 0.5f) * 30.0f, (Rand01() - 0.5f) * 30.0f });
+        d.item = GenerateItem(floor);
+        d.life = 90.0f;
+        d.phase = Rand01() * 6.0f;
+        itemDrops.push_back(d);
+    }
+
+    void UpdateItemDrops(float dt) {
+        for (size_t i = 0; i < itemDrops.size();) {
+            ItemDrop& d = itemDrops[i];
+            d.life -= dt;
+            bool remove = d.life <= 0;
+            if (!remove && Vector2Distance(d.pos, player.pos) < 40.0f) {
+                int sold = 0;
+                Color rc = d.item.RarityColor();
+                if (TryEquipItem(d.item, sold)) {
+                    ShowBanner("EQUIPPED: " + d.item.name + (sold > 0 ? "  (old gear sold +" + std::to_string(sold) + "g)" : ""), 3.0f);
+                    PlaySound(snd.sndLevelUp);
+                    Burst(player.pos, rc, 24, 260.0f, 0.7f);
+                } else {
+                    int v = d.item.SellValue();
+                    player.gold += v;
+                    SpawnPopup(player.pos, "Sold +" + std::to_string(v) + "g", GOLD);
+                    PlaySound(snd.sndCoin);
+                    Burst(player.pos, GOLD, 5, 140.0f, 0.4f);
+                }
+                remove = true;
+            }
+            if (remove) { itemDrops[i] = itemDrops.back(); itemDrops.pop_back(); continue; }
+            ++i;
+        }
+    }
+
+    static void DrawItemIcon(int slot, Vector2 c, float s, Color col) {
+        Color dark = Shade(col, 0.45f);
+        switch (slot) {
+            case SLOT_WEAPON: {
+                Vector2 a = { c.x - s * 0.42f, c.y + s * 0.42f }, b = { c.x + s * 0.46f, c.y - s * 0.46f };
+                DrawLineEx(a, b, s * 0.20f, dark);
+                DrawLineEx(a, b, s * 0.12f, col);
+                DrawLineEx({ c.x - s * 0.12f, c.y - s * 0.12f - 0.0f }, { c.x + s * 0.05f, c.y + s * 0.05f }, 1.0f, WHITE);
+                Vector2 g = { c.x - s * 0.18f, c.y + s * 0.18f };
+                DrawLineEx({ g.x - s * 0.2f, g.y - s * 0.2f }, { g.x + s * 0.2f, g.y + s * 0.2f }, s * 0.12f, GOLD);
+                DrawCircleV({ c.x - s * 0.48f, c.y + s * 0.48f }, s * 0.10f, GOLD);
+                break;
+            }
+            case SLOT_ARMOR: {
+                DrawRectangle((int)(c.x - s * 0.46f), (int)(c.y - s * 0.50f), (int)(s * 0.92f), (int)(s * 0.55f), dark);
+                DrawCircleSector({ c.x, c.y + s * 0.05f }, s * 0.46f, 0.0f, 180.0f, 20, dark);
+                DrawRectangle((int)(c.x - s * 0.38f), (int)(c.y - s * 0.43f), (int)(s * 0.76f), (int)(s * 0.48f), col);
+                DrawCircleSector({ c.x, c.y + s * 0.05f }, s * 0.38f, 0.0f, 180.0f, 20, col);
+                DrawLineEx({ c.x, c.y - s * 0.35f }, { c.x, c.y + s * 0.34f }, s * 0.07f, Fade(WHITE, 0.55f));
+                break;
+            }
+            case SLOT_BOOTS: {
+                DrawRectangle((int)(c.x - s * 0.34f), (int)(c.y - s * 0.50f), (int)(s * 0.40f), (int)(s * 0.80f), dark);
+                DrawRectangle((int)(c.x - s * 0.34f), (int)(c.y + s * 0.10f), (int)(s * 0.80f), (int)(s * 0.30f), dark);
+                DrawRectangle((int)(c.x - s * 0.28f), (int)(c.y - s * 0.44f), (int)(s * 0.28f), (int)(s * 0.68f), col);
+                DrawRectangle((int)(c.x - s * 0.28f), (int)(c.y + s * 0.14f), (int)(s * 0.70f), (int)(s * 0.22f), col);
+                DrawRectangle((int)(c.x - s * 0.34f), (int)(c.y - s * 0.50f), (int)(s * 0.40f), (int)(s * 0.10f), GOLD);
+                break;
+            }
+            default: {
+                DrawRing(c, s * 0.26f, s * 0.46f, 0.0f, 360.0f, 28, dark);
+                DrawRing(c, s * 0.30f, s * 0.42f, 0.0f, 360.0f, 28, col);
+                DrawCircleV({ c.x, c.y - s * 0.46f }, s * 0.16f, Shade(col, 1.4f));
+                DrawCircleV({ c.x - s * 0.04f, c.y - s * 0.50f }, s * 0.05f, WHITE);
+                break;
+            }
+        }
+    }
+
+    void DrawItemDrops() {
+        float t = (float)GetTime();
+        for (const auto& d : itemDrops) {
+            Color rc = d.item.RarityColor();
+            float bob = sinf(t * 3.0f + d.phase) * 4.0f;
+            DrawEllipse((int)d.pos.x, (int)d.pos.y + 14, 14.0f, 5.0f, Fade(BLACK, 0.35f));
+            BeginBlendMode(BLEND_ADDITIVE);
+            DrawCircleGradient((int)d.pos.x, (int)(d.pos.y - 6), 46.0f, Fade(rc, 0.45f), Fade(rc, 0.0f));
+            EndBlendMode();
+            if (d.item.rarity >= 2)
+                DrawRectangleGradientV((int)d.pos.x - 5, (int)d.pos.y - 100, 10, 100, Fade(rc, 0.0f), Fade(rc, d.item.rarity == 3 ? 0.45f : 0.28f));
+            DrawCircleV({ d.pos.x, d.pos.y - 8.0f + bob }, 17.0f, { 18, 22, 34, 230 });
+            DrawCircleLines((int)d.pos.x, (int)(d.pos.y - 8.0f + bob), 17.0f, rc);
+            DrawItemIcon(d.item.slot, { d.pos.x, d.pos.y - 8.0f + bob }, 22.0f, rc);
+            if (d.life < 8.0f && ((int)(t * 6.0f)) % 2 == 0) DrawCircleLines((int)d.pos.x, (int)(d.pos.y - 8.0f + bob), 21.0f, WHITE); // sắp biến mất
+            if (Vector2Distance(d.pos, player.pos) < 130.0f) {
+                std::string title = d.item.name;
+                int tw = MeasureText(title.c_str(), 16);
+                int ty = (int)(d.pos.y - 62.0f);
+                auto lines = d.item.StatLines();
+                int boxH = 24 + (int)lines.size() * 16;
+                int boxW = std::max(tw, 120) + 20;
+                DrawRectangle((int)d.pos.x - boxW / 2, ty - boxH + 18, boxW, boxH, { 10, 14, 24, 230 });
+                DrawRectangleLines((int)d.pos.x - boxW / 2, ty - boxH + 18, boxW, boxH, rc);
+                DrawText(title.c_str(), (int)d.pos.x - tw / 2, ty - boxH + 24, 16, rc);
+                for (size_t i = 0; i < lines.size(); ++i)
+                    DrawText(lines[i].c_str(), (int)d.pos.x - boxW / 2 + 10, ty - boxH + 44 + (int)i * 16, 14, RAYWHITE);
+            }
+        }
+    }
+
+    void DrawInventory() {
+        DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.82f));
+        int px = 90, py = 70, pw = 1100, ph = 590;
+        DrawRectangle(px, py, pw, ph, { 14, 18, 30, 248 });
+        DrawRectangleLines(px, py, pw, ph, GOLD);
+        const char* title = "EQUIPMENT";
+        DrawText(title, 1280 / 2 - MeasureText(title, 34) / 2, py + 16, 34, GOLD);
+
+        static const char* slotNames[4] = { "WEAPON", "ARMOR", "BOOTS", "RING" };
+        int cw = 250, gap = 14, cx0 = px + (pw - (cw * 4 + gap * 3)) / 2, cy = py + 70, ch = 250;
+        for (int i = 0; i < 4; ++i) {
+            int cx = cx0 + i * (cw + gap);
+            Color rc = hasEquip[i] ? equipped[i].RarityColor() : Color{ 70, 80, 105, 255 };
+            DrawRectangle(cx, cy, cw, ch, { 22, 28, 44, 255 });
+            DrawRectangleLines(cx, cy, cw, ch, rc);
+            DrawRectangle(cx, cy, cw, 28, Fade(rc, 0.25f));
+            DrawText(slotNames[i], cx + 12, cy + 6, 18, rc);
+            if (hasEquip[i]) {
+                DrawCircleV({ (float)cx + cw / 2.0f, (float)cy + 76 }, 36.0f, Fade(rc, 0.18f));
+                DrawItemIcon(i, { (float)cx + cw / 2.0f, (float)cy + 76 }, 58.0f, rc);
+                DrawText(equipped[i].name.c_str(), cx + 12, cy + 124, 18, rc);
+                DrawText(equipped[i].RarityName(), cx + 12, cy + 146, 14, Fade(rc, 0.8f));
+                auto lines = equipped[i].StatLines();
+                for (size_t k = 0; k < lines.size(); ++k) DrawText(lines[k].c_str(), cx + 12, cy + 170 + (int)k * 20, 16, RAYWHITE);
+            } else {
+                DrawItemIcon(i, { (float)cx + cw / 2.0f, (float)cy + 76 }, 58.0f, { 60, 68, 90, 255 });
+                DrawText("- Empty -", cx + cw / 2 - MeasureText("- Empty -", 18) / 2, cy + 140, 18, { 110, 120, 145, 255 });
+            }
+        }
+
+        // Chỉ số nhân vật
+        int sy = cy + ch + 24;
+        DrawText("CHARACTER", px + 36, sy, 22, SKYBLUE);
+        char buf[96];
+        auto stat = [&](int col, int row, const char* label, const std::string& val) {
+            DrawText(label, px + 36 + col * 330, sy + 36 + row * 28, 18, { 170, 185, 215, 255 });
+            DrawText(val.c_str(), px + 36 + col * 330 + 160, sy + 36 + row * 28, 18, WHITE);
+        };
+        snprintf(buf, sizeof(buf), "%d / %d", (int)player.hp, (int)player.maxHp); stat(0, 0, "Health", buf);
+        snprintf(buf, sizeof(buf), "%.0f", player.baseDmg); stat(0, 1, "Damage", buf);
+        snprintf(buf, sizeof(buf), "%.1f", player.armor); stat(0, 2, "Armor", buf);
+        snprintf(buf, sizeof(buf), "%.0f", player.speed); stat(1, 0, "Move Speed", buf);
+        snprintf(buf, sizeof(buf), "%.2f /s", player.attackRate); stat(1, 1, "Attack Speed", buf);
+        snprintf(buf, sizeof(buf), "%d%%", (int)roundf(std::min(0.6f, player.critChance) * 100)); stat(1, 2, "Crit Chance", buf);
+        snprintf(buf, sizeof(buf), "%d%%", (int)roundf(std::min(0.3f, player.lifesteal) * 100)); stat(2, 0, "Lifesteal", buf);
+        snprintf(buf, sizeof(buf), "%.1fs", player.dashCooldown); stat(2, 1, "Dash Cooldown", buf);
+        snprintf(buf, sizeof(buf), "%.1fs", player.specialCooldown); stat(2, 2, "Nova Cooldown", buf);
+        std::string extra = "Ember Edge Lv" + std::to_string(player.igniteLevel) + "   Frost Touch Lv" + std::to_string(player.frostLevel) + "   Relics: " + std::to_string(player.relics.size());
+        DrawText(extra.c_str(), px + 36 + 780 - MeasureText(extra.c_str(), 16) , sy + 2, 16, { 150, 165, 200, 255 });
+        DrawText("Gear drops from enemies. Better gear is equipped automatically; worse gear is sold for gold.", px + 36, py + ph - 52, 16, { 170, 185, 215, 255 });
+        DrawText("Press I or Esc to close", px + 36, py + ph - 28, 16, { 120, 135, 165, 255 });
     }
 
     // ── Môi trường: tường gạch, decal, đuốc, cột, ánh sáng ──
@@ -1666,7 +2262,7 @@ public:
     }
 
     // Bản đồ ánh sáng nhân với cảnh: xa nguồn sáng thì tối dần
-    void ApplyLighting() {
+    void RenderLightmap() {
         if (lightmap.id == 0) return;
         static const Color ambients[4] = { { 134, 142, 172, 255 }, { 136, 158, 138, 255 }, { 170, 132, 120, 255 }, { 142, 164, 196, 255 } };
         Color amb = ambients[((floor - 1) / 3) % 4];
@@ -1688,6 +2284,7 @@ public:
             float k = nv.timer / nv.maxTimer;
             AddLight(nv.pos, nv.radius * 1.4f + 60.0f, nv.color, 0.55f * k);
         }
+        for (const auto& d : itemDrops) AddLight(d.pos, 90.0f, d.item.RarityColor(), 0.55f);
         for (const auto& l : loots) {
             Color lc = (l.type == 1) ? Color{ 255, 215, 60, 255 } : (l.type == 2 ? Color{ 255, 100, 130, 255 } : Color{ 90, 200, 255, 255 });
             AddLight(l.pos, 70.0f, lc, 0.55f);
@@ -1702,7 +2299,10 @@ public:
 
         EndBlendMode();
         EndTextureMode();
+    }
 
+    void ApplyLighting() {
+        if (lightmap.id == 0) return;
         BeginBlendMode(BLEND_MULTIPLIED);
         DrawTextureRec(lightmap.texture, { 0, 0, (float)lightmap.texture.width, -(float)lightmap.texture.height }, { 0, 0 }, WHITE);
         EndBlendMode();
@@ -1717,7 +2317,7 @@ public:
     }
 
     void DrawHelpPanel() {
-        int w = 720, h = 420, x = 1280 / 2 - w / 2, y = 150;
+        int w = 720, h = 490, x = 1280 / 2 - w / 2, y = 115;
         DrawRectangle(x, y, w, h, { 14, 18, 30, 245 });
         DrawRectangleLines(x, y, w, h, GOLD);
         DrawText("CONTROLS", x + w / 2 - MeasureText("CONTROLS", 30) / 2, y + 18, 30, GOLD);
@@ -1728,11 +2328,13 @@ public:
             { "Right Click / Shift / K", "Dash (brief invulnerability)" },
             { "Q / E / U", "Nova shockwave" },
             { "1 / 2 / 3", "Pick an upgrade on level-up" },
+            { "I", "Open the equipment screen" },
+            { "O / F2", "Settings (title and pause menu)" },
             { "M", "Toggle the radar" },
             { "Esc / P", "Pause" },
             { "F1 / H", "Show or hide this help" },
         };
-        for (int i = 0; i < 9; ++i) {
+        for (int i = 0; i < 11; ++i) {
             DrawText(rows[i][0], x + 36, y + 76 + i * 34, 20, SKYBLUE);
             DrawText(rows[i][1], x + 340, y + 76 + i * 34, 20, RAYWHITE);
         }
@@ -1758,7 +2360,7 @@ public:
             const char* start = "PRESS ENTER OR CLICK TO START";
             OutlinedText(start, 1280 / 2 - MeasureText(start, 30) / 2, 410, 30, WHITE, { 20, 24, 40, 255 });
         }
-        const char* hint = "F1 - Controls      Esc - Quit";
+        const char* hint = "O - Settings      F1 - Controls      Esc - Quit";
         DrawText(hint, 1280 / 2 - MeasureText(hint, 20) / 2, 470, 20, { 150, 165, 200, 255 });
         if (showHelp) DrawHelpPanel();
     }
@@ -1767,17 +2369,18 @@ public:
         DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.72f));
         const char* t1 = "PAUSED";
         OutlinedText(t1, 1280 / 2 - MeasureText(t1, 60) / 2, 190, 60, WHITE, { 20, 24, 40, 255 });
-        const char* opts[] = { "ESC / P / ENTER   Resume", "R   Restart run", "F1   Controls", "Q   Quit game" };
-        for (int i = 0; i < 4; ++i)
-            DrawText(opts[i], 1280 / 2 - 150, 290 + i * 44, 26, i == 3 ? Color{ 255, 130, 130, 255 } : RAYWHITE);
+        const char* opts[] = { "ESC / P / ENTER   Resume", "I   Equipment", "O   Settings", "R   Restart run", "F1   Controls", "Q   Quit game" };
+        for (int i = 0; i < 6; ++i)
+            DrawText(opts[i], 1280 / 2 - 150, 250 + i * 40, 26, i == 5 ? Color{ 255, 130, 130, 255 } : RAYWHITE);
         std::string info = "Floor " + std::to_string(floor) + "   Level " + std::to_string(player.level) + "   Slain " + std::to_string(enemiesSlain);
-        DrawText(info.c_str(), 1280 / 2 - MeasureText(info.c_str(), 20) / 2, 500, 20, SKYBLUE);
+        DrawText(info.c_str(), 1280 / 2 - MeasureText(info.c_str(), 20) / 2, 530, 20, SKYBLUE);
         if (showHelp) DrawHelpPanel();
     }
 
     // ── Drawing ──
     void Draw() {
-        BeginDrawing();
+        if (settings.lighting) RenderLightmap();
+        BeginTextureMode(screenRT);
         BiomeColors biome = Biome();
         ClearBackground(biome.bg);
 
@@ -1902,6 +2505,8 @@ public:
             DrawCircleLines((int)player.pos.x, (int)player.pos.y, 28, Fade(GOLD, 0.8f));
         }
 
+        DrawItemDrops();
+
         // Hạt
         for (const auto& pt : particles) {
             float k = pt.life / pt.maxLife;
@@ -1915,10 +2520,10 @@ public:
 
         EndMode2D();
 
-        ApplyLighting();
+        if (settings.lighting) ApplyLighting();
 
         // Vignette + viền đỏ khi bị đau
-        {
+        if (settings.vignette) {
             Color edge = LerpColor({ 0, 0, 0, 120 }, { 170, 0, 20, 200 }, damagePulse);
             Color clear = { edge.r, edge.g, edge.b, 0 };
             int bh = 150, bw = 240;
@@ -1968,6 +2573,16 @@ public:
             Color cCol = comboCount >= 20 ? RED : (comboCount >= 10 ? ORANGE : YELLOW);
             DrawText(comboStr.c_str(), 1280 - 240, 160, 26, cCol);
         }
+
+        // Trang bị đang đeo (HUD)
+        for (int i = 0; i < 4; ++i) {
+            int hx = 24 + i * 36, hy = 138;
+            Color rc = hasEquip[i] ? equipped[i].RarityColor() : Color{ 60, 68, 90, 255 };
+            DrawRectangle(hx, hy, 30, 30, { 14, 18, 30, 210 });
+            DrawRectangleLines(hx, hy, 30, 30, rc);
+            DrawItemIcon(i, { hx + 15.0f, hy + 15.0f }, 17.0f, hasEquip[i] ? rc : Color{ 70, 78, 100, 255 });
+        }
+        DrawText("[I] Gear", 24 + 4 * 36 + 4, 146, 14, { 150, 165, 200, 255 });
 
         // Thanh máu boss
         for (const auto& e : enemies) {
@@ -2085,15 +2700,25 @@ public:
             DrawText("PLAY AGAIN (R)", 1280 / 2 - 75, 476, 22, WHITE);
         }
 
+        if (state == INVENTORY) DrawInventory();
+        if (state == SETTINGS) DrawSettingsScreen();
         if (state == TITLE) DrawTitleScreen();
         if (state == PAUSED) DrawPauseScreen();
 
-        EndDrawing();
+        if (settings.showFps) {
+            std::string f = "FPS: " + std::to_string(GetFPS());
+            DrawText(f.c_str(), 1280 - 12 - MeasureText(f.c_str(), 18), 720 - 26, 18, { 120, 255, 140, 255 });
+        }
+
+        EndTextureMode();
+        Present();
     }
 };
 
 int main() {
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
     InitWindow(1280, 720, "Geometric Dungeon - Standalone Roguelike RPG");
+    SetWindowMinSize(640, 360);
     SetTargetFPS(60);
     SetExitKey(KEY_NULL); // Esc dùng để tạm dừng, không thoát ngay
 
