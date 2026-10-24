@@ -263,6 +263,13 @@ struct Mote {
     float size;
 };
 
+struct Decal {
+    Vector2 pos;
+    float angle;
+    float size;
+    int type;
+};
+
 static Color LerpColor(Color a, Color b, float t) {
     t = std::max(0.0f, std::min(1.0f, t));
     return { (unsigned char)(a.r + (b.r - a.r) * t), (unsigned char)(a.g + (b.g - a.g) * t),
@@ -315,6 +322,9 @@ public:
     float hitStop = 0.0f;       // khựng khung hình ngắn khi chí mạng
     int bestCombo = 0;
     Vector2 aimDirDraw = { 1, 0 };
+    RenderTexture2D lightmap = { 0 };
+    std::vector<Vector2> torches;
+    std::vector<Decal> decals;
     bool hasShrine = false;
     bool shrineUsed = false;
     bool shrineHinted = false;
@@ -327,6 +337,7 @@ public:
         camera.zoom = 1.0f;
         camera.offset = { 1280 / 2.0f, 720 / 2.0f };
         InitMotes();
+        lightmap = LoadRenderTexture(1280, 720);
         RestartRun();
     }
 
@@ -469,6 +480,7 @@ public:
         ghosts.clear();
         pillars.clear();
         particles.clear();
+        BuildDecor();
 
         portalOpen = false;
         portalPos = { 0, -roomH / 2.0f + 70.0f };
@@ -1496,6 +1508,179 @@ public:
         }
     }
 
+    // ── Môi trường: tường gạch, decal, đuốc, cột, ánh sáng ──
+    void BuildDecor() {
+        torches.clear();
+        decals.clear();
+        float hw = roomW / 2.0f, hh = roomH / 2.0f;
+        for (float x = -hw + 160.0f; x < hw - 100.0f; x += 330.0f) {
+            torches.push_back({ x, -hh - 22.0f });
+            torches.push_back({ x + 165.0f, hh + 22.0f });
+        }
+        for (float y = -hh + 190.0f; y < hh - 100.0f; y += 330.0f) {
+            torches.push_back({ -hw - 22.0f, y });
+            torches.push_back({ hw + 22.0f, y + 120.0f });
+        }
+        for (int i = 0; i < 34; ++i) {
+            Decal d;
+            d.pos = { (Rand01() - 0.5f) * (roomW - 90.0f), (Rand01() - 0.5f) * (roomH - 90.0f) };
+            d.angle = Rand01() * 360.0f;
+            d.size = 10.0f + 24.0f * Rand01();
+            float r = Rand01();
+            d.type = r < 0.35f ? 0 : (r < 0.55f ? 1 : (r < 0.72f ? 2 : 3));
+            decals.push_back(d);
+        }
+    }
+
+    void DrawWalls(const BiomeColors& biome) {
+        float hw = roomW / 2.0f, hh = roomH / 2.0f;
+        const float th = 44.0f, bw = 48.0f, bh = 22.0f;
+        DrawRectangle((int)(-hw - th), (int)(-hh - th), (int)(roomW + th * 2), (int)(roomH + th * 2), Shade(biome.wall, 0.45f));
+        auto bricks = [&](float x0, float y0, float w, float h) {
+            int row = 0;
+            for (float y = y0; y < y0 + h - 0.1f; y += bh, ++row) {
+                float offset = (row & 1) ? bw * 0.5f : 0.0f;
+                for (float x = x0 - offset; x < x0 + w; x += bw) {
+                    int ix = (int)floorf(x / bw), iy = row + (int)y0;
+                    int hsh = ((ix * 73856093) ^ (iy * 19349663)) & 7;
+                    Color bc = Shade(biome.wall, 0.60f + 0.05f * hsh);
+                    float bx = std::max(x, x0), ex = std::min(x + bw, x0 + w);
+                    if (ex <= bx) continue;
+                    DrawRectangle((int)bx, (int)y, (int)(ex - bx) - 1, (int)bh - 1, bc);
+                    DrawRectangle((int)bx, (int)y, (int)(ex - bx) - 1, 2, Shade(bc, 1.3f));
+                }
+            }
+        };
+        bricks(-hw - th, -hh - th, roomW + th * 2, th);
+        bricks(-hw - th, hh, roomW + th * 2, th);
+        bricks(-hw - th, -hh, th, roomH);
+        bricks(hw, -hh, th, roomH);
+    }
+
+    void DrawDecals(const BiomeColors& biome) {
+        int bi = ((floor - 1) / 3) % 4;
+        for (const auto& d : decals) {
+            Vector2 p = d.pos;
+            float a = d.angle * DEG2RAD, s = d.size;
+            if (d.type == 0) { // vết nứt
+                Vector2 p1 = { p.x + cosf(a) * s, p.y + sinf(a) * s };
+                Vector2 p2 = { p1.x + cosf(a + 0.7f) * s * 0.7f, p1.y + sinf(a + 0.7f) * s * 0.7f };
+                Vector2 p0 = { p.x - cosf(a - 0.4f) * s * 0.8f, p.y - sinf(a - 0.4f) * s * 0.8f };
+                Color cc = (bi == 2) ? Color{ 255, 120, 40, 210 } : Fade(BLACK, 0.40f);
+                DrawLineEx(p0, p, 2.0f, cc);
+                DrawLineEx(p, p1, 2.0f, cc);
+                DrawLineEx(p1, p2, 1.5f, cc);
+            } else if (d.type == 1) { // vết bẩn
+                DrawEllipse((int)p.x, (int)p.y, s * 1.2f, s * 0.7f, Fade(bi == 1 ? Color{ 20, 80, 30, 255 } : BLACK, 0.18f));
+            } else if (d.type == 2) { // sỏi
+                for (int i = 0; i < 3; ++i) {
+                    Vector2 q = { p.x + cosf(a + i * 2.1f) * s * 0.5f, p.y + sinf(a + i * 2.1f) * s * 0.35f };
+                    DrawCircleV({ q.x, q.y + 1.5f }, 3.0f + i, Fade(BLACK, 0.3f));
+                    DrawCircleV(q, 2.6f + i, Shade(biome.tileA, 1.45f));
+                }
+            } else { // đồ trang trí theo bioma
+                if (bi == 0) { // xương
+                    Vector2 d1 = { cosf(a) * s * 0.6f, sinf(a) * s * 0.6f };
+                    Vector2 d2 = { cosf(a + 1.2f) * s * 0.6f, sinf(a + 1.2f) * s * 0.6f };
+                    Color bone = { 214, 208, 190, 255 };
+                    DrawLineEx({ p.x - d1.x, p.y - d1.y }, { p.x + d1.x, p.y + d1.y }, 3.0f, bone);
+                    DrawLineEx({ p.x - d2.x, p.y - d2.y }, { p.x + d2.x, p.y + d2.y }, 3.0f, bone);
+                    DrawCircleV({ p.x + d1.x, p.y + d1.y }, 2.5f, bone);
+                    DrawCircleV({ p.x - d2.x, p.y - d2.y }, 2.5f, bone);
+                } else if (bi == 1) { // rêu
+                    for (int i = 0; i < 5; ++i)
+                        DrawCircleV({ p.x + cosf(a + i * 1.3f) * s * 0.6f, p.y + sinf(a + i * 1.3f) * s * 0.4f }, 4.0f + (i % 3) * 2.0f, Fade({ 90, 170, 80, 255 }, 0.32f));
+                } else if (bi == 2) { // vũng dung nham
+                    DrawEllipse((int)p.x, (int)p.y, s * 0.9f, s * 0.5f, Fade({ 255, 90, 20, 255 }, 0.35f));
+                    DrawEllipse((int)p.x, (int)p.y, s * 0.5f, s * 0.28f, Fade({ 255, 200, 60, 255 }, 0.45f));
+                } else { // mảnh băng
+                    for (int i = 0; i < 3; ++i) {
+                        float aa = a + i * 2.1f;
+                        Tri({ p.x, p.y }, { p.x + cosf(aa) * s * 0.7f, p.y + sinf(aa) * s * 0.7f }, { p.x + cosf(aa + 0.35f) * s * 0.4f, p.y + sinf(aa + 0.35f) * s * 0.4f }, Fade({ 220, 240, 255, 255 }, 0.55f));
+                    }
+                }
+            }
+        }
+    }
+
+    void DrawPillar(Vector2 p, const BiomeColors& biome) {
+        int bi = ((floor - 1) / 3) % 4;
+        Color stone = Shade(biome.wall, 1.15f);
+        DrawEllipse((int)p.x + 3, (int)p.y + 12, 31.0f, 14.0f, Fade(BLACK, 0.38f));
+        DrawCircleV(p, 29.0f, Shade(stone, 0.35f));
+        DrawCircleV(p, 27.0f, Shade(stone, 0.70f));
+        DrawCircleV({ p.x - 2.0f, p.y - 3.0f }, 23.0f, stone);
+        DrawCircleV({ p.x - 3.0f, p.y - 5.0f }, 15.0f, Shade(stone, 1.20f));
+        DrawRing(p, 19.0f, 21.0f, 200.0f, 270.0f, 10, Fade(WHITE, 0.35f));
+        DrawLineEx({ p.x + 4.0f, p.y - 8.0f }, { p.x + 10.0f, p.y + 2.0f }, 2.0f, Fade(BLACK, 0.35f));
+        DrawLineEx({ p.x + 10.0f, p.y + 2.0f }, { p.x + 6.0f, p.y + 12.0f }, 2.0f, Fade(BLACK, 0.35f));
+        if (bi == 1) DrawCircleV({ p.x + 13.0f, p.y + 10.0f }, 7.0f, Fade({ 90, 170, 80, 255 }, 0.55f));
+        if (bi == 2) DrawLineEx({ p.x - 9.0f, p.y + 6.0f }, { p.x + 2.0f, p.y + 15.0f }, 2.5f, { 255, 130, 40, 255 });
+        if (bi == 3) DrawCircleSector({ p.x - 3.0f, p.y - 5.0f }, 14.0f, 180.0f, 360.0f, 14, Fade({ 235, 248, 255, 255 }, 0.6f));
+    }
+
+    void DrawTorch(Vector2 t) {
+        float tm = (float)GetTime();
+        float fl = 0.78f + 0.22f * sinf(tm * 13.0f + t.x * 0.1f) + 0.08f * sinf(tm * 29.0f + t.y);
+        DrawRectangle((int)t.x - 3, (int)t.y - 2, 6, 15, { 70, 50, 36, 255 });
+        DrawRectangle((int)t.x - 6, (int)t.y - 4, 12, 5, { 120, 88, 54, 255 });
+        BeginBlendMode(BLEND_ADDITIVE);
+        DrawCircleGradient((int)t.x, (int)t.y - 8, 58.0f, Fade({ 255, 150, 50, 255 }, 0.32f * fl), Fade({ 255, 150, 50, 255 }, 0.0f));
+        EndBlendMode();
+        DrawCircleV({ t.x, t.y - 8.0f }, 7.5f * fl, { 255, 120, 30, 255 });
+        DrawCircleV({ t.x, t.y - 9.0f }, 4.8f * fl, { 255, 200, 70, 255 });
+        DrawCircleV({ t.x, t.y - 10.0f }, 2.2f, { 255, 250, 205, 255 });
+    }
+
+    void AddLight(Vector2 wp, float radius, Color col, float inten) {
+        Vector2 sp = GetWorldToScreen2D(wp, camera);
+        if (sp.x < -radius || sp.x > 1280 + radius || sp.y < -radius || sp.y > 720 + radius) return;
+        DrawCircleGradient((int)sp.x, (int)sp.y, radius, Fade(col, inten), Fade(col, 0.0f));
+    }
+
+    // Bản đồ ánh sáng nhân với cảnh: xa nguồn sáng thì tối dần
+    void ApplyLighting() {
+        if (lightmap.id == 0) return;
+        static const Color ambients[4] = { { 134, 142, 172, 255 }, { 136, 158, 138, 255 }, { 170, 132, 120, 255 }, { 142, 164, 196, 255 } };
+        Color amb = ambients[((floor - 1) / 3) % 4];
+        float tm = (float)GetTime();
+
+        BeginTextureMode(lightmap);
+        ClearBackground(amb);
+        BeginBlendMode(BLEND_ADDITIVE);
+
+        AddLight(player.pos, 400.0f, { 255, 244, 222, 255 }, 0.62f + 0.03f * sinf(tm * 7.0f));
+        for (const auto& t : torches) {
+            float fl = 0.85f + 0.15f * sinf(tm * 13.0f + t.x * 0.1f);
+            AddLight({ t.x, t.y - 8.0f }, 260.0f, { 255, 150, 60, 255 }, 0.58f * fl);
+        }
+        if (portalOpen) AddLight(portalPos, 230.0f, { 80, 220, 255, 255 }, 0.7f);
+        if (hasShrine && !shrineUsed) AddLight({ shrinePos.x, shrinePos.y - 40.0f }, 190.0f, { 255, 50, 80, 255 }, 0.55f + 0.1f * sinf(shrinePulse));
+        for (const auto& pr : projectiles) AddLight(pr.pos, 80.0f, pr.color, 0.7f);
+        for (const auto& nv : novas) {
+            float k = nv.timer / nv.maxTimer;
+            AddLight(nv.pos, nv.radius * 1.4f + 60.0f, nv.color, 0.55f * k);
+        }
+        for (const auto& l : loots) {
+            Color lc = (l.type == 1) ? Color{ 255, 215, 60, 255 } : (l.type == 2 ? Color{ 255, 100, 130, 255 } : Color{ 90, 200, 255, 255 });
+            AddLight(l.pos, 70.0f, lc, 0.55f);
+        }
+        for (const auto& e : enemies) {
+            if (e.hp <= 0) continue;
+            if (e.type == BOMBER && e.fusing) AddLight(e.pos, 170.0f, { 255, 90, 40, 255 }, 0.55f + 0.25f * sinf(e.fuseTimer * 40.0f));
+            else if (e.burnTimer > 0) AddLight(e.pos, 90.0f, { 255, 140, 40, 255 }, 0.5f);
+            else if (e.type == BOSS) AddLight(e.pos, 260.0f, e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 170, 90, 255, 255 }, 0.5f);
+            else if (e.isElite || e.isWarden) AddLight(e.pos, 110.0f, { 255, 215, 100, 255 }, 0.4f);
+        }
+
+        EndBlendMode();
+        EndTextureMode();
+
+        BeginBlendMode(BLEND_MULTIPLIED);
+        DrawTextureRec(lightmap.texture, { 0, 0, (float)lightmap.texture.width, -(float)lightmap.texture.height }, { 0, 0 }, WHITE);
+        EndBlendMode();
+    }
+
     // ── Drawing ──
     void Draw() {
         BeginDrawing();
@@ -1504,10 +1689,11 @@ public:
 
         BeginMode2D(camera);
 
-        // 1. Room Floor & Checkerboard
+        // 1. Tường gạch, sàn caro, bóng viền, decal, đuốc, cột
         int halfW = (int)roomW / 2;
         int halfH = (int)roomH / 2;
         int tileSize = 48;
+        DrawWalls(biome);
         for (int y = -halfH; y < halfH; y += tileSize) {
             for (int x = -halfW; x < halfW; x += tileSize) {
                 bool alt = (((x / tileSize) + (y / tileSize)) & 1) == 0;
@@ -1515,22 +1701,23 @@ public:
                 DrawRectangle(x, y, tileSize, tileSize, tileCol);
             }
         }
+        // Bóng đổ từ tường xuống sàn
+        DrawRectangleGradientV(-halfW, -halfH, (int)roomW, 46, Fade(BLACK, 0.50f), Fade(BLACK, 0.0f));
+        DrawRectangleGradientV(-halfW, halfH - 46, (int)roomW, 46, Fade(BLACK, 0.0f), Fade(BLACK, 0.50f));
+        DrawRectangleGradientH(-halfW, -halfH, 46, (int)roomH, Fade(BLACK, 0.50f), Fade(BLACK, 0.0f));
+        DrawRectangleGradientH(halfW - 46, -halfH, 46, (int)roomH, Fade(BLACK, 0.0f), Fade(BLACK, 0.50f));
+        DrawRectangleLinesEx({ -roomW / 2.0f, -roomH / 2.0f, roomW, roomH }, 3.0f, Shade(biome.wall, 1.25f));
 
-        // Walls
-        DrawRectangleLinesEx({ -roomW / 2.0f, -roomH / 2.0f, roomW, roomH }, 8.0f, biome.wall);
+        DrawDecals(biome);
 
         // Bụi lơ lửng
         for (const auto& m : motes) {
-            float a = 0.10f + 0.16f * (0.5f + 0.5f * sinf((float)GetTime() * 1.6f + m.phase));
-            DrawCircleV(m.pos, m.size, Fade(biome.mote, a));
+            float a2 = 0.10f + 0.16f * (0.5f + 0.5f * sinf((float)GetTime() * 1.6f + m.phase));
+            DrawCircleV(m.pos, m.size, Fade(biome.mote, a2));
         }
 
-        // Pillars
-        for (const auto& p : pillars) {
-            DrawCircle((int)p.x, (int)p.y + 4, 28, { 0, 0, 0, 80 }); // Shadow
-            DrawCircle((int)p.x, (int)p.y, 26, { 75, 85, 105, 255 });
-            DrawCircleLines((int)p.x, (int)p.y, 26, { 110, 125, 150, 255 });
-        }
+        for (const auto& tp : torches) DrawTorch(tp);
+        for (const auto& pl : pillars) DrawPillar(pl, biome);
 
         // Blood Shrine
         if (hasShrine) {
@@ -1633,6 +1820,8 @@ public:
         }
 
         EndMode2D();
+
+        ApplyLighting();
 
         // Vignette + viền đỏ khi bị đau
         {
