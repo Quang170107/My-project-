@@ -194,7 +194,7 @@ Inspired by Hades, Dead Cells and Soul Knight:
 
 ### 🛡️ Mini-boss & run summary
 
-- **Warden Brute** appears on floors 3 and 8: a larger, golden Armored Slime (180 HP, ground slam, hits for 20) that always drops equipment.
+- **Warden Brute** appears on floors 4 and 8: a larger, golden Armored Slime (180 HP, ground slam, hits for 20) that always drops equipment.
 - The game-over screen now also shows your **Best Combo** for the run (reset every new run).
 
 ### 🔊 Sounds
@@ -231,7 +231,7 @@ All done in code, no scene/asset setup needed (`Assets/Scripts/Dungeon/VisualFX.
 `GeometricDungeon.exe` is a **separate C++ port** (`StandaloneApp/main.cpp`), not the Unity project, so it needs its own updates. It now has:
 
 - **Bomber Slime** (floor 4+): rushes you, blinks with a red warning circle, then explodes (20 damage, hurts other enemies too). A self-destruct drops no loot and does not count for the combo.
-- **Warden Brute** mini-boss on floors 3 and 8 (golden, 180 HP, always drops a potion and gold).
+- **Warden Brute** mini-boss on floors 4 and 8 (golden, 180 HP, always drops a potion and gold).
 - **Blood Shrine** (floor 2+, 30% chance, never on boss floors): touch it to pay 15% max HP for a random free upgrade. It never kills you.
 - **Ember Edge** (burn) and **Frost Touch** (slow) upgrade cards.
 - **Effects:** hit sparks, death debris, level-up/Nova/pickup bursts, floating dust, vignette with a red pulse when hurt, short hit-stop on crits and boss kills.
@@ -252,3 +252,12 @@ The Unity version already had a settings menu and an equipment system; the stand
 - **Equipment:** 4 slots (weapon, armor, boots, ring) and 4 rarities (common 60%, rare 27%, epic 10%, legendary 3%). Enemies drop gear (12%, elites 30%, bosses and Wardens always). Walking over gear equips it if it is better than what you wear, otherwise it is sold for gold. Press **I** (also from the pause menu) for the equipment screen with your full stats; your four slots are also shown under the relics in the HUD.
 - **Settings** (`O` or `F2` from the title screen, `O` from the pause menu): resolution (only sizes that fit your monitor), fullscreen, VSync, **FPS limit** (30 / 60 / 120 / 144 / unlimited), show FPS, **vibration** (screen shake), lighting, particle quality, vignette and volume. Saved automatically to `settings.cfg` next to the exe, together with your best floor.
 - The window is now resizable and the game is letterboxed to keep its 16:9 shape; the mouse position is mapped correctly at any size.
+
+### More Unity features ported to the standalone exe
+
+- **Merchant floors** every 3rd floor (3, 6, 9, 12, 18...; never boss floors): no enemies, the portal is open, and a hooded merchant sells 4 pieces of gear and a healing potion. Stand next to him and press **F**; buy with 1-5, click or Enter. Same price formula and rules as Unity (no buying potions at full HP, no buying gear that is not an upgrade).
+- **Chests** on every floor (two on every 3rd floor): gold, a potion and XP.
+- **Floor modifiers** from floor 2: Swarm, Elite Hunt (floor 3+), Sniper Nest (floor 3+) and **Treasure Vault** (no enemies, three chests, one of them guarantees rare-or-better gear). Shown in the floor banner.
+- **Five room layouts** (scattered, ring, blocks, bastion, open), never the same twice in a row. Pillars now **block movement and enemy projectiles** (before they were only decoration), and a Charger that hits a pillar is stunned.
+- Total enemies per floor are capped at 28.
+- **Warden Brute** moved to floors **4 and 8** (floor 3 is a merchant floor and has no enemies), in both the Unity project and the exe.

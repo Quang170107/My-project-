@@ -364,6 +364,37 @@ static EquipItem GenerateItem(int floor) {
     return it;
 }
 
+
+// ── Biến thể tầng, bố cục, rương, cửa hàng ───────────────────────────────
+enum FloorMod { MOD_NONE, MOD_SWARM, MOD_ELITE, MOD_SNIPER, MOD_TREASURE };
+enum Layout { LAY_SCATTERED, LAY_RING, LAY_BLOCKS, LAY_BASTION, LAY_OPEN };
+
+struct Chest {
+    Vector2 pos;
+    bool opened = false;
+    float anim = 0.0f;
+    bool vault = false; // rương trong kho báu: chắc chắn có trang bị tốt
+};
+
+struct ShopSlot {
+    bool potion = false;
+    EquipItem item;
+    float heal = 0.0f;
+    int price = 0;
+    bool sold = false;
+};
+
+// Cửa hàng mở sau mỗi 3 tầng (3, 6, 9, 12, 18...), tầng boss (5, 10...) luôn là tầng chiến đấu
+static bool IsShopFloor(int f) { return f > 1 && f % 3 == 0 && f % 5 != 0; }
+
+static int ItemPrice(const EquipItem& it) {
+    float c = it.Score() * 1.2f + 10.0f;
+    if (it.rarity == 1) c *= 1.3f;
+    else if (it.rarity == 2) c *= 1.8f;
+    else if (it.rarity == 3) c *= 2.5f;
+    return std::max(10, (int)roundf(c));
+}
+
 // ── Cài đặt (lưu vào settings.cfg cạnh file exe) ─────────────────────────
 struct Settings {
     int resW = 1280, resH = 720;
@@ -410,7 +441,7 @@ public:
     float screenShakeTimer = 0.0f;
     float screenShakeMag = 0.0f;
 
-    enum State { PLAYING, LEVEL_UP, GAME_OVER, TITLE, PAUSED, INVENTORY, SETTINGS };
+    enum State { PLAYING, LEVEL_UP, GAME_OVER, TITLE, PAUSED, INVENTORY, SETTINGS, SHOP };
     State state = PLAYING;
     bool quitRequested = false;
     bool showHelp = false;
@@ -422,6 +453,16 @@ public:
     std::vector<int> resList;
     RenderTexture2D screenRT = { 0 };
     int setSel = 0;
+    int floorMod = MOD_NONE;
+    int layout = LAY_SCATTERED;
+    int lastLayout = -1;
+    float eliteChance = 0.2f;
+    bool shopFloor = false;
+    Vector2 merchantPos = { 0, -150 };
+    ShopSlot shopSlots[5];
+    int shopSel = 0;
+    bool shopHinted = false;
+    std::vector<Chest> chests;
     State settingsReturn = TITLE;
     std::vector<UpgradeType> levelChoices;
     std::string bannerText = "";
@@ -612,49 +653,99 @@ public:
         portalPos = { 0, -roomH / 2.0f + 70.0f };
         player.pos = { 0, roomH / 2.0f - 90.0f };
 
-        // Generate Pillars
-        pillars.push_back({ -350, -100 });
-        pillars.push_back({ 350, -100 });
-        pillars.push_back({ -200, 120 });
-        pillars.push_back({ 200, 120 });
-        if (floor % 5 != 0) pillars.push_back({ 0, 0 });
+        bool isBoss = (floor % 5 == 0);
+        shopFloor = IsShopFloor(floor);
+
+        // Biến thể tầng (từ tầng 2, không áp dụng cho boss / cửa hàng)
+        floorMod = MOD_NONE;
+        if (!isBoss && !shopFloor && floor >= 2) {
+            float r = Rand01();
+            if (r < 0.12f) floorMod = MOD_TREASURE;
+            else if (r < 0.32f) floorMod = MOD_SWARM;
+            else if (floor >= 3 && r < 0.50f) floorMod = MOD_ELITE;
+            else if (floor >= 3 && r < 0.68f) floorMod = MOD_SNIPER;
+        }
+        eliteChance = (floorMod == MOD_ELITE) ? 0.55f : 0.20f;
+
+        // Bố cục phòng: không lặp lại bố cục tầng trước
+        std::vector<int> pool = { LAY_SCATTERED, LAY_RING, LAY_BLOCKS, LAY_OPEN };
+        if (!isBoss && !shopFloor) pool.push_back(LAY_BASTION);
+        if (lastLayout >= 0 && pool.size() > 1) pool.erase(std::remove(pool.begin(), pool.end(), lastLayout), pool.end());
+        layout = (floor == 1) ? LAY_SCATTERED : pool[rand() % pool.size()];
+        if (floorMod == MOD_TREASURE) layout = LAY_OPEN;
+        lastLayout = layout;
+        BuildPillars();
 
         std::string theme = "Ancient Crypt";
         if (((floor - 1) / 3) % 4 == 1) theme = "Overgrown Ruins";
         else if (((floor - 1) / 3) % 4 == 2) theme = "Molten Depths";
         else if (((floor - 1) / 3) % 4 == 3) theme = "Frozen Halls";
 
-        ShowBanner("FLOOR " + std::to_string(floor) + " - " + theme);
+        ShowBanner("FLOOR " + std::to_string(floor) + " - " + theme + (shopFloor ? " - MERCHANT" : ModLabel()));
 
-        bool isBoss = (floor % 5 == 0);
+        merchantPos = { 0, -150 };
         if (isBoss) {
             SpawnEnemy(BOSS, { 0, -120 });
             for (int i = 0; i < 4; ++i) SpawnEnemy(CHASER, GetRandomSpawnPos());
+        } else if (shopFloor) {
+            StockShop();
+            portalOpen = true; // tầng cửa hàng: không có quái, cổng mở sẵn
+        } else if (floorMod == MOD_TREASURE) {
+            portalOpen = true; // kho báu: không có quái
         } else {
             int chasers = std::min(10, 3 + floor);
             int spitters = std::min(8, std::max(0, (floor - 1) * 2));
             int brutes = std::min(5, std::max(0, floor - 2));
+            int chargers = (floor >= 2) ? std::min(3, 1 + (floor - 2) / 3) : 0;
+            int bombers = (floor >= 4) ? std::min(4, 1 + (floor - 4) / 2) : 0;
+            switch (floorMod) {
+                case MOD_SWARM:
+                    chasers = std::min(16, (int)roundf((3 + floor) * 1.8f));
+                    spitters = std::min(8, std::max(0, floor - 1));
+                    brutes = 0; bombers = 0; chargers = std::min(chargers, 1);
+                    break;
+                case MOD_ELITE:
+                    chasers = 2 + floor / 2; spitters = floor / 2; brutes = std::min(8, 2 + floor / 2);
+                    break;
+                case MOD_SNIPER:
+                    chasers = 2 + floor / 2; spitters = std::min(12, (int)roundf((floor + 2) * 1.5f)); brutes = 0;
+                    break;
+                default: break;
+            }
+
+            // Trần tổng số quái để màn chơi còn đọc được: bớt quái nhỏ trước
+            const int maxTotal = 28;
+            int total = chasers + spitters + brutes + chargers + bombers + ((floor == 4 || floor == 8) ? 1 : 0);
+            while (total > maxTotal && (chasers > 2 || spitters > 2)) {
+                if (chasers > 2) chasers--; else spitters--;
+                total--;
+            }
 
             for (int i = 0; i < chasers; ++i) SpawnEnemy(CHASER, GetRandomSpawnPos());
             for (int i = 0; i < spitters; ++i) SpawnEnemy(RANGER, GetRandomSpawnPos());
             for (int i = 0; i < brutes; ++i) SpawnEnemy(BRUTE, GetRandomSpawnPos());
-
-            // Bomber Slime: quái tự nổ từ tầng 4
-            // Charger: quái lao thẳng có báo hiệu, từ tầng 2
-            int chargers = (floor >= 2) ? std::min(3, 1 + (floor - 2) / 3) : 0;
             for (int i = 0; i < chargers; ++i) SpawnEnemy(CHARGER, GetRandomSpawnPos());
-
-            int bombers = (floor >= 4) ? std::min(4, 1 + (floor - 4) / 2) : 0;
             for (int i = 0; i < bombers; ++i) SpawnEnemy(BOMBER, GetRandomSpawnPos());
 
-            // Warden Brute: mini-boss ở tầng 3 và 8
-            if (floor == 3 || floor == 8) {
+            // Warden Brute: mini-boss ở tầng 4 và 8 (tầng 3 là cửa hàng)
+            if (floor == 4 || floor == 8) {
                 SpawnWarden(GetRandomSpawnPos());
             }
         }
 
+        // Rương: mỗi tầng 1 cái (2 cái ở tầng chia hết cho 3 hoặc kho báu), kho báu thêm rương trung tâm
+        chests.clear();
+        {
+            float cx = roomW / 2.0f - 80.0f, cy = roomH / 2.0f - 80.0f;
+            int chestCount = (floor % 3 == 0 || floorMod == MOD_TREASURE) ? 2 : 1;
+            Chest c1; c1.pos = { -cx, -cy };
+            chests.push_back(c1);
+            if (chestCount >= 2) { Chest c2; c2.pos = { cx, -cy }; chests.push_back(c2); }
+            if (floorMod == MOD_TREASURE) { Chest v; v.pos = { 0, 40 }; v.vault = true; chests.push_back(v); }
+        }
+
         // Bàn thờ máu: từ tầng 2, không phải tầng boss
-        hasShrine = (floor >= 2 && floor % 5 != 0 && Rand01() < 0.3f);
+        hasShrine = (floor >= 2 && floor % 5 != 0 && !shopFloor && floorMod != MOD_TREASURE && Rand01() < 0.3f);
         shrineUsed = false;
         shrineHinted = false;
         shrineRefuse = 0.0f;
@@ -685,7 +776,9 @@ public:
             float x = ((float)rand() / RAND_MAX - 0.5f) * (roomW - 180);
             float y = ((float)rand() / RAND_MAX - 0.5f) * (roomH - 180);
             Vector2 p = { x, y };
-            if (Vector2Distance(p, player.pos) > 180.0f) return p;
+            bool nearPillar = false;
+            for (const auto& pl : pillars) if (Vector2Distance(p, pl) < 70.0f) nearPillar = true;
+            if (!nearPillar && Vector2Distance(p, player.pos) > 180.0f) return p;
         }
         return { 0, -150 };
     }
@@ -733,7 +826,7 @@ public:
         e.hp = e.maxHp;
 
         // Elite variant chance on floor 3+
-        if (type != BOSS && floor >= 3 && ((float)rand() / RAND_MAX < 0.20f)) {
+        if (type != BOSS && floor >= 3 && ((float)rand() / RAND_MAX < eliteChance)) {
             e.isElite = true;
             e.maxHp *= 1.8f;
             e.hp = e.maxHp;
@@ -805,6 +898,10 @@ public:
         }
         if (state == SETTINGS) {
             UpdateSettingsMenu();
+            return;
+        }
+        if (state == SHOP) {
+            UpdateShop();
             return;
         }
         if (state == INVENTORY) {
@@ -1137,6 +1234,13 @@ public:
             }
 
             // Contact damage with player
+            bool hitPillar = ResolvePillars(e.pos, e.radius * 0.85f);
+            if (hitPillar && e.type == CHARGER && e.chargeState == 2) { // đâm vào cột: choáng
+                e.chargeState = 3;
+                e.chargeTimer = 1.2f;
+                Shake(0.15f, 4.0f);
+                Burst(e.pos, { 200, 190, 170, 255 }, 10, 180.0f, 0.4f);
+            }
             if (Vector2Distance(e.pos, player.pos) < e.radius + 18.0f) {
                 float contactMul = (e.type == CHARGER && e.chargeState == 2) ? 1.8f : 1.0f;
                 DamagePlayer(e.contactDmg * contactMul);
@@ -1154,6 +1258,11 @@ public:
                 if (Vector2Distance(p.pos, player.pos) < p.radius + 18.0f) {
                     DamagePlayer(p.damage);
                     hit = true;
+                }
+                if (!hit) { // cột đá che chắn đạn của quái
+                    for (const auto& pl : pillars) {
+                        if (Vector2Distance(p.pos, pl) < 27.0f + p.radius) { hit = true; Burst(p.pos, p.color, 3, 100.0f, 0.25f); break; }
+                    }
                 }
             }
             if (hit || p.life <= 0 || fabs(p.pos.x) > roomW / 2.0f || fabs(p.pos.y) > roomH / 2.0f) {
@@ -1223,7 +1332,24 @@ public:
             else ++i;
         }
 
+        ResolvePillars(player.pos, 15.0f);
+        UpdateChests(dt);
         UpdateItemDrops(dt);
+
+        // ── Thương nhân ──
+        if (shopFloor) {
+            float md = Vector2Distance(player.pos, merchantPos);
+            if (!shopHinted && md < 240.0f) {
+                shopHinted = true;
+                ShowBanner("Merchant: press F to trade", 2.5f);
+            }
+            if (md < 130.0f && IsKeyPressed(KEY_F)) {
+                state = SHOP;
+                shopSel = 0;
+                PlaySound(snd.sndPotion);
+                return;
+            }
+        }
 
         // ── Bàn thờ máu ──
         if (hasShrine && !shrineUsed) {
@@ -1772,6 +1898,266 @@ public:
         }
     }
 
+    // ── Bố cục phòng & va chạm cột ──
+    void BuildPillars() {
+        pillars.clear();
+        switch (layout) {
+            case LAY_SCATTERED:
+                pillars.push_back({ -350, -100 });
+                pillars.push_back({ 350, -100 });
+                pillars.push_back({ -200, 120 });
+                pillars.push_back({ 200, 120 });
+                if (floor % 5 != 0) pillars.push_back({ 0, 0 });
+                break;
+            case LAY_RING:
+                for (int i = 0; i < 8; ++i) {
+                    float a = i * (2.0f * PI / 8.0f) + PI / 8.0f;
+                    pillars.push_back({ cosf(a) * 250.0f, -20.0f + sinf(a) * 190.0f });
+                }
+                break;
+            case LAY_BLOCKS:
+                for (int i = 0; i < 3; ++i) {
+                    Vector2 c = (i == 0) ? Vector2{ -330, -110 } : (i == 1 ? Vector2{ 330, -110 } : Vector2{ 0, 50 });
+                    pillars.push_back({ c.x - 30.0f, c.y });
+                    pillars.push_back({ c.x + 30.0f, c.y });
+                    pillars.push_back({ c.x, c.y + 56.0f });
+                }
+                break;
+            case LAY_BASTION:
+                for (int i = -3; i <= 3; ++i) if (i != 0) pillars.push_back({ i * 66.0f, -70.0f });
+                pillars.push_back({ -200, 60 });
+                pillars.push_back({ 200, 60 });
+                break;
+            default:
+                break;
+        }
+    }
+
+    // Đẩy một vật tròn ra khỏi các cột. Trả về true nếu có va chạm.
+    bool ResolvePillars(Vector2& pos, float radius) {
+        bool hit = false;
+        for (const auto& pl : pillars) {
+            Vector2 d = Vector2Subtract(pos, pl);
+            float dist = Vector2Length(d);
+            float minD = 27.0f + radius;
+            if (dist < minD) {
+                if (dist < 0.001f) { d = { 1, 0 }; dist = 1.0f; }
+                pos = Vector2Add(pl, Vector2Scale(d, minD / dist));
+                hit = true;
+            }
+        }
+        return hit;
+    }
+
+    const char* ModLabel() {
+        switch (floorMod) {
+            case MOD_SWARM: return " - SWARM!";
+            case MOD_ELITE: return " - ELITE HUNT!";
+            case MOD_SNIPER: return " - SNIPER NEST!";
+            case MOD_TREASURE: return " - TREASURE VAULT";
+            default: return "";
+        }
+    }
+
+    // ── Rương ──
+    void UpdateChests(float dt) {
+        for (auto& c : chests) {
+            if (c.opened) { if (c.anim < 1.0f) c.anim = std::min(1.0f, c.anim + dt * 4.0f); continue; }
+            if (Vector2Distance(c.pos, player.pos) < 42.0f) {
+                c.opened = true;
+                PlaySound(snd.sndPortal);
+                Burst({ c.pos.x, c.pos.y - 10.0f }, { 255, 217, 64, 255 }, 24, 300.0f, 0.7f);
+                Shake(0.1f, 3.0f);
+                loots.push_back({ 1, { c.pos.x - 22.0f, c.pos.y + 6.0f }, 15, 20.0f });
+                loots.push_back({ 1, { c.pos.x + 22.0f, c.pos.y + 6.0f }, 15, 20.0f });
+                loots.push_back({ 2, { c.pos.x, c.pos.y - 28.0f }, 40, 20.0f });
+                loots.push_back({ 0, { c.pos.x, c.pos.y + 26.0f }, 50, 20.0f });
+                SpawnPopup({ c.pos.x, c.pos.y - 30.0f }, "+GOLD", YELLOW);
+                if (c.vault) { // kho báu: chắc chắn có trang bị hiếm trở lên
+                    ItemDrop d;
+                    d.item = GenerateItem(floor + 1);
+                    for (int tries = 0; tries < 30 && d.item.rarity < 1; ++tries) d.item = GenerateItem(floor + 1);
+                    d.pos = { c.pos.x, c.pos.y + 50.0f };
+                    d.life = 90.0f;
+                    d.phase = Rand01() * 6.0f;
+                    itemDrops.push_back(d);
+                }
+            }
+        }
+    }
+
+    void DrawChest(const Chest& c) {
+        float t = (float)GetTime();
+        Vector2 p = c.pos;
+        float s = c.vault ? 1.25f : 1.0f;
+        Color wood = c.vault ? Color{ 110, 56, 140, 255 } : Color{ 150, 96, 52, 255 };
+        Color band = c.vault ? Color{ 255, 224, 120, 255 } : Color{ 232, 190, 70, 255 };
+        DrawEllipse((int)p.x, (int)p.y + 18, 28.0f * s, 9.0f * s, Fade(BLACK, 0.38f));
+        if (!c.opened) {
+            BeginBlendMode(BLEND_ADDITIVE);
+            DrawCircleGradient((int)p.x, (int)p.y, 60.0f * s, Fade(band, 0.22f + 0.08f * sinf(t * 3.0f)), Fade(band, 0.0f));
+            EndBlendMode();
+        }
+        // Thân rương
+        DrawRectangle((int)(p.x - 22 * s), (int)(p.y - 4 * s), (int)(44 * s), (int)(22 * s), Shade(wood, 0.55f));
+        DrawRectangle((int)(p.x - 20 * s), (int)(p.y - 2 * s), (int)(40 * s), (int)(18 * s), wood);
+        for (int i = 0; i < 3; ++i) DrawLine((int)(p.x - 20 * s), (int)(p.y + (2 + i * 5) * s), (int)(p.x + 20 * s), (int)(p.y + (2 + i * 5) * s), Shade(wood, 0.7f));
+        DrawRectangle((int)(p.x - 22 * s), (int)(p.y - 4 * s), (int)(44 * s), (int)(4 * s), band);
+        DrawRectangle((int)(p.x - 3 * s), (int)(p.y - 4 * s), (int)(6 * s), (int)(14 * s), band);
+        // Nắp
+        if (!c.opened) {
+            DrawRectangle((int)(p.x - 23 * s), (int)(p.y - 16 * s), (int)(46 * s), (int)(13 * s), Shade(wood, 0.55f));
+            DrawRectangle((int)(p.x - 21 * s), (int)(p.y - 14 * s), (int)(42 * s), (int)(10 * s), Shade(wood, 1.15f));
+            DrawRectangle((int)(p.x - 23 * s), (int)(p.y - 8 * s), (int)(46 * s), (int)(3 * s), band);
+            DrawRectangle((int)(p.x - 4 * s), (int)(p.y - 6 * s), (int)(8 * s), (int)(8 * s), { 70, 50, 20, 255 });
+        } else {
+            float lift = c.anim * 16.0f * s;
+            DrawRectangle((int)(p.x - 21 * s), (int)(p.y - 28 * s - lift * 0.3f), (int)(42 * s), (int)(10 * s), Shade(wood, 0.8f));
+            BeginBlendMode(BLEND_ADDITIVE);
+            DrawCircleGradient((int)p.x, (int)(p.y - 4), 34.0f * s * (1.0f - c.anim * 0.5f), Fade({ 255, 230, 120, 255 }, 0.5f * (1.0f - c.anim)), Fade({ 255, 230, 120, 255 }, 0.0f));
+            EndBlendMode();
+        }
+    }
+
+    // ── Cửa hàng ──
+    void StockShop() {
+        for (int i = 0; i < 4; ++i) {
+            shopSlots[i] = ShopSlot();
+            shopSlots[i].item = GenerateItem(floor);
+            shopSlots[i].price = ItemPrice(shopSlots[i].item);
+        }
+        shopSlots[4] = ShopSlot();
+        shopSlots[4].potion = true;
+        shopSlots[4].heal = 40.0f + floor * 5.0f;
+        shopSlots[4].price = 15 + floor * 3;
+        shopSel = 0;
+        shopHinted = false;
+    }
+
+    void BuyShopSlot(int i) {
+        if (i < 0 || i > 4) return;
+        ShopSlot& s = shopSlots[i];
+        if (s.sold) return;
+        if (s.potion && player.hp >= player.maxHp) { ShowBanner("HP is already full!", 1.5f); return; }
+        if (!s.potion && hasEquip[s.item.slot] && s.item.Score() <= equipped[s.item.slot].Score()) {
+            ShowBanner("Not an upgrade - you already wear better!", 2.0f);
+            return;
+        }
+        if (player.gold < s.price) { ShowBanner("Not enough Gold!", 1.5f); PlaySound(snd.sndHurt); return; }
+        player.gold -= s.price;
+        if (s.potion) {
+            player.hp = std::min(player.maxHp, player.hp + s.heal);
+            ShowBanner("Healed " + std::to_string((int)s.heal) + " HP!", 2.0f);
+        } else {
+            int soldOld = 0;
+            if (TryEquipItem(s.item, soldOld)) ShowBanner("EQUIPPED: " + s.item.name, 2.5f);
+            else { player.gold += s.item.SellValue(); ShowBanner("Bought & sold " + s.item.name, 2.0f); }
+        }
+        PlaySound(snd.sndCoin);
+        s.sold = true;
+    }
+
+    void UpdateShop() {
+        if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_F) || IsKeyPressed(KEY_BACKSPACE)) { state = PLAYING; return; }
+        if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D)) shopSel = (shopSel + 1) % 5;
+        if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A)) shopSel = (shopSel + 4) % 5;
+        if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) BuyShopSlot(shopSel);
+        for (int i = 0; i < 5; ++i) if (IsKeyPressed(KEY_ONE + i)) { shopSel = i; BuyShopSlot(i); }
+        Vector2 m = GetMousePosition();
+        for (int i = 0; i < 5; ++i) {
+            Rectangle r = { 116.0f + i * 212.0f, 170.0f, 200.0f, 340.0f };
+            if (CheckCollisionPointRec(m, r)) {
+                if (GetMouseDelta().x != 0 || GetMouseDelta().y != 0) shopSel = i;
+                if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { shopSel = i; BuyShopSlot(i); }
+            }
+        }
+    }
+
+    void DrawShopScreen() {
+        DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.84f));
+        const char* title = "MERCHANT'S SHOP";
+        OutlinedText(title, 1280 / 2 - MeasureText(title, 44) / 2, 60, 44, GOLD, { 90, 50, 10, 255 });
+        std::string g = "Gold: " + std::to_string(player.gold);
+        DrawText(g.c_str(), 1280 / 2 - MeasureText(g.c_str(), 26) / 2, 118, 26, YELLOW);
+        for (int i = 0; i < 5; ++i) {
+            ShopSlot& s = shopSlots[i];
+            Rectangle r = { 116.0f + i * 212.0f, 170.0f, 200.0f, 340.0f };
+            Color rc = s.potion ? Color{ 255, 100, 130, 255 } : s.item.RarityColor();
+            bool sel = (shopSel == i);
+            DrawRectangleRec(r, sel ? Color{ 34, 42, 66, 255 } : Color{ 20, 26, 42, 255 });
+            DrawRectangleLinesEx(r, sel ? 3.0f : 1.5f, sel ? GOLD : rc);
+            DrawRectangle((int)r.x, (int)r.y, 200, 26, Fade(rc, 0.25f));
+            DrawText(TextFormat("[%d]", i + 1), (int)r.x + 10, (int)r.y + 5, 16, rc);
+            Vector2 ic = { r.x + 100, r.y + 76 };
+            if (s.potion) {
+                DrawCircleV({ ic.x, ic.y + 8 }, 24.0f, { 220, 60, 90, 255 });
+                DrawRectangle((int)ic.x - 8, (int)ic.y - 22, 16, 14, { 190, 200, 220, 255 });
+                DrawCircleV({ ic.x - 8, ic.y }, 7.0f, Fade(WHITE, 0.5f));
+                DrawText("Healing Potion", (int)r.x + 12, (int)r.y + 124, 17, rc);
+                DrawText(TextFormat("Heals %d HP", (int)s.heal), (int)r.x + 12, (int)r.y + 156, 16, RAYWHITE);
+            } else {
+                DrawCircleV(ic, 34.0f, Fade(rc, 0.16f));
+                DrawItemIcon(s.item.slot, ic, 54.0f, rc);
+                // tên có thể dài: tách làm 2 dòng
+                std::string nm = s.item.name;
+                size_t sp = nm.find(' ');
+                std::string l1 = sp == std::string::npos ? nm : nm.substr(0, sp);
+                std::string l2 = sp == std::string::npos ? "" : nm.substr(sp + 1);
+                DrawText(l1.c_str(), (int)r.x + 12, (int)r.y + 118, 17, rc);
+                DrawText(l2.c_str(), (int)r.x + 12, (int)r.y + 138, 17, rc);
+                DrawText(s.item.RarityName(), (int)r.x + 12, (int)r.y + 160, 13, Fade(rc, 0.8f));
+                auto lines = s.item.StatLines();
+                for (size_t k = 0; k < lines.size(); ++k) DrawText(lines[k].c_str(), (int)r.x + 12, (int)r.y + 182 + (int)k * 19, 15, RAYWHITE);
+            }
+            if (s.sold) {
+                DrawRectangleRec(r, Fade(BLACK, 0.55f));
+                DrawText("SOLD", (int)r.x + 100 - MeasureText("SOLD", 30) / 2, (int)r.y + 150, 30, { 255, 120, 120, 255 });
+            } else {
+                bool afford = player.gold >= s.price;
+                DrawRectangle((int)r.x + 10, (int)r.y + 296, 180, 32, afford ? Color{ 30, 80, 40, 255 } : Color{ 80, 30, 30, 255 });
+                DrawRectangleLines((int)r.x + 10, (int)r.y + 296, 180, 32, afford ? Color{ 120, 235, 140, 255 } : Color{ 235, 120, 120, 255 });
+                std::string pr = std::to_string(s.price) + " g";
+                DrawText(pr.c_str(), (int)r.x + 100 - MeasureText(pr.c_str(), 20) / 2, (int)r.y + 302, 20, afford ? Color{ 255, 230, 120, 255 } : Color{ 255, 160, 160, 255 });
+            }
+        }
+        const char* foot = "1-5 / click / Enter: buy      A/D: select      Esc or F: leave";
+        DrawText(foot, 1280 / 2 - MeasureText(foot, 18) / 2, 550, 18, { 150, 165, 200, 255 });
+        const char* foot2 = "Gear you buy is equipped automatically if it beats what you wear.";
+        DrawText(foot2, 1280 / 2 - MeasureText(foot2, 16) / 2, 580, 16, { 120, 135, 165, 255 });
+    }
+
+    void DrawMerchant() {
+        float t = (float)GetTime();
+        Vector2 p = merchantPos;
+        float bob = sinf(t * 2.0f) * 2.0f;
+        DrawEllipse((int)p.x, (int)p.y + 26, 34.0f, 10.0f, Fade(BLACK, 0.4f));
+        // Bàn hàng nhỏ với đống vàng
+        DrawRectangle((int)p.x + 34, (int)p.y + 4, 46, 26, { 120, 78, 44, 255 });
+        DrawRectangle((int)p.x + 34, (int)p.y + 4, 46, 5, { 160, 108, 60, 255 });
+        for (int i = 0; i < 5; ++i) DrawCircleV({ p.x + 42.0f + i * 8.0f, p.y + 2.0f - (i % 2) * 3.0f }, 5.0f, GOLD);
+        // Áo choàng + mũ trùm
+        Tri({ p.x - 28, p.y + 24 + bob }, { p.x + 28, p.y + 24 + bob }, { p.x, p.y - 28 + bob }, { 92, 52, 150, 255 });
+        Tri({ p.x - 20, p.y + 22 + bob }, { p.x + 20, p.y + 22 + bob }, { p.x, p.y - 22 + bob }, { 122, 74, 190, 255 });
+        DrawCircleV({ p.x, p.y - 24.0f + bob }, 17.0f, { 70, 38, 120, 255 });
+        DrawCircleV({ p.x, p.y - 22.0f + bob }, 13.0f, { 20, 12, 36, 255 });
+        DrawCircleV({ p.x - 5.0f, p.y - 22.0f + bob }, 2.5f, { 255, 220, 90, 255 });
+        DrawCircleV({ p.x + 5.0f, p.y - 22.0f + bob }, 2.5f, { 255, 220, 90, 255 });
+        // Đèn lồng
+        Vector2 lan = { p.x - 44.0f + sinf(t * 2.5f) * 3.0f, p.y - 2.0f };
+        DrawLineEx({ p.x - 30.0f, p.y - 12.0f + bob }, { lan.x, lan.y - 8.0f }, 2.0f, { 90, 70, 50, 255 });
+        BeginBlendMode(BLEND_ADDITIVE);
+        DrawCircleGradient((int)lan.x, (int)lan.y, 46.0f, Fade({ 255, 190, 80, 255 }, 0.4f), Fade({ 255, 190, 80, 255 }, 0.0f));
+        EndBlendMode();
+        DrawRectangle((int)lan.x - 5, (int)lan.y - 6, 10, 13, { 255, 214, 110, 255 });
+        DrawRectangleLines((int)lan.x - 5, (int)lan.y - 6, 10, 13, { 90, 60, 30, 255 });
+        // Biển hiệu nổi
+        OutlinedText("SHOP", (int)p.x - MeasureText("SHOP", 20) / 2, (int)(p.y - 66.0f + bob), 20, GOLD, { 70, 36, 8, 255 });
+        if (Vector2Distance(p, player.pos) < 130.0f) {
+            const char* prompt = "[F] Trade";
+            OutlinedText(prompt, (int)p.x - MeasureText(prompt, 20) / 2, (int)p.y + 40, 20, WHITE, { 20, 24, 40, 255 });
+        }
+    }
+
     // ── Cài đặt ──
     void LoadSettings() {
         if (!FileExists("settings.cfg")) return;
@@ -2285,6 +2671,8 @@ public:
             AddLight(nv.pos, nv.radius * 1.4f + 60.0f, nv.color, 0.55f * k);
         }
         for (const auto& d : itemDrops) AddLight(d.pos, 90.0f, d.item.RarityColor(), 0.55f);
+        for (const auto& ch : chests) if (!ch.opened) AddLight(ch.pos, ch.vault ? 150.0f : 110.0f, { 255, 214, 90, 255 }, 0.5f);
+        if (shopFloor) AddLight(merchantPos, 240.0f, { 255, 190, 100, 255 }, 0.6f);
         for (const auto& l : loots) {
             Color lc = (l.type == 1) ? Color{ 255, 215, 60, 255 } : (l.type == 2 ? Color{ 255, 100, 130, 255 } : Color{ 90, 200, 255, 255 });
             AddLight(l.pos, 70.0f, lc, 0.55f);
@@ -2317,7 +2705,7 @@ public:
     }
 
     void DrawHelpPanel() {
-        int w = 720, h = 490, x = 1280 / 2 - w / 2, y = 115;
+        int w = 760, h = 524, x = 1280 / 2 - w / 2, y = 100;
         DrawRectangle(x, y, w, h, { 14, 18, 30, 245 });
         DrawRectangleLines(x, y, w, h, GOLD);
         DrawText("CONTROLS", x + w / 2 - MeasureText("CONTROLS", 30) / 2, y + 18, 30, GOLD);
@@ -2329,12 +2717,13 @@ public:
             { "Q / E / U", "Nova shockwave" },
             { "1 / 2 / 3", "Pick an upgrade on level-up" },
             { "I", "Open the equipment screen" },
+            { "F", "Trade with the merchant (every 3rd floor)" },
             { "O / F2", "Settings (title and pause menu)" },
             { "M", "Toggle the radar" },
             { "Esc / P", "Pause" },
             { "F1 / H", "Show or hide this help" },
         };
-        for (int i = 0; i < 11; ++i) {
+        for (int i = 0; i < 12; ++i) {
             DrawText(rows[i][0], x + 36, y + 76 + i * 34, 20, SKYBLUE);
             DrawText(rows[i][1], x + 340, y + 76 + i * 34, 20, RAYWHITE);
         }
@@ -2415,6 +2804,9 @@ public:
 
         for (const auto& tp : torches) DrawTorch(tp);
         for (const auto& pl : pillars) DrawPillar(pl, biome);
+
+        for (const auto& ch : chests) DrawChest(ch);
+        if (shopFloor) DrawMerchant();
 
         // Blood Shrine
         if (hasShrine) {
@@ -2702,6 +3094,7 @@ public:
 
         if (state == INVENTORY) DrawInventory();
         if (state == SETTINGS) DrawSettingsScreen();
+        if (state == SHOP) DrawShopScreen();
         if (state == TITLE) DrawTitleScreen();
         if (state == PAUSED) DrawPauseScreen();
 
