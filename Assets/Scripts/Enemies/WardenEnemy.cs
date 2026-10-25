@@ -3,7 +3,7 @@ using UnityEngine;
 namespace SimpleRPG
 {
     /// <summary>
-    /// Mini-boss xuất hiện ở tầng 3 và 8 (giữa các tầng boss). Dùng lại đòn đập đất của
+    /// Mini-boss xuất hiện ở tầng 4 và 8 (giữa các tầng boss). Dùng lại đòn đập đất của
     /// Armored Slime nhưng to hơn, trâu hơn, tô màu vàng đồng và luôn rơi trang bị.
     /// </summary>
     public class WardenEnemy : BruteEnemy

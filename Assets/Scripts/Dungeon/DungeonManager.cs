@@ -541,8 +541,8 @@ namespace SimpleRPG
                     ? Mathf.Min(1 + (currentFloor - 4) / 2, MaxBombers)
                     : 0;
 
-                // Mini-boss Warden ở tầng 3 và 8
-                bool wardenFloor = currentFloor == 3 || currentFloor == 8;
+                // Mini-boss Warden ở tầng 4 và 8 (tầng 3 là cửa hàng, không có quái)
+                bool wardenFloor = currentFloor == 4 || currentFloor == 8;
 
                 // Trần tổng số quái để màn chơi luôn đọc được
                 const int maxTotal = 28;
