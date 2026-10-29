@@ -407,6 +407,25 @@ static int ItemPrice(const EquipItem& it) {
     return std::max(10, (int)roundf(c));
 }
 
+// ── Thánh địa: nâng cấp vĩnh viễn mua bằng Linh hồn ──────────────────────
+struct MetaUpgrade {
+    const char* name;
+    const char* desc;
+    int maxLevel;
+    int baseCost;
+    int costStep;
+};
+static const MetaUpgrade kMeta[8] = {
+    { "Vitality", "+10 max HP per level", 10, 30, 25 },
+    { "Might", "+2 damage per level", 10, 40, 30 },
+    { "Swiftness", "+5 move speed per level", 6, 30, 30 },
+    { "Prosperity", "+10 starting gold per level", 8, 20, 20 },
+    { "Scholar", "+8% XP gain per level", 8, 40, 35 },
+    { "Lucky Charm", "+2% gear drop chance per level", 5, 60, 50 },
+    { "Haggler", "-5% shop prices per level", 6, 50, 40 },
+    { "Second Wind", "Start every run with a random relic", 1, 400, 0 },
+};
+
 // ── Cài đặt (lưu vào settings.cfg cạnh file exe) ─────────────────────────
 struct Settings {
     int resW = 1280, resH = 720;
@@ -453,7 +472,7 @@ public:
     float screenShakeTimer = 0.0f;
     float screenShakeMag = 0.0f;
 
-    enum State { PLAYING, LEVEL_UP, GAME_OVER, TITLE, PAUSED, INVENTORY, SETTINGS, SHOP };
+    enum State { PLAYING, LEVEL_UP, GAME_OVER, TITLE, PAUSED, INVENTORY, SETTINGS, SHOP, META };
     State state = PLAYING;
     bool quitRequested = false;
     bool showHelp = false;
@@ -477,6 +496,13 @@ public:
     std::vector<Chest> chests;
     std::vector<Enemy> pendingSpawns;
     bool phoenixUsed = false;
+    int souls = 0, runs = 0, lastRunSouls = 0, bossesKilled = 0;
+    int meta[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    State metaReturn = TITLE;
+    int metaSel = 0;
+    std::string metaMsg;
+    float metaMsgTimer = 0.0f;
+    float xpMul = 1.0f;
     State settingsReturn = TITLE;
     std::vector<UpgradeType> levelChoices;
     std::string bannerText = "";
@@ -518,6 +544,14 @@ public:
     void RestartRun() {
         player = Player();
         player.pos = { 0, 240 };
+        // Nâng cấp vĩnh viễn từ Thánh địa
+        player.maxHp += 10.0f * meta[0];
+        player.hp = player.maxHp;
+        player.baseDmg += 2.0f * meta[1];
+        player.speed += 5.0f * meta[2];
+        player.gold += 10 * meta[3];
+        xpMul = 1.0f + 0.08f * meta[4];
+        bossesKilled = 0;
         floor = 1;
         enemiesSlain = 0;
         comboCount = 0;
@@ -532,6 +566,7 @@ public:
         newRecord = false;
         state = PLAYING;
         BuildFloor();
+        if (meta[7] > 0) GiveRandomRelic(); // Second Wind
     }
 
     // ── Bioma: đổi màu phòng mỗi 3 tầng ──
@@ -927,6 +962,7 @@ public:
             UpdateEffects(dt);
             bannerTimer = 3.0f; // giữ thông báo tầng 1 cho đến khi bắt đầu chơi
             if (IsKeyPressed(KEY_O) || IsKeyPressed(KEY_F2)) { settingsReturn = TITLE; setSel = 0; state = SETTINGS; return; }
+            if (IsKeyPressed(KEY_S)) { OpenSanctuary(TITLE); return; }
             if (IsKeyPressed(KEY_F1) || IsKeyPressed(KEY_H)) showHelp = !showHelp;
             else if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
                 showHelp = false;
@@ -951,6 +987,10 @@ public:
         }
         if (state == SHOP) {
             UpdateShop();
+            return;
+        }
+        if (state == META) {
+            UpdateMeta(dt);
             return;
         }
         if (state == INVENTORY) {
@@ -978,6 +1018,7 @@ public:
         }
 
         if (state == GAME_OVER) {
+            if (IsKeyPressed(KEY_S)) { OpenSanctuary(GAME_OVER); return; }
             if (IsKeyPressed(KEY_R) || IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
                 RestartRun();
             }
@@ -1401,7 +1442,7 @@ public:
             }
             if (d < 24.0f) {
                 if (l.type == 0) { // XP
-                    player.xp += l.value;
+                    player.xp += std::max(1, (int)roundf(l.value * xpMul));
                     Burst(l.pos, SKYBLUE, 3, 100.0f, 0.3f);
                     PlaySound(snd.sndCoin);
                     while (player.xp >= player.xpNext) {
@@ -1590,10 +1631,10 @@ public:
             ShowBanner("WARDEN BRUTE DEFEATED!");
             hitStop = 0.08f;
         }
-        if (e.type == BOSS) hitStop = 0.12f;
+        if (e.type == BOSS) { hitStop = 0.12f; bossesKilled++; }
         loots.push_back({ 0, e.pos, (e.type == BOSS ? 150 : (e.isWarden ? 90 : (e.isElite ? 35 : (e.isMinion ? 5 : 15)))), 20.0f });
         {
-            float dropChance = (e.type == BOSS || e.isWarden) ? 1.0f : (e.isElite ? 0.30f : 0.12f);
+            float dropChance = (e.type == BOSS || e.isWarden) ? 1.0f : (e.isElite ? 0.30f : 0.12f) + 0.02f * meta[5];
             if (!e.isMinion && Rand01() < dropChance) SpawnItemDrop(e.pos);
         }
         if ((float)rand() / RAND_MAX < 0.6f || e.isElite) {
@@ -1667,6 +1708,7 @@ public:
         if (player.hp <= 0) {
             state = GAME_OVER;
             PlaySound(snd.sndDeath);
+            AwardSouls();
             if (floor > bestFloor) {
                 bestFloor = floor;
                 SaveSettings();
@@ -2374,12 +2416,12 @@ public:
         for (int i = 0; i < 4; ++i) {
             shopSlots[i] = ShopSlot();
             shopSlots[i].item = GenerateItem(floor);
-            shopSlots[i].price = ItemPrice(shopSlots[i].item);
+            shopSlots[i].price = std::max(1, (int)roundf(ItemPrice(shopSlots[i].item) * (1.0f - 0.05f * meta[6])));
         }
         shopSlots[4] = ShopSlot();
         shopSlots[4].potion = true;
         shopSlots[4].heal = 40.0f + floor * 5.0f;
-        shopSlots[4].price = 15 + floor * 3;
+        shopSlots[4].price = std::max(1, (int)roundf((15 + floor * 3) * (1.0f - 0.05f * meta[6])));
         shopSel = 0;
         shopHinted = false;
     }
@@ -2508,6 +2550,110 @@ public:
         }
     }
 
+    // ── Thánh địa ──
+    int MetaCost(int i) { return kMeta[i].baseCost + kMeta[i].costStep * meta[i]; }
+
+    void AwardSouls() {
+        lastRunSouls = floor * 10 + enemiesSlain / 2 + bossesKilled * 25 + (floor > bestFloor ? 20 : 0);
+        souls += lastRunSouls;
+        runs++;
+        SaveSettings();
+    }
+
+    void BuyMeta(int i) {
+        if (i < 0 || i >= 8) return;
+        if (meta[i] >= kMeta[i].maxLevel) { metaMsg = "Already at max level"; metaMsgTimer = 2.0f; return; }
+        int cost = MetaCost(i);
+        if (souls < cost) { metaMsg = "Not enough Souls"; metaMsgTimer = 2.0f; PlaySound(snd.sndHurt); return; }
+        souls -= cost;
+        meta[i]++;
+        SaveSettings();
+        PlaySound(snd.sndLevelUp);
+        metaMsg = std::string(kMeta[i].name) + " upgraded to level " + std::to_string(meta[i]) + "!";
+        metaMsgTimer = 2.5f;
+    }
+
+    void OpenSanctuary(State from) {
+        metaReturn = from;
+        metaSel = 0;
+        metaMsg.clear();
+        state = META;
+    }
+
+    void CloseSanctuary() {
+        if (metaReturn == TITLE) { RestartRun(); state = TITLE; } // áp dụng nâng cấp mới cho lượt chơi sắp bắt đầu
+        else state = metaReturn;
+    }
+
+    void UpdateMeta(float dt) {
+        if (metaMsgTimer > 0) metaMsgTimer -= dt;
+        if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) metaSel = (metaSel + 1) % 8;
+        if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) metaSel = (metaSel + 7) % 8;
+        if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) BuyMeta(metaSel);
+        for (int i = 0; i < 8; ++i) if (IsKeyPressed(KEY_ONE + i)) { metaSel = i; BuyMeta(i); }
+        Vector2 m = GetMousePosition();
+        for (int i = 0; i < 8; ++i) {
+            Rectangle r = { 190.0f, 150.0f + i * 56.0f, 900.0f, 50.0f };
+            if (CheckCollisionPointRec(m, r)) {
+                if (GetMouseDelta().x != 0 || GetMouseDelta().y != 0) metaSel = i;
+                if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { metaSel = i; BuyMeta(i); }
+            }
+        }
+        if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_BACKSPACE)) CloseSanctuary();
+    }
+
+    void DrawMetaScreen() {
+        float t = (float)GetTime();
+        DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.88f));
+        const char* title = "SANCTUARY";
+        OutlinedText(title, 1280 / 2 - MeasureText(title, 48) / 2, 40, 48, { 190, 150, 255, 255 }, { 40, 20, 80, 255 });
+        const char* sub = "Spend Souls on upgrades that last across every run";
+        DrawText(sub, 1280 / 2 - MeasureText(sub, 18) / 2, 94, 18, { 160, 150, 200, 255 });
+
+        // Linh hồn
+        std::string sv = "Souls: " + std::to_string(souls);
+        int sw = MeasureText(sv.c_str(), 28);
+        float wx = 1280 / 2.0f - sw / 2.0f - 30.0f, wy = 126.0f + sinf(t * 3.0f) * 2.0f;
+        BeginBlendMode(BLEND_ADDITIVE);
+        DrawCircleGradient((int)wx, (int)wy, 26.0f, Fade({ 150, 200, 255, 255 }, 0.5f), Fade({ 150, 200, 255, 255 }, 0.0f));
+        EndBlendMode();
+        DrawCircleV({ wx, wy }, 8.0f, { 190, 225, 255, 255 });
+        Tri({ wx - 5, wy + 4 }, { wx + 5, wy + 4 }, { wx, wy + 18 }, Fade({ 190, 225, 255, 255 }, 0.7f));
+        DrawText(sv.c_str(), 1280 / 2 - sw / 2 + 4, 112, 28, { 200, 230, 255, 255 });
+
+        for (int i = 0; i < 8; ++i) {
+            Rectangle r = { 190.0f, 150.0f + i * 56.0f + 0.0f, 900.0f, 50.0f };
+            r.y += 22.0f;
+            bool sel = (metaSel == i);
+            bool maxed = meta[i] >= kMeta[i].maxLevel;
+            bool afford = !maxed && souls >= MetaCost(i);
+            DrawRectangleRec(r, sel ? Color{ 40, 34, 70, 255 } : Color{ 22, 20, 40, 255 });
+            DrawRectangleLinesEx(r, sel ? 2.0f : 1.0f, sel ? Color{ 190, 150, 255, 255 } : Color{ 60, 54, 100, 255 });
+            DrawText(TextFormat("[%d]", i + 1), (int)r.x + 10, (int)r.y + 16, 16, { 140, 130, 190, 255 });
+            DrawText(kMeta[i].name, (int)r.x + 50, (int)r.y + 6, 20, maxed ? Color{ 255, 215, 90, 255 } : WHITE);
+            DrawText(kMeta[i].desc, (int)r.x + 50, (int)r.y + 29, 14, { 170, 180, 210, 255 });
+            // Các ô cấp độ
+            int pips = kMeta[i].maxLevel;
+            for (int k = 0; k < pips; ++k)
+                DrawRectangle((int)r.x + 430 + k * 16, (int)r.y + 18, 12, 14, k < meta[i] ? Color{ 190, 150, 255, 255 } : Color{ 48, 44, 80, 255 });
+            // Giá
+            Rectangle b = { r.x + r.width - 140.0f, r.y + 8.0f, 126.0f, 34.0f };
+            if (maxed) {
+                DrawRectangleRec(b, { 70, 56, 20, 255 });
+                DrawRectangleLinesEx(b, 1.0f, GOLD);
+                DrawText("MAX", (int)(b.x + b.width / 2) - MeasureText("MAX", 20) / 2, (int)b.y + 7, 20, GOLD);
+            } else {
+                DrawRectangleRec(b, afford ? Color{ 30, 80, 60, 255 } : Color{ 70, 30, 40, 255 });
+                DrawRectangleLinesEx(b, 1.0f, afford ? Color{ 120, 235, 170, 255 } : Color{ 235, 120, 130, 255 });
+                std::string c = std::to_string(MetaCost(i));
+                DrawText(c.c_str(), (int)(b.x + b.width / 2) - MeasureText(c.c_str(), 20) / 2, (int)b.y + 7, 20, afford ? Color{ 200, 255, 220, 255 } : Color{ 255, 170, 170, 255 });
+            }
+        }
+        if (metaMsgTimer > 0) DrawText(metaMsg.c_str(), 1280 / 2 - MeasureText(metaMsg.c_str(), 22) / 2, 640, 22, GOLD);
+        const char* foot = "1-8 / click / Enter: buy      W/S: select      Esc: back";
+        DrawText(foot, 1280 / 2 - MeasureText(foot, 16) / 2, 676, 16, { 150, 160, 200, 255 });
+    }
+
     // ── Cài đặt ──
     void LoadSettings() {
         if (!FileExists("settings.cfg")) return;
@@ -2533,6 +2679,12 @@ public:
             else if (k == "vignette") settings.vignette = v != 0;
             else if (k == "volume") settings.volume = std::max(0, std::min(10, v));
             else if (k == "best") bestFloor = std::max(1, v);
+            else if (k == "souls") souls = std::max(0, v);
+            else if (k == "runs") runs = std::max(0, v);
+            else if (k.size() == 5 && k.compare(0, 4, "meta") == 0) {
+                int mi = k[4] - '0';
+                if (mi >= 0 && mi < 8) meta[mi] = std::max(0, std::min(kMeta[mi].maxLevel, v));
+            }
         }
     }
 
@@ -2541,7 +2693,9 @@ public:
         o << "resW=" << settings.resW << "\nresH=" << settings.resH << "\nfullscreen=" << settings.fullscreen
           << "\nvsync=" << settings.vsync << "\nfpsIndex=" << settings.fpsIndex << "\nshowFps=" << settings.showFps
           << "\nvibration=" << settings.vibration << "\nlighting=" << settings.lighting << "\nparticles=" << settings.particles
-          << "\nvignette=" << settings.vignette << "\nvolume=" << settings.volume << "\nbest=" << bestFloor << "\n";
+          << "\nvignette=" << settings.vignette << "\nvolume=" << settings.volume << "\nbest=" << bestFloor << "\nsouls=" << souls << "\nruns=" << runs;
+        for (int i = 0; i < 8; ++i) o << "\nmeta" << i << "=" << meta[i];
+        o << "\n";
         std::string s = o.str();
         SaveFileText("settings.cfg", (char*)s.c_str());
     }
@@ -3067,7 +3221,7 @@ public:
     }
 
     void DrawHelpPanel() {
-        int w = 760, h = 524, x = 1280 / 2 - w / 2, y = 100;
+        int w = 800, h = 560, x = 1280 / 2 - w / 2, y = 80;
         DrawRectangle(x, y, w, h, { 14, 18, 30, 245 });
         DrawRectangleLines(x, y, w, h, GOLD);
         DrawText("CONTROLS", x + w / 2 - MeasureText("CONTROLS", 30) / 2, y + 18, 30, GOLD);
@@ -3081,11 +3235,12 @@ public:
             { "I", "Open the equipment screen" },
             { "F", "Trade with the merchant (every 3rd floor)" },
             { "O / F2", "Settings (title and pause menu)" },
+            { "S", "Sanctuary: permanent upgrades (title / game over)" },
             { "M", "Toggle the radar" },
             { "Esc / P", "Pause" },
             { "F1 / H", "Show or hide this help" },
         };
-        for (int i = 0; i < 12; ++i) {
+        for (int i = 0; i < 13; ++i) {
             DrawText(rows[i][0], x + 36, y + 76 + i * 34, 20, SKYBLUE);
             DrawText(rows[i][1], x + 340, y + 76 + i * 34, 20, RAYWHITE);
         }
@@ -3111,7 +3266,9 @@ public:
             const char* start = "PRESS ENTER OR CLICK TO START";
             OutlinedText(start, 1280 / 2 - MeasureText(start, 30) / 2, 410, 30, WHITE, { 20, 24, 40, 255 });
         }
-        const char* hint = "O - Settings      F1 - Controls      Esc - Quit";
+        std::string prog = "Souls: " + std::to_string(souls) + "     Runs: " + std::to_string(runs);
+        DrawText(prog.c_str(), 1280 / 2 - MeasureText(prog.c_str(), 20) / 2, 362, 20, { 190, 150, 255, 255 });
+        const char* hint = "S - Sanctuary      O - Settings      F1 - Controls      Esc - Quit";
         DrawText(hint, 1280 / 2 - MeasureText(hint, 20) / 2, 470, 20, { 150, 165, 200, 255 });
         if (showHelp) DrawHelpPanel();
     }
@@ -3408,7 +3565,7 @@ public:
         }
 
         // Banner Toast
-        if (bannerTimer > 0 && state != TITLE && state != PAUSED) {
+        if (bannerTimer > 0 && (state == PLAYING || state == LEVEL_UP)) {
             int bw = MeasureText(bannerText.c_str(), 26) + 60;
             DrawRectangle(1280 / 2 - bw / 2, 140, bw, 46, { 10, 15, 25, 230 });
             DrawRectangleLines(1280 / 2 - bw / 2, 140, bw, 46, GOLD);
@@ -3462,13 +3619,19 @@ public:
                 DrawText(st6.c_str(), 1280 / 2 - 140, 428, 22, ORANGE);
             }
 
-            DrawRectangle(1280 / 2 - 130, 460, 260, 52, MAROON);
-            DrawText("PLAY AGAIN (R)", 1280 / 2 - 75, 476, 22, WHITE);
+            std::string st7 = "Souls earned: +" + std::to_string(lastRunSouls) + "   (total " + std::to_string(souls) + ")";
+            DrawText(st7.c_str(), 1280 / 2 - 140, 458, 22, { 190, 225, 255, 255 });
+
+            DrawRectangle(1280 / 2 - 130, 505, 260, 52, MAROON);
+            DrawText("PLAY AGAIN (R)", 1280 / 2 - 75, 521, 22, WHITE);
+            const char* sanct = "S - Sanctuary: spend your Souls";
+            DrawText(sanct, 1280 / 2 - MeasureText(sanct, 20) / 2, 574, 20, { 190, 150, 255, 255 });
         }
 
         if (state == INVENTORY) DrawInventory();
         if (state == SETTINGS) DrawSettingsScreen();
         if (state == SHOP) DrawShopScreen();
+        if (state == META) DrawMetaScreen();
         if (state == TITLE) DrawTitleScreen();
         if (state == PAUSED) DrawPauseScreen();
 
