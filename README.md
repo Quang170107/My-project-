@@ -261,3 +261,12 @@ The Unity version already had a settings menu and an equipment system; the stand
 - **Five room layouts** (scattered, ring, blocks, bastion, open), never the same twice in a row. Pillars now **block movement and enemy projectiles** (before they were only decoration), and a Charger that hits a pillar is stunned.
 - Total enemies per floor are capped at 28.
 - **Warden Brute** moved to floors **4 and 8** (floor 3 is a merchant floor and has no enemies), in both the Unity project and the exe.
+
+### New content in the standalone exe
+
+- **Weapon types.** Weapons are now Sword (balanced), Dagger (fast, lighter), Axe (heavy, wide arc, 1.35x damage, slower) or Spear (long thrust that pierces everything in a line). They change the slash, the range and what the knight holds. The type is shown in the weapon's tooltip and on the equipment screen.
+- **Splitter** (floor 2+): a teal slime with a visible nucleus that splits into two fast mini slimes when killed. The portal stays closed until the mini slimes are dead too.
+- **Summoner** (floor 6+): keeps its distance, kites you, and every ~6 seconds channels a rune circle and summons two fast minions. Kill it first. Minions never drop gear and give little XP.
+- **Second boss: the Molten Colossus** (floors 10, 20, 30; the Void Sovereign keeps 5, 15, 25). Ground slam with a shockwave and a ring of embers, plus a telegraphed charge. It takes extra damage while exhausted after a charge, and enrages below 50% HP.
+- **4 new relics** (10 in total): Phoenix Feather (revive once at half HP), Midas Touch (+50% gold, bigger pickup range), Berserker Mask (+40% damage below 40% HP), Thorn Mail (getting hurt releases a shockwave). Bosses now give a random relic you do not own yet, Treasure Vault chests give one too, and the equipment screen lists your relics with what they do.
+- Fixed a case where enemies killed by Lightning arcs gave no XP or loot.

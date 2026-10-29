@@ -124,8 +124,8 @@ private:
 };
 
 // ── Game Data Structures ───────────────────────────────────────────────────
-enum EnemyType { CHASER, RANGER, BRUTE, BOSS, BOMBER, CHARGER };
-enum RelicType { RELIC_LIGHTNING, RELIC_TOXIC, RELIC_FROST, RELIC_AEGIS, RELIC_CHALICE, RELIC_COMBUSTION };
+enum EnemyType { CHASER, RANGER, BRUTE, BOSS, BOMBER, CHARGER, SPLITTER, SUMMONER };
+enum RelicType { RELIC_LIGHTNING, RELIC_TOXIC, RELIC_FROST, RELIC_AEGIS, RELIC_CHALICE, RELIC_COMBUSTION, RELIC_PHOENIX, RELIC_MIDAS, RELIC_BERSERK, RELIC_THORNS };
 enum UpgradeType { UP_HP, UP_DMG, UP_SPEED, UP_ATTACK_RATE, UP_DASH, UP_LIFESTEAL, UP_ARMOR, UP_CRIT, UP_NOVA, UP_IGNITE, UP_FROST };
 
 struct Relic {
@@ -201,6 +201,10 @@ struct Enemy {
     float chargeTimer = 0.0f;
     float chargeCooldown = 1.2f;
     Vector2 chargeDir = { 1, 0 };
+    bool isMinion = false;     // quái phụ: không rơi trang bị, ít XP
+    int splitLevel = 0;        // Splitter: 0 = bản lớn, 1 = mảnh nhỏ
+    float summonTimer = 3.0f;  // Summoner: đếm ngược triệu hồi; Colossus: đếm số đòn
+    int bossKind = 0;          // 0 = Void Sovereign, 1 = Molten Colossus
 };
 
 struct Projectile {
@@ -231,6 +235,7 @@ struct DamagePopup {
 struct SlashVisual {
     Vector2 pos;
     float angle;
+    int kind = 0; // loại vũ khí: 0 kiếm, 1 dao găm, 2 rìu, 3 giáo
     float timer = 0.15f;
     float maxTimer = 0.15f;
 };
@@ -289,6 +294,7 @@ struct EquipItem {
     std::string name;
     int slot = 0;
     int rarity = 0; // 0 thường, 1 hiếm, 2 sử thi, 3 huyền thoại
+    int weaponType = 0; // chỉ dùng cho vũ khí: 0 kiếm, 1 dao găm, 2 rìu, 3 giáo
     float damage = 0, maxHp = 0, armor = 0, moveSpeed = 0, attackRate = 0, lifesteal = 0, crit = 0;
 
     float Score() const { return damage + maxHp * 0.3f + armor * 4.0f + moveSpeed * 6.0f + attackRate * 8.0f + lifesteal * 100.0f + crit * 80.0f; }
@@ -307,6 +313,10 @@ struct EquipItem {
     }
     std::vector<std::string> StatLines() const {
         std::vector<std::string> v;
+        if (slot == SLOT_WEAPON) {
+            static const char* trait[4] = { "Balanced swing", "Fast light strikes", "Heavy wide swing", "Long piercing thrust" };
+            v.push_back(trait[std::max(0, std::min(3, weaponType))]);
+        }
         auto fmt = [](float x) { std::ostringstream ss; ss << (x == (int)x ? (int)x : roundf(x * 10) / 10); return ss.str(); };
         if (damage > 0) v.push_back("+" + fmt(damage) + " Damage");
         if (maxHp > 0) v.push_back("+" + fmt(maxHp) + " Max HP");
@@ -330,7 +340,7 @@ static float R1(float v) { return roundf(v * 10.0f) / 10.0f; }
 
 static EquipItem GenerateItem(int floor) {
     static const char* names[4][4] = {
-        { "Sword", "Blade", "Axe", "Spear" }, { "Plate", "Mail", "Vest", "Cuirass" },
+        { "Sword", "Dagger", "Axe", "Spear" }, { "Plate", "Mail", "Vest", "Cuirass" },
         { "Boots", "Greaves", "Sandals", "Treads" }, { "Ring", "Band", "Signet", "Loop" } };
     static const char* prefix[4][4] = {
         { "Rusty", "Worn", "Plain", "Sturdy" }, { "Fine", "Tempered", "Keen", "Reinforced" },
@@ -360,7 +370,9 @@ static EquipItem GenerateItem(int floor) {
             it.attackRate = std::min(2.0f, R1(0.25f * m));
             break;
     }
-    it.name = std::string(prefix[it.rarity][rand() % 4]) + " " + names[it.slot][rand() % 4];
+    int ni = rand() % 4;
+    if (it.slot == SLOT_WEAPON) it.weaponType = ni; // Sword / Blade / Axe / Spear
+    it.name = std::string(prefix[it.rarity][rand() % 4]) + " " + names[it.slot][ni];
     return it;
 }
 
@@ -463,6 +475,8 @@ public:
     int shopSel = 0;
     bool shopHinted = false;
     std::vector<Chest> chests;
+    std::vector<Enemy> pendingSpawns;
+    bool phoenixUsed = false;
     State settingsReturn = TITLE;
     std::vector<UpgradeType> levelChoices;
     std::string bannerText = "";
@@ -513,6 +527,8 @@ public:
         particles.clear();
         for (int i = 0; i < 4; ++i) hasEquip[i] = false;
         itemDrops.clear();
+        pendingSpawns.clear();
+        phoenixUsed = false;
         newRecord = false;
         state = PLAYING;
         BuildFloor();
@@ -586,6 +602,8 @@ public:
         if (e.type == BOSS) return { 242, 77, 77, 255 };
         if (e.type == BOMBER) return { 255, 153, 38, 255 };
         if (e.type == CHARGER) return { 235, 140, 70, 255 };
+        if (e.type == SPLITTER) return { 90, 220, 230, 255 };
+        if (e.type == SUMMONER) return { 170, 110, 255, 255 };
         if (e.type == BRUTE) return { 153, 102, 242, 255 };
         if (e.type == RANGER) return { 242, 77, 89, 255 };
         return { 102, 230, 89, 255 };
@@ -647,6 +665,7 @@ public:
         pillars.clear();
         particles.clear();
         itemDrops.clear();
+        pendingSpawns.clear();
         BuildDecor();
 
         portalOpen = false;
@@ -697,12 +716,14 @@ public:
             int spitters = std::min(8, std::max(0, (floor - 1) * 2));
             int brutes = std::min(5, std::max(0, floor - 2));
             int chargers = (floor >= 2) ? std::min(3, 1 + (floor - 2) / 3) : 0;
+            int splitters = (floor >= 2) ? std::min(3, 1 + floor / 5) : 0;
+            int summoners = (floor >= 6) ? std::min(2, 1 + (floor - 6) / 5) : 0;
             int bombers = (floor >= 4) ? std::min(4, 1 + (floor - 4) / 2) : 0;
             switch (floorMod) {
                 case MOD_SWARM:
                     chasers = std::min(16, (int)roundf((3 + floor) * 1.8f));
                     spitters = std::min(8, std::max(0, floor - 1));
-                    brutes = 0; bombers = 0; chargers = std::min(chargers, 1);
+                    brutes = 0; bombers = 0; chargers = std::min(chargers, 1); summoners = 0;
                     break;
                 case MOD_ELITE:
                     chasers = 2 + floor / 2; spitters = floor / 2; brutes = std::min(8, 2 + floor / 2);
@@ -715,7 +736,7 @@ public:
 
             // Trần tổng số quái để màn chơi còn đọc được: bớt quái nhỏ trước
             const int maxTotal = 28;
-            int total = chasers + spitters + brutes + chargers + bombers + ((floor == 4 || floor == 8) ? 1 : 0);
+            int total = chasers + spitters + brutes + chargers + bombers + splitters + summoners + ((floor == 4 || floor == 8) ? 1 : 0);
             while (total > maxTotal && (chasers > 2 || spitters > 2)) {
                 if (chasers > 2) chasers--; else spitters--;
                 total--;
@@ -725,6 +746,8 @@ public:
             for (int i = 0; i < spitters; ++i) SpawnEnemy(RANGER, GetRandomSpawnPos());
             for (int i = 0; i < brutes; ++i) SpawnEnemy(BRUTE, GetRandomSpawnPos());
             for (int i = 0; i < chargers; ++i) SpawnEnemy(CHARGER, GetRandomSpawnPos());
+            for (int i = 0; i < splitters; ++i) SpawnEnemy(SPLITTER, GetRandomSpawnPos());
+            for (int i = 0; i < summoners; ++i) SpawnEnemy(SUMMONER, GetRandomSpawnPos());
             for (int i = 0; i < bombers; ++i) SpawnEnemy(BOMBER, GetRandomSpawnPos());
 
             // Warden Brute: mini-boss ở tầng 4 và 8 (tầng 3 là cửa hàng)
@@ -783,7 +806,9 @@ public:
         return { 0, -150 };
     }
 
-    void SpawnEnemy(EnemyType type, Vector2 pos) {
+    void SpawnEnemy(EnemyType type, Vector2 pos) { enemies.push_back(BuildEnemy(type, pos)); }
+
+    Enemy BuildEnemy(EnemyType type, Vector2 pos) {
         Enemy e;
         e.type = type;
         e.pos = pos;
@@ -812,16 +837,36 @@ public:
             e.contactDmg = 12.0f * multDmg;
             e.radius = 21.0f;
             e.chargeCooldown = 0.8f + 1.4f * Rand01();
+        } else if (type == SPLITTER) {
+            e.maxHp = 60.0f * multHp;
+            e.speed = 125.0f;
+            e.contactDmg = 14.0f * multDmg;
+            e.radius = 26.0f;
+        } else if (type == SUMMONER) {
+            e.maxHp = 42.0f * multHp;
+            e.speed = 105.0f;
+            e.contactDmg = 8.0f * multDmg;
+            e.radius = 20.0f;
+            e.summonTimer = 2.5f + 2.0f * Rand01();
         } else if (type == BOMBER) {
             e.maxHp = 22.0f * multHp;
             e.speed = 190.0f;
             e.contactDmg = 6.0f * multDmg;
             e.radius = 17.0f;
         } else if (type == BOSS) {
-            e.maxHp = 260.0f * multHp;
-            e.speed = 115.0f;
-            e.contactDmg = 20.0f * multDmg;
-            e.radius = 42.0f;
+            e.bossKind = ((floor / 5) % 2 == 0) ? 1 : 0; // tầng 5, 15, 25: Void Sovereign; tầng 10, 20, 30: Molten Colossus
+            if (e.bossKind == 1) {
+                e.maxHp = 360.0f * multHp;
+                e.speed = 95.0f;
+                e.contactDmg = 24.0f * multDmg;
+                e.radius = 48.0f;
+                e.summonTimer = 0.0f;
+            } else {
+                e.maxHp = 260.0f * multHp;
+                e.speed = 115.0f;
+                e.contactDmg = 20.0f * multDmg;
+                e.radius = 42.0f;
+            }
         }
         e.hp = e.maxHp;
 
@@ -834,7 +879,7 @@ public:
             e.radius *= 1.2f;
         }
 
-        enemies.push_back(e);
+        return e;
     }
 
     void SpawnPopup(Vector2 pos, const std::string& txt, Color col) {
@@ -862,9 +907,13 @@ public:
         else if (t == RELIC_AEGIS) { r.name = "Divine Aegis"; r.symbol = "🛡"; r.color = GOLD; player.shieldActive = true; }
         else if (t == RELIC_CHALICE) { r.name = "Blood Chalice"; r.symbol = "🩸"; r.color = RED; }
         else if (t == RELIC_COMBUSTION) { r.name = "Combustion Sigil"; r.symbol = "💥"; r.color = ORANGE; }
+        else if (t == RELIC_PHOENIX) { r.name = "Phoenix Feather"; r.symbol = "F"; r.color = { 255, 140, 60, 255 }; }
+        else if (t == RELIC_MIDAS) { r.name = "Midas Touch"; r.symbol = "G"; r.color = { 255, 235, 120, 255 }; }
+        else if (t == RELIC_BERSERK) { r.name = "Berserker Mask"; r.symbol = "B"; r.color = { 255, 90, 150, 255 }; }
+        else if (t == RELIC_THORNS) { r.name = "Thorn Mail"; r.symbol = "T"; r.color = { 170, 120, 255, 255 }; }
         player.relics.push_back(r);
         PlaySound(snd.sndLevelUp);
-        ShowBanner("RELIC ACQUIRED: " + r.name + "!");
+        ShowBanner("RELIC: " + r.name + " - " + RelicDesc(t), 3.5f);
     }
 
     void Update(float dt) {
@@ -1001,33 +1050,7 @@ public:
 
         // Melee Slash Attack
         if ((IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsKeyDown(KEY_SPACE) || IsKeyDown(KEY_J)) && player.attackTimer <= 0 && !player.isDashing) {
-            player.attackTimer = 1.0f / player.attackRate;
-            PlaySound(snd.sndSlash);
-
-            SlashVisual sv;
-            sv.pos = Vector2Add(player.pos, Vector2Scale(aimDir, 35.0f));
-            sv.angle = atan2f(aimDir.y, aimDir.x) * RAD2DEG;
-            slashes.push_back(sv);
-
-            // Hit query in front
-            Vector2 hitCenter = Vector2Add(player.pos, Vector2Scale(aimDir, 45.0f));
-            float hitRadius = 75.0f;
-            bool hitAny = false;
-
-            for (auto& e : enemies) {
-                if (e.hp <= 0) continue;
-                if (Vector2Distance(hitCenter, e.pos) <= hitRadius + e.radius) {
-                    hitAny = true;
-                    bool isCrit = ((float)rand() / RAND_MAX < player.critChance);
-                    float dmg = player.baseDmg * (isCrit ? 2.0f : 1.0f);
-                    Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
-                    DamageEnemy(e, dmg, kb, isCrit ? 240.0f : 160.0f, isCrit);
-                }
-            }
-            if (hitAny) {
-                PlaySound(snd.sndHit);
-                Shake(0.12f, 3.5f);
-            }
+            MeleeAttack(aimDir);
         }
 
         // Special Nova Pulse (Q / E / U)
@@ -1093,7 +1116,7 @@ public:
             Vector2 dir = Vector2Normalize(toPlayer);
             if (fabs(dir.x) > 0.05f) e.facingLeft = (dir.x < 0);
 
-            if (e.type == CHASER) {
+            if (e.type == CHASER || e.type == SPLITTER) {
                 e.bounceTimer += dt * 6.0f;
                 float hop = std::max(0.2f, sinf(e.bounceTimer));
                 e.vel = Vector2Scale(dir, e.speed * hop * speedMod);
@@ -1118,6 +1141,95 @@ public:
                     p.radius = 7.0f;
                     p.color = RED;
                     projectiles.push_back(p);
+                }
+            } else if (e.type == SUMMONER) {
+                if (e.chargeState == 0) {
+                    Vector2 moveDir = { 0, 0 };
+                    if (dist < 260.0f) moveDir = Vector2Negate(dir);
+                    else if (dist > 380.0f) moveDir = dir;
+                    else moveDir = { -dir.y, dir.x };
+                    e.pos = Vector2Add(e.pos, Vector2Scale(moveDir, e.speed * speedMod * dt));
+                    e.summonTimer -= dt;
+                    if (e.summonTimer <= 0) {
+                        int aliveCount = (int)pendingSpawns.size();
+                        for (const auto& o : enemies) if (o.hp > 0) aliveCount++;
+                        if (aliveCount < 30) { e.chargeState = 1; e.chargeTimer = 1.0f; PlaySound(snd.sndShield); }
+                        else e.summonTimer = 1.0f;
+                    }
+                } else {
+                    e.chargeTimer -= dt; // đứng yên niệm chú
+                    if (e.chargeTimer <= 0) {
+                        for (int k = 0; k < 2; ++k)
+                            SpawnMinionChaser(Vector2Add(e.pos, { (k == 0 ? -34.0f : 34.0f), 10.0f }));
+                        Burst(e.pos, { 170, 110, 255, 255 }, 20, 230.0f, 0.6f);
+                        PlaySound(snd.sndSpecial);
+                        e.chargeState = 0;
+                        e.summonTimer = 6.5f;
+                    }
+                }
+            } else if (e.type == BOSS && e.bossKind == 1) {
+                // Molten Colossus: đập đất (sóng + đạn lửa) và lao tới có báo hiệu
+                if (!e.enraged && e.hp < e.maxHp * 0.5f) {
+                    e.enraged = true;
+                    ShowBanner("THE MOLTEN COLOSSUS ENRAGES!");
+                    Shake(0.4f, 8.0f);
+                    PlaySound(snd.sndSpecial);
+                }
+                float spd = e.speed * (e.enraged ? 1.3f : 1.0f) * speedMod;
+                if (e.chargeState == 0) {
+                    e.pos = Vector2Add(e.pos, Vector2Scale(dir, spd * 0.8f * dt));
+                    e.attackTimer += dt;
+                    if (e.attackTimer >= (e.enraged ? 2.2f : 3.2f)) {
+                        e.attackTimer = 0;
+                        e.summonTimer += 1.0f;
+                        PlaySound(snd.sndShoot);
+                        if (((int)e.summonTimer) % 3 == 0) { e.chargeState = 3; e.chargeTimer = 0.9f; e.chargeDir = dir; }
+                        else { e.chargeState = 1; e.chargeTimer = 0.9f; }
+                    }
+                } else if (e.chargeState == 1) {
+                    e.chargeTimer -= dt;
+                    if (e.chargeTimer <= 0) {
+                        const float R = 190.0f;
+                        PlaySound(snd.sndSpecial);
+                        Shake(0.35f, 8.0f);
+                        NovaVisual nv;
+                        nv.pos = e.pos; nv.radius = 0; nv.maxRadius = R; nv.timer = 0.4f; nv.maxTimer = 0.4f; nv.color = ORANGE;
+                        novas.push_back(nv);
+                        Burst(e.pos, { 255, 150, 50, 255 }, 36, 360.0f, 0.7f);
+                        if (Vector2Distance(e.pos, player.pos) <= R) DamagePlayer(e.contactDmg * 1.3f);
+                        int n = e.enraged ? 14 : 10;
+                        for (int i = 0; i < n; ++i) {
+                            float a = i * (2.0f * PI / n);
+                            Projectile p;
+                            p.pos = e.pos;
+                            p.vel = { cosf(a) * 230.0f, sinf(a) * 230.0f };
+                            p.damage = e.contactDmg * 0.6f;
+                            p.fromPlayer = false;
+                            p.life = 3.0f;
+                            p.radius = 8.0f;
+                            p.color = { 255, 120, 40, 255 };
+                            projectiles.push_back(p);
+                        }
+                        e.chargeState = 5;
+                        e.chargeTimer = 0.7f;
+                    }
+                } else if (e.chargeState == 3) {
+                    e.chargeTimer -= dt;
+                    if (e.chargeTimer > 0.25f) e.chargeDir = dir;
+                    if (e.chargeTimer <= 0) { e.chargeState = 4; e.chargeTimer = 0.65f; PlaySound(snd.sndDash); }
+                } else if (e.chargeState == 4) {
+                    e.chargeTimer -= dt;
+                    e.pos = Vector2Add(e.pos, Vector2Scale(e.chargeDir, 600.0f * speedMod * dt));
+                    if (Rand01() < 0.6f) Burst(Vector2Subtract(e.pos, Vector2Scale(e.chargeDir, e.radius)), { 255, 140, 50, 255 }, 1, 80.0f, 0.4f);
+                    float bx = roomW / 2.0f - e.radius - 6.0f, by = roomH / 2.0f - e.radius - 6.0f;
+                    bool wall = fabsf(e.pos.x) > bx || fabsf(e.pos.y) > by;
+                    e.pos.x = Clamp(e.pos.x, -bx, bx);
+                    e.pos.y = Clamp(e.pos.y, -by, by);
+                    if (wall) { Shake(0.3f, 7.0f); Burst(e.pos, { 200, 160, 120, 255 }, 20, 260.0f, 0.5f); e.chargeTimer = 0; }
+                    if (e.chargeTimer <= 0) { e.chargeState = 5; e.chargeTimer = wall ? 1.4f : 0.7f; }
+                } else {
+                    e.chargeTimer -= dt;
+                    if (e.chargeTimer <= 0) e.chargeState = 0;
                 }
             } else if (e.type == BRUTE) {
                 e.attackTimer += dt;
@@ -1235,6 +1347,12 @@ public:
 
             // Contact damage with player
             bool hitPillar = ResolvePillars(e.pos, e.radius * 0.85f);
+            if (hitPillar && e.type == BOSS && e.bossKind == 1 && e.chargeState == 4) {
+                e.chargeState = 5;
+                e.chargeTimer = 1.4f;
+                Shake(0.3f, 7.0f);
+                Burst(e.pos, { 200, 160, 120, 255 }, 20, 260.0f, 0.5f);
+            }
             if (hitPillar && e.type == CHARGER && e.chargeState == 2) { // đâm vào cột: choáng
                 e.chargeState = 3;
                 e.chargeTimer = 1.2f;
@@ -1242,12 +1360,13 @@ public:
                 Burst(e.pos, { 200, 190, 170, 255 }, 10, 180.0f, 0.4f);
             }
             if (Vector2Distance(e.pos, player.pos) < e.radius + 18.0f) {
-                float contactMul = (e.type == CHARGER && e.chargeState == 2) ? 1.8f : 1.0f;
+                float contactMul = ((e.type == CHARGER && e.chargeState == 2) || (e.type == BOSS && e.bossKind == 1 && e.chargeState == 4)) ? 1.8f : 1.0f;
                 DamagePlayer(e.contactDmg * contactMul);
             }
         }
 
         // ── Projectiles ──
+        FlushSpawns();
         for (size_t i = 0; i < projectiles.size();) {
             auto& p = projectiles[i];
             p.pos = Vector2Add(p.pos, Vector2Scale(p.vel, dt));
@@ -1276,7 +1395,7 @@ public:
         for (size_t i = 0; i < loots.size();) {
             auto& l = loots[i];
             float d = Vector2Distance(l.pos, player.pos);
-            if (d < 160.0f) {
+            if (d < (HasRelic(RELIC_MIDAS) ? 260.0f : 160.0f)) {
                 Vector2 pull = Vector2Normalize(Vector2Subtract(player.pos, l.pos));
                 l.pos = Vector2Add(l.pos, Vector2Scale(pull, 420.0f * dt));
             }
@@ -1292,7 +1411,7 @@ public:
                         TriggerLevelUp();
                     }
                 } else if (l.type == 1) { // Gold
-                    player.gold += l.value;
+                    player.gold += HasRelic(RELIC_MIDAS) ? (int)roundf(l.value * 1.5f) : l.value;
                     Burst(l.pos, GOLD, 4, 120.0f, 0.35f);
                     PlaySound(snd.sndCoin);
                 } else if (l.type == 2) { // Potion
@@ -1364,7 +1483,7 @@ public:
         }
 
         // ── Check Room Clearance ──
-        bool anyAlive = false;
+        bool anyAlive = !pendingSpawns.empty();
         for (const auto& e : enemies) {
             if (e.hp > 0) { anyAlive = true; break; }
         }
@@ -1391,6 +1510,8 @@ public:
 
     void DamageEnemy(Enemy& e, float dmg, Vector2 kb, float kbForce, bool isCrit) {
         if (e.type == CHARGER && e.chargeState == 3) dmg *= 1.5f; // choáng sau cú lao: dễ trúng đòn
+        if (e.type == BOSS && e.bossKind == 1 && e.chargeState == 5) dmg *= 1.3f; // Colossus kiệt sức: nhận thêm sát thương
+        if (HasRelic(RELIC_BERSERK) && player.hp < player.maxHp * 0.4f) dmg *= 1.4f;
         e.hp -= dmg;
         e.pos = Vector2Add(e.pos, Vector2Scale(kb, kbForce * 0.05f));
         SpawnPopup(e.pos, (isCrit ? "!" : "") + std::to_string((int)dmg), isCrit ? YELLOW : WHITE);
@@ -1423,6 +1544,7 @@ public:
                 if (&other != &e && other.hp > 0 && Vector2Distance(e.pos, other.pos) < 180.0f) {
                     other.hp -= dmg * 0.5f;
                     SpawnPopup(other.pos, std::to_string((int)(dmg * 0.5f)), SKYBLUE);
+                    if (other.hp <= 0) OnEnemyKilled(other);
                     break;
                 }
             }
@@ -1435,6 +1557,13 @@ public:
 
     void OnEnemyKilled(Enemy& e) {
         Burst(e.pos, DeathColor(e), e.type == BOSS ? 40 : 16, 260.0f, 0.6f);
+
+        // Splitter bản lớn chia thành 2 mảnh nhỏ (đưa vào hàng đợi vì có thể đang duyệt danh sách quái)
+        if (e.type == SPLITTER && e.splitLevel == 0) {
+            SpawnSplitMini(Vector2Add(e.pos, { -22.0f, 6.0f }));
+            SpawnSplitMini(Vector2Add(e.pos, { 22.0f, 6.0f }));
+            Burst(e.pos, { 90, 220, 230, 255 }, 14, 200.0f, 0.5f);
+        }
 
         // Bomber tự nổ: không rơi loot, không tính combo
         if (e.type == BOMBER && e.exploded) {
@@ -1462,10 +1591,10 @@ public:
             hitStop = 0.08f;
         }
         if (e.type == BOSS) hitStop = 0.12f;
-        loots.push_back({ 0, e.pos, (e.type == BOSS ? 150 : (e.isWarden ? 90 : (e.isElite ? 35 : 15))), 20.0f });
+        loots.push_back({ 0, e.pos, (e.type == BOSS ? 150 : (e.isWarden ? 90 : (e.isElite ? 35 : (e.isMinion ? 5 : 15)))), 20.0f });
         {
             float dropChance = (e.type == BOSS || e.isWarden) ? 1.0f : (e.isElite ? 0.30f : 0.12f);
-            if (Rand01() < dropChance) SpawnItemDrop(e.pos);
+            if (!e.isMinion && Rand01() < dropChance) SpawnItemDrop(e.pos);
         }
         if ((float)rand() / RAND_MAX < 0.6f || e.isElite) {
             loots.push_back({ 1, Vector2Add(e.pos, { 10, 0 }), rand() % 4 + 1, 20.0f });
@@ -1494,10 +1623,7 @@ public:
 
         // Boss drops Relic!
         if (e.type == BOSS) {
-            std::vector<RelicType> pool = { RELIC_LIGHTNING, RELIC_TOXIC, RELIC_FROST, RELIC_AEGIS, RELIC_CHALICE, RELIC_COMBUSTION };
-            for (auto r : pool) {
-                if (!HasRelic(r)) { AddRelic(r); break; }
-            }
+            GiveRandomRelic();
         }
     }
 
@@ -1522,6 +1648,21 @@ public:
         PlaySound(snd.sndHurt);
         Shake(0.18f, 5.0f);
         SpawnPopup(player.pos, std::to_string((int)effDmg), RED);
+
+        if (player.hp <= 0 && HasRelic(RELIC_PHOENIX) && !phoenixUsed) {
+            // Phoenix Feather: hồi sinh một lần với nửa máu
+            phoenixUsed = true;
+            player.hp = player.maxHp * 0.5f;
+            player.invulnTimer = 2.5f;
+            for (size_t ri = 0; ri < player.relics.size(); ++ri)
+                if (player.relics[ri].type == RELIC_PHOENIX) { player.relics.erase(player.relics.begin() + ri); break; }
+            Burst(player.pos, { 255, 160, 60, 255 }, 40, 380.0f, 0.9f);
+            Shake(0.4f, 8.0f);
+            PlaySound(snd.sndLevelUp);
+            ShowBanner("THE PHOENIX FEATHER BRINGS YOU BACK!", 3.0f);
+        } else if (player.hp > 0 && HasRelic(RELIC_THORNS)) {
+            ThornBurst();
+        }
 
         if (player.hp <= 0) {
             state = GAME_OVER;
@@ -1659,9 +1800,11 @@ public:
         look = (Vector2Length(look) > 0.01f) ? Vector2Normalize(look) : Vector2{ 0, 1 };
 
         Color base = { 90, 210, 90, 255 };
-        if (e.type == RANGER) base = { 228, 72, 88, 255 };
+        if (e.type == SPLITTER) base = { 70, 190, 205, 255 };
+        else if (e.type == SUMMONER) base = { 96, 60, 168, 255 };
+        else if (e.type == RANGER) base = { 228, 72, 88, 255 };
         else if (e.type == BRUTE) base = e.isWarden ? Color{ 214, 156, 62, 255 } : Color{ 146, 92, 206, 255 };
-        else if (e.type == BOSS) base = e.enraged ? Color{ 150, 40, 70, 255 } : Color{ 88, 46, 142, 255 };
+        else if (e.type == BOSS) base = (e.bossKind == 1) ? (e.enraged ? Color{ 205, 62, 30, 255 } : Color{ 165, 78, 44, 255 }) : (e.enraged ? Color{ 150, 40, 70, 255 } : Color{ 88, 46, 142, 255 });
         else if (e.type == BOMBER) base = { 255, 140, 38, 255 };
         else if (e.type == CHARGER) base = { 205, 120, 66, 255 };
 
@@ -1685,7 +1828,7 @@ public:
         }
         if (e.type == BOSS) {
             float k = 0.5f + 0.5f * sinf(t * 3.0f);
-            Color aura = e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 170, 80, 255, 255 };
+            Color aura = (e.bossKind == 1) ? (e.enraged ? Color{ 255, 90, 30, 255 } : Color{ 255, 150, 50, 255 }) : (e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 170, 80, 255, 255 });
             DrawCircle((int)c.x, (int)c.y, r * 1.55f, Fade(aura, 0.07f + 0.05f * k));
             DrawCircle((int)c.x, (int)c.y, r * 1.25f, Fade(aura, 0.10f + 0.05f * k));
             for (int i = 0; i < 4; ++i) {
@@ -1697,13 +1840,17 @@ public:
             }
         }
 
-        if (e.type == CHASER) {
+        if (e.type == CHASER || e.type == SPLITTER) {
             // Slime nhảy: co giãn theo nhịp nhảy
             float hop = std::max(0.2f, sinf(e.bounceTimer));
             float rx = r * (1.0f + 0.14f * (1.0f - hop));
             float ry = r * (0.80f + 0.22f * hop);
             Vector2 bc = { c.x, c.y + (r - ry) - hop * 5.0f };
             Blob(bc, rx, ry, base);
+            if (e.type == SPLITTER && e.splitLevel == 0) { // nhân bên trong: dấu hiệu sẽ chia đôi
+                DrawCircleV({ bc.x, bc.y + ry * 0.2f }, rx * 0.36f, Fade(Shade(base, 0.55f), 0.75f));
+                DrawCircleV({ bc.x - rx * 0.1f, bc.y + ry * 0.12f }, rx * 0.12f, Fade(WHITE, 0.5f));
+            }
             DrawCircle((int)(bc.x - rx * 0.55f), (int)(bc.y + ry * 0.92f), 3.0f, Shade(base, 0.75f)); // giọt nhầy
             DrawCircle((int)(bc.x + rx * 0.45f), (int)(bc.y + ry * 0.98f), 2.2f, Shade(base, 0.75f));
             Eye({ bc.x - rx * 0.36f, bc.y - ry * 0.12f }, rx * 0.21f, ry * 0.27f, look, { 30, 120, 40, 255 });
@@ -1747,6 +1894,46 @@ public:
             if (e.attackTimer > 2.8f && Vector2Distance(c, player.pos) < 150.0f) {
                 float k = (e.attackTimer - 2.8f) / 0.7f;
                 DrawCircleLines((int)c.x, (int)c.y, 140.0f * std::min(1.0f, k), Fade({ 200, 120, 255, 255 }, 0.8f));
+            }
+        } else if (e.type == BOSS && e.bossKind == 1) {
+            // Báo hiệu: vòng đập đất / làn lao
+            if (e.chargeState == 1) {
+                float k = 1.0f - e.chargeTimer / 0.9f;
+                DrawCircle((int)c.x, (int)c.y, 190.0f, Fade({ 255, 70, 30, 255 }, 0.06f + 0.12f * k));
+                DrawCircleLines((int)c.x, (int)c.y, 190.0f * std::max(0.1f, k), Fade({ 255, 160, 60, 255 }, 0.9f));
+                DrawCircleLines((int)c.x, (int)c.y, 190.0f, Fade({ 255, 90, 40, 255 }, 0.8f));
+            }
+            if (e.chargeState == 3) {
+                float k = 0.5f + 0.5f * sinf(t * 30.0f);
+                Vector2 end = { c.x + e.chargeDir.x * 560.0f, c.y + e.chargeDir.y * 560.0f };
+                DrawLineEx(c, end, r * 1.6f, Fade({ 255, 60, 40, 255 }, 0.10f + 0.10f * k));
+                DrawLineEx(c, end, 4.0f, Fade({ 255, 120, 60, 255 }, 0.6f + 0.4f * k));
+            }
+            float sq = (e.chargeState == 4) ? 1.12f : 1.0f;
+            Blob(c, r * sq, r * (2.0f - sq) * 0.98f, base);
+            // Giáp đá trên lưng
+            for (int i = -2; i <= 2; ++i) {
+                float bx2 = c.x + i * r * 0.32f;
+                Tri({ bx2 - r * 0.14f, c.y - r * 0.55f }, { bx2 + r * 0.14f, c.y - r * 0.55f }, { bx2, c.y - r * (1.0f + 0.12f * (2 - abs(i))) }, Shade(base, 0.45f));
+            }
+            // Vết nứt dung nham phát sáng
+            for (int i = -2; i <= 2; ++i) {
+                float gl = 0.7f + 0.3f * sinf(t * 3.0f + i);
+                DrawLineEx({ c.x + i * r * 0.26f, c.y + r * 0.05f }, { c.x + i * r * 0.36f + sinf(t * 2.0f + i) * 3.0f, c.y + r * 0.8f }, 3.0f, Fade({ 255, 190, 60, 255 }, gl));
+            }
+            Color eyeC = e.enraged ? Color{ 255, 240, 120, 255 } : Color{ 255, 200, 70, 255 };
+            for (int s2 = -1; s2 <= 1; s2 += 2) {
+                Vector2 ec = { c.x + s2 * r * 0.36f, c.y - r * 0.14f };
+                DrawCircleV(ec, r * 0.28f, Fade(eyeC, 0.3f));
+                DrawEllipse((int)ec.x, (int)ec.y, r * 0.16f, r * 0.09f, eyeC);
+                DrawLineEx({ ec.x - s2 * r * 0.28f, ec.y - r * 0.26f }, { ec.x + s2 * r * 0.16f, ec.y - r * 0.08f }, 4.0f, { 40, 14, 8, 255 });
+            }
+            DrawEllipse((int)c.x, (int)(c.y + r * 0.46f), r * 0.34f, r * 0.12f, Fade({ 255, 150, 40, 255 }, 0.9f));
+            // Ngọn lửa trên đầu
+            for (int i = -1; i <= 1; ++i) {
+                float fl = 0.7f + 0.3f * sinf(t * 14.0f + i * 2.0f);
+                DrawCircleV({ c.x + i * r * 0.28f, c.y - r * 1.05f - fl * 6.0f }, r * 0.14f * fl + 3.0f, Fade({ 255, 140, 40, 255 }, 0.85f));
+                DrawCircleV({ c.x + i * r * 0.28f, c.y - r * 1.02f - fl * 4.0f }, r * 0.07f * fl + 1.5f, { 255, 235, 150, 255 });
             }
         } else if (e.type == BOSS) {
             Blob(c, r, r * 0.98f, base);
@@ -1805,6 +1992,34 @@ public:
                     float a3 = t * 6.0f + i * 2.094f;
                     DrawCircleV({ c.x + cosf(a3) * r * 0.8f, c.y - r - 8.0f + sinf(a3) * 5.0f }, 4.0f, { 255, 230, 80, 255 });
                 }
+        } else if (e.type == SUMMONER) {
+            // Pháp sư: áo choàng, mũ trùm, 3 quả cầu xoay, vòng triệu hồi khi niệm chú
+            if (e.chargeState == 1) {
+                float k = 1.0f - e.chargeTimer;
+                DrawCircleLines((int)c.x, (int)c.y, 40.0f + 30.0f * k, Fade({ 190, 130, 255, 255 }, 0.9f));
+                DrawCircleLines((int)c.x, (int)c.y, 22.0f + 16.0f * k, Fade({ 190, 130, 255, 255 }, 0.7f));
+                for (int i = 0; i < 6; ++i) {
+                    float a = t * 3.0f + i * (PI / 3.0f);
+                    DrawLineEx({ c.x + cosf(a) * 22.0f, c.y + sinf(a) * 22.0f }, { c.x + cosf(a) * (40.0f + 30.0f * k), c.y + sinf(a) * (40.0f + 30.0f * k) }, 2.0f, Fade({ 210, 160, 255, 255 }, 0.7f));
+                }
+            }
+            float bob = sinf(t * 2.5f + c.x) * 3.0f;
+            Color robe = e.hitFlash > 0 ? WHITE : Color{ 96, 60, 168, 255 };
+            Tri({ c.x - r * 1.05f, c.y + r * 0.95f + bob }, { c.x + r * 1.05f, c.y + r * 0.95f + bob }, { c.x, c.y - r * 0.6f + bob }, Shade(robe, 0.55f));
+            Tri({ c.x - r * 0.85f, c.y + r * 0.9f + bob }, { c.x + r * 0.85f, c.y + r * 0.9f + bob }, { c.x, c.y - r * 0.55f + bob }, robe);
+            DrawCircleV({ c.x, c.y - r * 0.45f + bob }, r * 0.62f, Shade(robe, 0.7f));
+            DrawCircleV({ c.x, c.y - r * 0.40f + bob }, r * 0.46f, { 16, 10, 30, 255 });
+            for (int s2 = -1; s2 <= 1; s2 += 2) {
+                DrawCircleV({ c.x + s2 * r * 0.2f, c.y - r * 0.40f + bob }, 3.0f, { 255, 120, 255, 255 });
+                DrawCircleV({ c.x + s2 * r * 0.2f, c.y - r * 0.40f + bob }, 6.5f, Fade({ 255, 120, 255, 255 }, 0.25f));
+            }
+            for (int i = 0; i < 3; ++i) {
+                float a = t * 2.2f + i * (2.0f * PI / 3.0f);
+                Vector2 o = { c.x + cosf(a) * r * 1.35f, c.y + sinf(a) * r * 0.6f + bob - r * 0.1f };
+                DrawCircleV(o, 7.0f, Fade({ 190, 130, 255, 255 }, 0.3f));
+                DrawCircleV(o, 4.0f, { 220, 180, 255, 255 });
+                DrawCircleV(o, 1.8f, WHITE);
+            }
         } else if (e.type == BOMBER) {
             Blob(c, r, r * 0.95f, base);
             for (int s2 = -1; s2 <= 1; s2 += 2) {
@@ -1882,11 +2097,19 @@ public:
         float sa = a + off;
         Vector2 dir = { cosf(sa), sinf(sa) };
         Vector2 hand = { body.x + dir.x * 16.0f, body.y + dir.y * 16.0f };
-        Vector2 tip = { hand.x + dir.x * 27.0f, hand.y + dir.y * 27.0f };
+        int wt = hasEquip[SLOT_WEAPON] ? equipped[SLOT_WEAPON].weaponType : 0;
+        float wlen = (wt == 1) ? 19.0f : (wt == 3 ? 44.0f : (wt == 2 ? 24.0f : 27.0f));
+        Vector2 tip = { hand.x + dir.x * wlen, hand.y + dir.y * wlen };
         DrawLineEx(hand, tip, 6.0f, { 90, 100, 130, 255 });
         DrawLineEx(hand, tip, 4.0f, { 232, 238, 250, 255 });
         DrawLineEx(hand, tip, 1.5f, WHITE);
         Vector2 perp = { -dir.y, dir.x };
+        if (wt == 2) { // rìu: lưỡi hình bán nguyệt ở đầu cán
+            Tri({ tip.x - dir.x * 16.0f + perp.x * 15.0f, tip.y - dir.y * 16.0f + perp.y * 15.0f }, { tip.x + dir.x * 6.0f, tip.y + dir.y * 6.0f }, { tip.x - dir.x * 16.0f - perp.x * 3.0f, tip.y - dir.y * 16.0f - perp.y * 3.0f }, { 196, 204, 224, 255 });
+            Tri({ tip.x - dir.x * 16.0f - perp.x * 15.0f, tip.y - dir.y * 16.0f - perp.y * 15.0f }, { tip.x + dir.x * 6.0f, tip.y + dir.y * 6.0f }, { tip.x - dir.x * 16.0f + perp.x * 3.0f, tip.y - dir.y * 16.0f + perp.y * 3.0f }, { 170, 178, 200, 255 });
+        } else if (wt == 3) { // giáo: mũi nhọn
+            Tri({ tip.x + dir.x * 16.0f, tip.y + dir.y * 16.0f }, { tip.x + perp.x * 6.0f, tip.y + perp.y * 6.0f }, { tip.x - perp.x * 6.0f, tip.y - perp.y * 6.0f }, { 236, 242, 255, 255 });
+        }
         DrawLineEx({ hand.x + perp.x * 7.0f, hand.y + perp.y * 7.0f }, { hand.x - perp.x * 7.0f, hand.y - perp.y * 7.0f }, 4.0f, GOLD);
         DrawCircleV(hand, 4.2f, { 140, 150, 176, 255 });
         DrawCircleV(hand, 4.2f, Fade(WHITE, 0.0f));
@@ -1895,6 +2118,132 @@ public:
         if (player.isInvuln) {
             float k = 0.5f + 0.5f * sinf(t * 30.0f);
             DrawCircleLines((int)body.x, (int)body.y, 24.0f, Fade(SKYBLUE, 0.4f + 0.5f * k));
+        }
+    }
+
+    // ── Quái phụ sinh ra khi đang duyệt danh sách: đưa vào hàng đợi, thêm vào cuối khung ──
+    void FlushSpawns() {
+        for (auto& m : pendingSpawns) enemies.push_back(m);
+        pendingSpawns.clear();
+    }
+
+    void SpawnMinionChaser(Vector2 pos) {
+        float multHp = 1.0f + (floor - 1) * 0.15f, multDmg = 1.0f + (floor - 1) * 0.10f;
+        Enemy m = BuildEnemy(CHASER, pos);
+        m.isElite = false;
+        m.isMinion = true;
+        m.maxHp = 16.0f * multHp;
+        m.hp = m.maxHp;
+        m.speed = 195.0f;
+        m.radius = 11.0f;
+        m.contactDmg = 7.0f * multDmg;
+        pendingSpawns.push_back(m);
+    }
+
+    void SpawnSplitMini(Vector2 pos) {
+        float multHp = 1.0f + (floor - 1) * 0.15f, multDmg = 1.0f + (floor - 1) * 0.10f;
+        Enemy m = BuildEnemy(SPLITTER, pos);
+        m.isElite = false;
+        m.isMinion = true;
+        m.splitLevel = 1;
+        m.maxHp = 14.0f * multHp;
+        m.hp = m.maxHp;
+        m.speed = 215.0f;
+        m.radius = 12.0f;
+        m.contactDmg = 6.0f * multDmg;
+        pendingSpawns.push_back(m);
+    }
+
+    // Relic chưa có, chọn ngẫu nhiên. Trả về true nếu còn relic để trao.
+    bool GiveRandomRelic() {
+        std::vector<RelicType> pool;
+        for (int i = 0; i < 10; ++i) if (!HasRelic((RelicType)i)) pool.push_back((RelicType)i);
+        if (pool.empty()) return false;
+        AddRelic(pool[rand() % pool.size()]);
+        return true;
+    }
+
+    const char* RelicDesc(RelicType t) {
+        switch (t) {
+            case RELIC_LIGHTNING: return "Hits arc lightning to a nearby enemy";
+            case RELIC_TOXIC: return "Hits poison enemies";
+            case RELIC_FROST: return "Crits freeze enemies";
+            case RELIC_AEGIS: return "Blocks one hit every 12s";
+            case RELIC_CHALICE: return "More healing drops";
+            case RELIC_COMBUSTION: return "Enemies explode on death";
+            case RELIC_PHOENIX: return "Revive once at half HP";
+            case RELIC_MIDAS: return "+50% gold, bigger pickup range";
+            case RELIC_BERSERK: return "+40% damage below 40% HP";
+            case RELIC_THORNS: return "Getting hurt unleashes a shockwave";
+        }
+        return "";
+    }
+
+    // Đòn thorn: nổ ra sóng xung kích khi người chơi bị thương
+    void ThornBurst() {
+        NovaVisual nv;
+        nv.pos = player.pos;
+        nv.radius = 0;
+        nv.maxRadius = 120.0f;
+        nv.timer = 0.3f;
+        nv.maxTimer = 0.3f;
+        nv.color = { 170, 120, 255, 255 };
+        novas.push_back(nv);
+        Burst(player.pos, { 190, 150, 255, 255 }, 18, 260.0f, 0.5f);
+        for (auto& en : enemies) {
+            if (en.hp <= 0) continue;
+            if (Vector2Distance(player.pos, en.pos) <= 120.0f + en.radius * 0.5f) {
+                Vector2 kb = Vector2Normalize(Vector2Subtract(en.pos, player.pos));
+                DamageEnemy(en, player.baseDmg, kb, 200.0f, false);
+            }
+        }
+    }
+
+    // Đòn chém / đâm theo loại vũ khí đang trang bị
+    void MeleeAttack(Vector2 aimDir) {
+        // Loại vũ khí: kiếm cân bằng, dao găm nhanh, rìu nặng và rộng, giáo dài xuyên
+        int wt = hasEquip[SLOT_WEAPON] ? equipped[SLOT_WEAPON].weaponType : 0;
+        static const float wReach[4] = { 45.0f, 38.0f, 40.0f, 0.0f };
+        static const float wRadius[4] = { 75.0f, 64.0f, 98.0f, 0.0f };
+        static const float wDmg[4] = { 1.0f, 0.85f, 1.35f, 1.1f };
+        static const float wRate[4] = { 1.0f, 1.3f, 0.75f, 0.95f };
+        static const float wKb[4] = { 1.0f, 0.8f, 1.4f, 1.0f };
+        player.attackTimer = 1.0f / (player.attackRate * wRate[wt]);
+        PlaySound(snd.sndSlash);
+
+        SlashVisual sv;
+        sv.pos = Vector2Add(player.pos, Vector2Scale(aimDir, 35.0f));
+        sv.angle = atan2f(aimDir.y, aimDir.x) * RAD2DEG;
+        sv.kind = wt;
+        slashes.push_back(sv);
+
+        Vector2 hitCenter = Vector2Add(player.pos, Vector2Scale(aimDir, wReach[wt]));
+        float hitRadius = wRadius[wt];
+        Vector2 spearEnd = Vector2Add(player.pos, Vector2Scale(aimDir, 135.0f));
+        bool hitAny = false;
+
+        for (auto& e : enemies) {
+            if (e.hp <= 0) continue;
+            bool inRange;
+            if (wt == 3) { // giáo: đâm theo một đường thẳng, trúng mọi kẻ địch trên đường
+                Vector2 ap = Vector2Subtract(e.pos, player.pos), ab = Vector2Subtract(spearEnd, player.pos);
+                float tt = Clamp(Vector2DotProduct(ap, ab) / Vector2DotProduct(ab, ab), 0.0f, 1.0f);
+                Vector2 closest = Vector2Add(player.pos, Vector2Scale(ab, tt));
+                inRange = Vector2Distance(closest, e.pos) <= 26.0f + e.radius;
+            } else {
+                inRange = Vector2Distance(hitCenter, e.pos) <= hitRadius + e.radius;
+            }
+            if (inRange) {
+                hitAny = true;
+                bool isCrit = ((float)rand() / RAND_MAX < player.critChance);
+                float dmg = player.baseDmg * wDmg[wt] * (isCrit ? 2.0f : 1.0f);
+                Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
+                DamageEnemy(e, dmg, kb, (isCrit ? 240.0f : 160.0f) * wKb[wt], isCrit);
+            }
+        }
+        if (hitAny) {
+            PlaySound(snd.sndHit);
+            Shake(0.12f, 3.5f);
         }
     }
 
@@ -1973,7 +2322,8 @@ public:
                 loots.push_back({ 2, { c.pos.x, c.pos.y - 28.0f }, 40, 20.0f });
                 loots.push_back({ 0, { c.pos.x, c.pos.y + 26.0f }, 50, 20.0f });
                 SpawnPopup({ c.pos.x, c.pos.y - 30.0f }, "+GOLD", YELLOW);
-                if (c.vault) { // kho báu: chắc chắn có trang bị hiếm trở lên
+                if (c.vault) { // kho báu: chắc chắn có trang bị hiếm trở lên (và một relic nếu còn)
+                    GiveRandomRelic();
                     ItemDrop d;
                     d.item = GenerateItem(floor + 1);
                     for (int tries = 0; tries < 30 && d.item.rarity < 1; ++tries) d.item = GenerateItem(floor + 1);
@@ -2513,6 +2863,18 @@ public:
         snprintf(buf, sizeof(buf), "%.1fs", player.specialCooldown); stat(2, 2, "Nova Cooldown", buf);
         std::string extra = "Ember Edge Lv" + std::to_string(player.igniteLevel) + "   Frost Touch Lv" + std::to_string(player.frostLevel) + "   Relics: " + std::to_string(player.relics.size());
         DrawText(extra.c_str(), px + 36 + 780 - MeasureText(extra.c_str(), 16) , sy + 2, 16, { 150, 165, 200, 255 });
+        if (!player.relics.empty()) {
+            DrawText("RELICS", px + 36, py + ph - 108, 16, SKYBLUE);
+            int rx = px + 110, ry = py + ph - 108;
+            for (const auto& r : player.relics) {
+                std::string label = r.name + " (" + RelicDesc(r.type) + ")";
+                int w = MeasureText(label.c_str(), 14) + 26;
+                if (rx + w > px + pw - 20) { rx = px + 110; ry += 18; }
+                DrawCircle(rx + 5, ry + 8, 5, r.color);
+                DrawText(label.c_str(), rx + 16, ry + 1, 14, r.color);
+                rx += w + 14;
+            }
+        }
         DrawText("Gear drops from enemies. Better gear is equipped automatically; worse gear is sold for gold.", px + 36, py + ph - 52, 16, { 170, 185, 215, 255 });
         DrawText("Press I or Esc to close", px + 36, py + ph - 28, 16, { 120, 135, 165, 255 });
     }
@@ -2681,7 +3043,7 @@ public:
             if (e.hp <= 0) continue;
             if (e.type == BOMBER && e.fusing) AddLight(e.pos, 170.0f, { 255, 90, 40, 255 }, 0.55f + 0.25f * sinf(e.fuseTimer * 40.0f));
             else if (e.burnTimer > 0) AddLight(e.pos, 90.0f, { 255, 140, 40, 255 }, 0.5f);
-            else if (e.type == BOSS) AddLight(e.pos, 260.0f, e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 170, 90, 255, 255 }, 0.5f);
+            else if (e.type == BOSS) AddLight(e.pos, 260.0f, (e.bossKind == 1) ? Color{ 255, 140, 50, 255 } : (e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 170, 90, 255, 255 }), 0.5f);
             else if (e.isElite || e.isWarden) AddLight(e.pos, 110.0f, { 255, 215, 100, 255 }, 0.4f);
         }
 
@@ -2855,8 +3217,20 @@ public:
             float rad = sl.angle * DEG2RAD;
             float k = sl.timer / sl.maxTimer;
             Vector2 centre = Vector2Subtract(sl.pos, { cosf(rad) * 35.0f, sinf(rad) * 35.0f });
-            DrawRing(centre, 36.0f, 52.0f, sl.angle - 60.0f, sl.angle + 60.0f, 24, Fade(WHITE, 0.85f * k));
-            DrawRing(centre, 30.0f, 38.0f, sl.angle - 45.0f, sl.angle + 45.0f, 20, Fade({ 120, 220, 255, 255 }, 0.7f * k));
+            if (sl.kind == 3) { // giáo: vệt đâm thẳng
+                Vector2 dirv = { cosf(rad), sinf(rad) };
+                Vector2 tipv = Vector2Add(centre, Vector2Scale(dirv, 140.0f));
+                DrawLineEx(Vector2Add(centre, Vector2Scale(dirv, 20.0f)), tipv, 10.0f * k + 2.0f, Fade({ 120, 220, 255, 255 }, 0.5f * k));
+                DrawLineEx(Vector2Add(centre, Vector2Scale(dirv, 20.0f)), tipv, 4.0f * k + 1.0f, Fade(WHITE, 0.95f * k));
+            } else if (sl.kind == 2) { // rìu: cung rất rộng
+                DrawRing(centre, 40.0f, 74.0f, sl.angle - 85.0f, sl.angle + 85.0f, 30, Fade(WHITE, 0.8f * k));
+                DrawRing(centre, 34.0f, 46.0f, sl.angle - 70.0f, sl.angle + 70.0f, 26, Fade({ 255, 190, 110, 255 }, 0.7f * k));
+            } else if (sl.kind == 1) { // dao găm: cung nhỏ, mảnh
+                DrawRing(centre, 34.0f, 44.0f, sl.angle - 42.0f, sl.angle + 42.0f, 18, Fade(WHITE, 0.85f * k));
+            } else {
+                DrawRing(centre, 36.0f, 52.0f, sl.angle - 60.0f, sl.angle + 60.0f, 24, Fade(WHITE, 0.85f * k));
+                DrawRing(centre, 30.0f, 38.0f, sl.angle - 45.0f, sl.angle + 45.0f, 20, Fade({ 120, 220, 255, 255 }, 0.7f * k));
+            }
         }
 
         // Novas
@@ -2982,9 +3356,9 @@ public:
                 int bw = 460, bx = 1280 / 2 - bw / 2, by = 66;
                 float pct = std::max(0.0f, e.hp / e.maxHp);
                 DrawRectangle(bx - 3, by - 3, bw + 6, 22, { 10, 12, 20, 230 });
-                DrawRectangle(bx, by, (int)(bw * pct), 16, e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 190, 60, 200, 255 });
+                DrawRectangle(bx, by, (int)(bw * pct), 16, (e.bossKind == 1) ? (e.enraged ? Color{ 255, 90, 30, 255 } : Color{ 255, 150, 40, 255 }) : (e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 190, 60, 200, 255 }));
                 DrawRectangleLines(bx - 3, by - 3, bw + 6, 22, GOLD);
-                const char* nm = e.enraged ? "THE VOID SOVEREIGN - ENRAGED" : "THE VOID SOVEREIGN";
+                const char* nm = (e.bossKind == 1) ? (e.enraged ? "THE MOLTEN COLOSSUS - ENRAGED" : "THE MOLTEN COLOSSUS") : (e.enraged ? "THE VOID SOVEREIGN - ENRAGED" : "THE VOID SOVEREIGN");
                 DrawText(nm, 1280 / 2 - MeasureText(nm, 14) / 2, by + 1, 14, WHITE);
                 break;
             }
