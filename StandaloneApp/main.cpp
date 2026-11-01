@@ -438,6 +438,7 @@ struct Settings {
     int particles = 2;    // 0 thấp, 1 vừa, 2 cao
     bool vignette = true;
     int volume = 10;      // 0..10
+    int difficulty = 1;   // 0 dễ, 1 thường, 2 khó
 };
 static const int kFpsOptions[5] = { 30, 60, 120, 144, 0 }; // 0 = không giới hạn
 static const int kResOptions[5][2] = { { 1280, 720 }, { 1366, 768 }, { 1600, 900 }, { 1920, 1080 }, { 2560, 1440 } };
@@ -503,6 +504,15 @@ public:
     std::string metaMsg;
     float metaMsgTimer = 0.0f;
     float xpMul = 1.0f;
+
+    // Điều khiển thay thế (bot mô phỏng / tay cầm): khi active, dùng giá trị này thay cho bàn phím và chuột
+    struct ControlOverride {
+        bool active = false;
+        Vector2 move = { 0, 0 };
+        Vector2 aim = { 1, 0 };
+        bool attack = false, dash = false, nova = false;
+    };
+    ControlOverride ctl;
     State settingsReturn = TITLE;
     std::vector<UpgradeType> levelChoices;
     std::string bannerText = "";
@@ -719,7 +729,7 @@ public:
             else if (floor >= 3 && r < 0.50f) floorMod = MOD_ELITE;
             else if (floor >= 3 && r < 0.68f) floorMod = MOD_SNIPER;
         }
-        eliteChance = (floorMod == MOD_ELITE) ? 0.55f : 0.20f;
+        eliteChance = (floorMod == MOD_ELITE) ? std::min(0.70f, EliteChance() + 0.35f) : EliteChance();
 
         // Bố cục phòng: không lặp lại bố cục tầng trước
         std::vector<int> pool = { LAY_SCATTERED, LAY_RING, LAY_BLOCKS, LAY_OPEN };
@@ -748,12 +758,13 @@ public:
             portalOpen = true; // kho báu: không có quái
         } else {
             int chasers = std::min(10, 3 + floor);
-            int spitters = std::min(8, std::max(0, (floor - 1) * 2));
+            int spitters = std::min(8, std::max(0, floor - 1));
             int brutes = std::min(5, std::max(0, floor - 2));
             int chargers = (floor >= 2) ? std::min(3, 1 + (floor - 2) / 3) : 0;
             int splitters = (floor >= 2) ? std::min(3, 1 + floor / 5) : 0;
             int summoners = (floor >= 6) ? std::min(2, 1 + (floor - 6) / 5) : 0;
-            int bombers = (floor >= 4) ? std::min(4, 1 + (floor - 4) / 2) : 0;
+            int bombers = (floor >= 5) ? std::min(4, 1 + (floor - 5) / 2) : 0;
+            if (floor == 4 || floor == 8) chasers = std::max(2, chasers - 3); // tầng có Warden: bớt quái nhỏ
             switch (floorMod) {
                 case MOD_SWARM:
                     chasers = std::min(16, (int)roundf((3 + floor) * 1.8f));
@@ -822,10 +833,10 @@ public:
         Enemy& w = enemies.back();
         w.isWarden = true;
         w.isElite = false;
-        w.maxHp = 180.0f * (1.0f + (floor - 1) * 0.15f);
+        w.maxHp = 150.0f * (HpMult());
         w.hp = w.maxHp;
         w.speed = 85.0f;
-        w.contactDmg = 20.0f * (1.0f + (floor - 1) * 0.10f);
+        w.contactDmg = 16.0f * (DmgMult());
         w.radius = 36.0f;
     }
 
@@ -848,8 +859,8 @@ public:
         e.type = type;
         e.pos = pos;
         e.vel = { 0, 0 };
-        float multHp = 1.0f + (floor - 1) * 0.15f;
-        float multDmg = 1.0f + (floor - 1) * 0.10f;
+        float multHp = HpMult();
+        float multDmg = DmgMult();
 
         if (type == CHASER) {
             e.maxHp = 35.0f * multHp;
@@ -1062,6 +1073,11 @@ public:
         Vector2 mouseWorld = GetScreenToWorld2D(GetMousePosition(), camera);
         Vector2 aimDir = Vector2Normalize(Vector2Subtract(mouseWorld, player.pos));
         if (fabs(aimDir.x) > 0.1f) player.facingLeft = (aimDir.x < 0);
+        if (ctl.active) {
+            move = ctl.move;
+            if (Vector2Length(ctl.aim) > 0.01f) aimDir = Vector2Normalize(ctl.aim);
+            if (fabs(aimDir.x) > 0.1f) player.facingLeft = (aimDir.x < 0);
+        }
         aimDirDraw = aimDir;
 
         if (player.isDashing) {
@@ -1081,7 +1097,11 @@ public:
         player.pos.y = Clamp(player.pos.y, -boundH, boundH);
 
         // Dash Action
-        if ((IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) || IsKeyPressed(KEY_LEFT_SHIFT) || IsKeyPressed(KEY_K)) && player.dashTimer <= 0) {
+        bool dashPressed = ctl.active ? ctl.dash : (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) || IsKeyPressed(KEY_LEFT_SHIFT) || IsKeyPressed(KEY_K));
+        bool attackHeld = ctl.active ? ctl.attack : (IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsKeyDown(KEY_SPACE) || IsKeyDown(KEY_J));
+        bool novaPressed = ctl.active ? ctl.nova : (IsKeyPressed(KEY_Q) || IsKeyPressed(KEY_E) || IsKeyPressed(KEY_U));
+
+        if (dashPressed && player.dashTimer <= 0) {
             player.isDashing = true;
             player.dashTimer = player.dashCooldown;
             player.dashDir = (Vector2Length(move) > 0.1f) ? move : aimDir;
@@ -1090,12 +1110,12 @@ public:
         }
 
         // Melee Slash Attack
-        if ((IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsKeyDown(KEY_SPACE) || IsKeyDown(KEY_J)) && player.attackTimer <= 0 && !player.isDashing) {
+        if (attackHeld && player.attackTimer <= 0 && !player.isDashing) {
             MeleeAttack(aimDir);
         }
 
         // Special Nova Pulse (Q / E / U)
-        if ((IsKeyPressed(KEY_Q) || IsKeyPressed(KEY_E) || IsKeyPressed(KEY_U)) && player.specialTimer <= 0) {
+        if (novaPressed && player.specialTimer <= 0) {
             player.specialTimer = player.specialCooldown;
             PlaySound(snd.sndSpecial);
             Shake(0.25f, 6.0f);
@@ -1387,6 +1407,9 @@ public:
             }
 
             // Contact damage with player
+            // Giữ quái trong phòng: quái bắn xa lùi ra ngoài sẽ không thể bị hạ, khiến phòng không bao giờ được dọn
+            e.pos.x = Clamp(e.pos.x, -(roomW / 2.0f - e.radius - 6.0f), roomW / 2.0f - e.radius - 6.0f);
+            e.pos.y = Clamp(e.pos.y, -(roomH / 2.0f - e.radius - 6.0f), roomH / 2.0f - e.radius - 6.0f);
             bool hitPillar = ResolvePillars(e.pos, e.radius * 0.85f);
             if (hitPillar && e.type == BOSS && e.bossKind == 1 && e.chargeState == 4) {
                 e.chargeState = 5;
@@ -2163,6 +2186,14 @@ public:
         }
     }
 
+    // Độ khó theo tầng: tăng đều, rồi dốc hơn từ tầng 9 để theo kịp sức mạnh của người chơi (cân bằng bằng bot mô phỏng)
+    float DiffHp() const { return settings.difficulty == 0 ? 0.90f : (settings.difficulty == 2 ? 1.20f : 1.0f); }
+    float DiffDmg() const { return settings.difficulty == 0 ? 0.75f : (settings.difficulty == 2 ? 1.20f : 1.0f); }
+    float DiffSouls() const { return settings.difficulty == 0 ? 0.75f : (settings.difficulty == 2 ? 1.5f : 1.0f); }
+    float HpMult() const { return (1.0f + (floor - 1) * 0.15f + std::max(0, floor - 8) * 0.14f) * DiffHp(); }
+    float DmgMult() const { return (1.0f + (floor - 1) * 0.10f + std::max(0, floor - 8) * 0.11f) * DiffDmg(); }
+    float EliteChance() const { return std::min(0.45f, 0.20f + std::max(0, floor - 8) * 0.015f); }
+
     // ── Quái phụ sinh ra khi đang duyệt danh sách: đưa vào hàng đợi, thêm vào cuối khung ──
     void FlushSpawns() {
         for (auto& m : pendingSpawns) enemies.push_back(m);
@@ -2170,7 +2201,7 @@ public:
     }
 
     void SpawnMinionChaser(Vector2 pos) {
-        float multHp = 1.0f + (floor - 1) * 0.15f, multDmg = 1.0f + (floor - 1) * 0.10f;
+        float multHp = HpMult(), multDmg = DmgMult();
         Enemy m = BuildEnemy(CHASER, pos);
         m.isElite = false;
         m.isMinion = true;
@@ -2183,7 +2214,7 @@ public:
     }
 
     void SpawnSplitMini(Vector2 pos) {
-        float multHp = 1.0f + (floor - 1) * 0.15f, multDmg = 1.0f + (floor - 1) * 0.10f;
+        float multHp = HpMult(), multDmg = DmgMult();
         Enemy m = BuildEnemy(SPLITTER, pos);
         m.isElite = false;
         m.isMinion = true;
@@ -2554,7 +2585,7 @@ public:
     int MetaCost(int i) { return kMeta[i].baseCost + kMeta[i].costStep * meta[i]; }
 
     void AwardSouls() {
-        lastRunSouls = floor * 10 + enemiesSlain / 2 + bossesKilled * 25 + (floor > bestFloor ? 20 : 0);
+        lastRunSouls = (int)roundf((floor * 10 + enemiesSlain / 2 + bossesKilled * 25 + (floor > bestFloor ? 20 : 0)) * DiffSouls());
         souls += lastRunSouls;
         runs++;
         SaveSettings();
@@ -2678,6 +2709,7 @@ public:
             else if (k == "particles") settings.particles = std::max(0, std::min(2, v));
             else if (k == "vignette") settings.vignette = v != 0;
             else if (k == "volume") settings.volume = std::max(0, std::min(10, v));
+            else if (k == "difficulty") settings.difficulty = std::max(0, std::min(2, v));
             else if (k == "best") bestFloor = std::max(1, v);
             else if (k == "souls") souls = std::max(0, v);
             else if (k == "runs") runs = std::max(0, v);
@@ -2693,7 +2725,7 @@ public:
         o << "resW=" << settings.resW << "\nresH=" << settings.resH << "\nfullscreen=" << settings.fullscreen
           << "\nvsync=" << settings.vsync << "\nfpsIndex=" << settings.fpsIndex << "\nshowFps=" << settings.showFps
           << "\nvibration=" << settings.vibration << "\nlighting=" << settings.lighting << "\nparticles=" << settings.particles
-          << "\nvignette=" << settings.vignette << "\nvolume=" << settings.volume << "\nbest=" << bestFloor << "\nsouls=" << souls << "\nruns=" << runs;
+          << "\nvignette=" << settings.vignette << "\nvolume=" << settings.volume << "\ndifficulty=" << settings.difficulty << "\nbest=" << bestFloor << "\nsouls=" << souls << "\nruns=" << runs;
         for (int i = 0; i < 8; ++i) o << "\nmeta" << i << "=" << meta[i];
         o << "\n";
         std::string s = o.str();
@@ -2740,6 +2772,7 @@ public:
             case 7: settings.particles = (settings.particles + d + 3) % 3; break;
             case 8: settings.vignette = !settings.vignette; break;
             case 9: settings.volume = std::max(0, std::min(10, settings.volume + d)); break;
+            case 10: settings.difficulty = (settings.difficulty + d + 3) % 3; break;
         }
     }
 
@@ -2755,12 +2788,13 @@ public:
             case 7: return settings.particles == 0 ? "Low" : (settings.particles == 1 ? "Medium" : "High");
             case 8: return settings.vignette ? "ON" : "OFF";
             case 9: return std::to_string(settings.volume * 10) + "%";
+            case 10: return settings.difficulty == 0 ? "Easy" : (settings.difficulty == 1 ? "Normal" : "Hard");
         }
         return "";
     }
 
     void UpdateSettingsMenu() {
-        const int rows = 11; // 10 mục + Back
+        const int rows = 12; // 11 mục + Back
         if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) setSel = (setSel + 1) % rows;
         if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) setSel = (setSel + rows - 1) % rows;
         int delta = 0;
@@ -2769,7 +2803,7 @@ public:
 
         Vector2 m = GetMousePosition();
         for (int i = 0; i < rows; ++i) {
-            Rectangle r = { 330.0f, 150.0f + i * 40.0f, 620.0f, 36.0f };
+            Rectangle r = { 330.0f, 138.0f + i * 36.0f, 620.0f, 32.0f };
             if (CheckCollisionPointRec(m, r)) {
                 if (GetMouseDelta().x != 0 || GetMouseDelta().y != 0) setSel = i;
                 if (setSel == i) {
@@ -2780,7 +2814,7 @@ public:
         }
         if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_BACKSPACE)) { state = settingsReturn; return; }
         if (delta != 0) {
-            if (setSel == 10) { state = settingsReturn; return; }
+            if (setSel == 11) { state = settingsReturn; return; }
             ChangeSetting(setSel, delta);
             SaveSettings();
             ApplySettings();
@@ -2791,33 +2825,34 @@ public:
         DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.86f));
         const char* title = "SETTINGS";
         OutlinedText(title, 1280 / 2 - MeasureText(title, 48) / 2, 70, 48, GOLD, { 90, 50, 10, 255 });
-        static const char* labels[10] = { "Resolution", "Fullscreen", "VSync", "FPS Limit", "Show FPS", "Vibration (screen shake)", "Lighting", "Particles", "Vignette", "Volume" };
-        for (int i = 0; i < 11; ++i) {
-            Rectangle r = { 330.0f, 150.0f + i * 40.0f, 620.0f, 36.0f };
+        static const char* labels[11] = { "Resolution", "Fullscreen", "VSync", "FPS Limit", "Show FPS", "Vibration (screen shake)", "Lighting", "Particles", "Vignette", "Volume", "Difficulty (next floors)" };
+        for (int i = 0; i < 12; ++i) {
+            Rectangle r = { 330.0f, 138.0f + i * 36.0f, 620.0f, 32.0f };
             bool sel = (setSel == i);
             DrawRectangleRec(r, sel ? Color{ 40, 52, 84, 255 } : Color{ 20, 26, 42, 255 });
             if (sel) DrawRectangleLinesEx(r, 2.0f, GOLD);
-            if (i < 10) {
-                DrawText(labels[i], (int)r.x + 16, (int)r.y + 8, 20, sel ? WHITE : Color{ 190, 205, 235, 255 });
+            if (i < 11) {
+                DrawText(labels[i], (int)r.x + 16, (int)r.y + 6, 20, sel ? WHITE : Color{ 190, 205, 235, 255 });
                 std::string v = SettingValue(i);
                 Color vc = (v == "ON") ? Color{ 120, 235, 140, 255 } : (v == "OFF" ? Color{ 255, 130, 130, 255 } : Color{ 255, 215, 90, 255 });
                 int vw = MeasureText(v.c_str(), 20);
-                DrawText(v.c_str(), (int)(r.x + r.width) - 40 - vw, (int)r.y + 8, 20, vc);
+                if (i == 10) vc = settings.difficulty == 0 ? Color{ 120, 235, 140, 255 } : (settings.difficulty == 2 ? Color{ 255, 120, 110, 255 } : Color{ 255, 215, 90, 255 });
+                DrawText(v.c_str(), (int)(r.x + r.width) - 40 - vw, (int)r.y + 6, 20, vc);
                 if (sel) {
-                    DrawText("<", (int)(r.x + r.width) - 40 - vw - 22, (int)r.y + 8, 20, GOLD);
-                    DrawText(">", (int)(r.x + r.width) - 28, (int)r.y + 8, 20, GOLD);
+                    DrawText("<", (int)(r.x + r.width) - 40 - vw - 22, (int)r.y + 6, 20, GOLD);
+                    DrawText(">", (int)(r.x + r.width) - 28, (int)r.y + 6, 20, GOLD);
                 }
                 if (i == 9) { // thanh âm lượng
                     for (int b = 0; b < 10; ++b)
-                        DrawRectangle((int)r.x + 220 + b * 12, (int)r.y + 11, 9, 14, b < settings.volume ? Color{ 255, 215, 90, 255 } : Color{ 50, 58, 84, 255 });
+                        DrawRectangle((int)r.x + 220 + b * 12, (int)r.y + 9, 9, 14, b < settings.volume ? Color{ 255, 215, 90, 255 } : Color{ 50, 58, 84, 255 });
                 }
             } else {
                 const char* back = "Back";
-                DrawText(back, (int)(r.x + r.width / 2) - MeasureText(back, 22) / 2, (int)r.y + 7, 22, sel ? WHITE : Color{ 190, 205, 235, 255 });
+                DrawText(back, (int)(r.x + r.width / 2) - MeasureText(back, 22) / 2, (int)r.y + 5, 22, sel ? WHITE : Color{ 190, 205, 235, 255 });
             }
         }
-        DrawText("W/S or mouse: select     A/D, Enter or click: change     Esc: back", 1280 / 2 - MeasureText("W/S or mouse: select     A/D, Enter or click: change     Esc: back", 16) / 2, 612, 16, { 150, 165, 200, 255 });
-        DrawText("Resolution applies in windowed mode; fullscreen uses your desktop resolution. Settings are saved automatically.", 1280 / 2 - MeasureText("Resolution applies in windowed mode; fullscreen uses your desktop resolution. Settings are saved automatically.", 14) / 2, 638, 14, { 120, 135, 165, 255 });
+        DrawText("W/S or mouse: select     A/D, Enter or click: change     Esc: back", 1280 / 2 - MeasureText("W/S or mouse: select     A/D, Enter or click: change     Esc: back", 16) / 2, 590, 16, { 150, 165, 200, 255 });
+        DrawText("Resolution applies in windowed mode; fullscreen uses your desktop resolution. Settings are saved automatically.", 1280 / 2 - MeasureText("Resolution applies in windowed mode; fullscreen uses your desktop resolution. Settings are saved automatically.", 14) / 2, 616, 14, { 120, 135, 165, 255 });
     }
 
     // Vẽ khung 1280x720 lên cửa sổ với viền đen giữ tỉ lệ, và ánh xạ chuột về toạ độ ảo
@@ -3266,7 +3301,8 @@ public:
             const char* start = "PRESS ENTER OR CLICK TO START";
             OutlinedText(start, 1280 / 2 - MeasureText(start, 30) / 2, 410, 30, WHITE, { 20, 24, 40, 255 });
         }
-        std::string prog = "Souls: " + std::to_string(souls) + "     Runs: " + std::to_string(runs);
+        const char* diffName = settings.difficulty == 0 ? "Easy" : (settings.difficulty == 1 ? "Normal" : "Hard");
+        std::string prog = std::string(diffName) + "     Souls: " + std::to_string(souls) + "     Runs: " + std::to_string(runs);
         DrawText(prog.c_str(), 1280 / 2 - MeasureText(prog.c_str(), 20) / 2, 362, 20, { 190, 150, 255, 255 });
         const char* hint = "S - Sanctuary      O - Settings      F1 - Controls      Esc - Quit";
         DrawText(hint, 1280 / 2 - MeasureText(hint, 20) / 2, 470, 20, { 150, 165, 200, 255 });
