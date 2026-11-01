@@ -287,3 +287,9 @@ Every run now earns **Souls** when you die: 10 per floor reached, 1 per two enem
 | Second Wind | start every run with a random relic | 1 |
 
 Souls, upgrade levels and your run count are saved in `settings.cfg` next to the exe. The title screen shows your Souls and number of runs. Banners no longer show through the menu screens.
+
+### Balance pass, difficulty setting and a soft-lock fix (standalone exe)
+
+- **Soft-lock fixed:** ranged enemies could retreat *outside* the room where you could never reach them, so the room never cleared and the portal never opened. Every enemy is now kept inside the room.
+- **New setting: Difficulty** (Easy / Normal / Hard, in Settings, applies to the next floors). Easy: enemies deal 75% damage and have 90% HP, and Souls are x0.75. Hard: 120% damage and 120% HP, Souls x1.5.
+- **Balance pass based on a simulation bot** (`tools/balance_bot`): floor 4 was a wall (Warden, Bombers, Chargers and six Spitters at once) and everything after floor 10 was too easy. Changes: Spitters now ramp 1 per floor (was 2), Bombers start on floor 5, Warden floors have 3 fewer Slimes, the Warden has 150 base HP and 16 damage, and from floor 9 enemy HP (+14%/floor), damage (+11%/floor) and elite chance (+1.5%/floor, up to 45%) climb faster.
