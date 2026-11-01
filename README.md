@@ -270,3 +270,20 @@ The Unity version already had a settings menu and an equipment system; the stand
 - **Second boss: the Molten Colossus** (floors 10, 20, 30; the Void Sovereign keeps 5, 15, 25). Ground slam with a shockwave and a ring of embers, plus a telegraphed charge. It takes extra damage while exhausted after a charge, and enrages below 50% HP.
 - **4 new relics** (10 in total): Phoenix Feather (revive once at half HP), Midas Touch (+50% gold, bigger pickup range), Berserker Mask (+40% damage below 40% HP), Thorn Mail (getting hurt releases a shockwave). Bosses now give a random relic you do not own yet, Treasure Vault chests give one too, and the equipment screen lists your relics with what they do.
 - Fixed a case where enemies killed by Lightning arcs gave no XP or loot.
+
+### Sanctuary: permanent upgrades (standalone exe)
+
+Every run now earns **Souls** when you die: 10 per floor reached, 1 per two enemies slain, 25 per boss defeated and a +20 bonus for a new best floor. Spend them in the **Sanctuary** (`S` on the title screen or the game over screen) on upgrades that apply to every future run:
+
+| Upgrade | Effect | Max level |
+| --- | --- | --- |
+| Vitality | +10 max HP per level | 10 |
+| Might | +2 damage per level | 10 |
+| Swiftness | +5 move speed per level | 6 |
+| Prosperity | +10 starting gold per level | 8 |
+| Scholar | +8% XP gain per level | 8 |
+| Lucky Charm | +2% gear drop chance per level | 5 |
+| Haggler | -5% shop prices per level | 6 |
+| Second Wind | start every run with a random relic | 1 |
+
+Souls, upgrade levels and your run count are saved in `settings.cfg` next to the exe. The title screen shows your Souls and number of runs. Banners no longer show through the menu screens.
