@@ -293,3 +293,22 @@ Souls, upgrade levels and your run count are saved in `settings.cfg` next to the
 - **Soft-lock fixed:** ranged enemies could retreat *outside* the room where you could never reach them, so the room never cleared and the portal never opened. Every enemy is now kept inside the room.
 - **New setting: Difficulty** (Easy / Normal / Hard, in Settings, applies to the next floors). Easy: enemies deal 75% damage and have 90% HP, and Souls are x0.75. Hard: 120% damage and 120% HP, Souls x1.5.
 - **Balance pass based on a simulation bot** (`tools/balance_bot`): floor 4 was a wall (Warden, Bombers, Chargers and six Spitters at once) and everything after floor 10 was too easy. Changes: Spitters now ramp 1 per floor (was 2), Bombers start on floor 5, Warden floors have 3 fewer Slimes, the Warden has 150 base HP and 16 damage, and from floor 9 enemy HP (+14%/floor), damage (+11%/floor) and elite chance (+1.5%/floor, up to 45%) climb faster.
+
+### Gamepad support and controller rumble (standalone exe)
+
+Plug in a controller and it just works; keyboard and mouse keep working whenever the pad is idle.
+
+| Action | Gamepad |
+| --- | --- |
+| Move | Left stick |
+| Aim | Right stick (with no input it auto-aims at the nearest enemy) |
+| Slash | RT, RB or A (hold) |
+| Dash | B, LB or LT |
+| Nova | X or Y |
+| Pause / resume | Start |
+| Equipment screen | Back |
+| Level-up cards | D-pad left / up / right |
+| Merchant | D-pad up next to him, then D-pad left/right to select, A to buy, B to leave |
+| Title / game over | A starts or restarts, X on game over opens the Sanctuary |
+
+**Vibration** (Settings -> "Vibration (shake + controller)") now also rumbles an Xbox/XInput controller on Windows: every screen shake (hits, Nova, explosions, boss slams) is mapped to the strong and weak motors, and it stops when you pause. It uses `xinput1_4.dll` loaded at run time, so there is nothing extra to install. Settings, Sanctuary and the Settings screen still need the keyboard or mouse.
