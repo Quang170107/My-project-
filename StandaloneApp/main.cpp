@@ -272,6 +272,34 @@ struct Mote {
     float size;
 };
 
+// ── Rung tay cầm Xbox trên Windows (XInput nạp động, không cần thư viện thêm) ──
+#ifdef _WIN32
+extern "C" {
+    __declspec(dllimport) void* __stdcall LoadLibraryA(const char*);
+    __declspec(dllimport) void* __stdcall GetProcAddress(void*, const char*);
+}
+struct XVibration { unsigned short left, right; };
+typedef unsigned long (__stdcall *XSetStateFn)(unsigned long, XVibration*);
+static XSetStateFn g_xSetState = nullptr;
+static bool g_xTried = false;
+static void RumbleRaw(float left, float right) {
+    if (!g_xTried) {
+        g_xTried = true;
+        void* h = LoadLibraryA("xinput1_4.dll");
+        if (!h) h = LoadLibraryA("xinput9_1_0.dll");
+        if (h) g_xSetState = (XSetStateFn)GetProcAddress(h, "XInputSetState");
+    }
+    if (g_xSetState) {
+        XVibration v;
+        v.left = (unsigned short)(std::max(0.0f, std::min(1.0f, left)) * 65535.0f);
+        v.right = (unsigned short)(std::max(0.0f, std::min(1.0f, right)) * 65535.0f);
+        g_xSetState(0, &v);
+    }
+}
+#else
+static void RumbleRaw(float, float) {}
+#endif
+
 struct Decal {
     Vector2 pos;
     float angle;
@@ -511,8 +539,12 @@ public:
         Vector2 move = { 0, 0 };
         Vector2 aim = { 1, 0 };
         bool attack = false, dash = false, nova = false;
+        bool external = false; // true: bot mô phỏng đang điều khiển, bỏ qua tay cầm
     };
     ControlOverride ctl;
+    float rumbleTimer = 0.0f;
+    Vector2 padAim = { 1, 0 };
+    bool padLtWas = false;
     State settingsReturn = TITLE;
     std::vector<UpgradeType> levelChoices;
     std::string bannerText = "";
@@ -698,6 +730,8 @@ public:
         if (!settings.vibration) return;
         screenShakeTimer = dur;
         screenShakeMag = mag;
+        float k = std::min(1.0f, mag / 9.0f); // mọi cú rung màn hình cũng làm rung tay cầm
+        Rumble(k * 0.9f, k * 0.55f, std::min(0.45f, dur + 0.08f));
     }
 
     void BuildFloor() {
@@ -965,6 +999,11 @@ public:
     void Update(float dt) {
         if (bannerTimer > 0) bannerTimer -= dt;
         if (screenShakeTimer > 0) screenShakeTimer -= dt;
+        PollGamepad();
+        if (rumbleTimer > 0) {
+            rumbleTimer -= dt;
+            if (rumbleTimer <= 0) RumbleRaw(0.0f, 0.0f);
+        }
 
         // Hit-stop: khựng khung hình rất ngắn khi chí mạng
         if (hitStop > 0) { hitStop -= dt; return; }
@@ -975,7 +1014,7 @@ public:
             if (IsKeyPressed(KEY_O) || IsKeyPressed(KEY_F2)) { settingsReturn = TITLE; setSel = 0; state = SETTINGS; return; }
             if (IsKeyPressed(KEY_S)) { OpenSanctuary(TITLE); return; }
             if (IsKeyPressed(KEY_F1) || IsKeyPressed(KEY_H)) showHelp = !showHelp;
-            else if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            else if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_DOWN) || PadPressed(GAMEPAD_BUTTON_MIDDLE_RIGHT)) {
                 showHelp = false;
                 state = PLAYING;
                 PlaySound(snd.sndPotion);
@@ -985,7 +1024,7 @@ public:
         }
         if (state == PAUSED) {
             if (IsKeyPressed(KEY_F1) || IsKeyPressed(KEY_H)) showHelp = !showHelp;
-            if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ENTER)) { showHelp = false; state = PLAYING; }
+            if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ENTER) || PadPressed(GAMEPAD_BUTTON_MIDDLE_RIGHT) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) { showHelp = false; state = PLAYING; }
             if (IsKeyPressed(KEY_R)) { showHelp = false; RestartRun(); }
             if (IsKeyPressed(KEY_I)) { prevState = PAUSED; state = INVENTORY; }
             if (IsKeyPressed(KEY_O)) { settingsReturn = PAUSED; setSel = 0; state = SETTINGS; }
@@ -1005,15 +1044,16 @@ public:
             return;
         }
         if (state == INVENTORY) {
-            if (IsKeyPressed(KEY_I) || IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_ENTER)) state = prevState;
+            if (IsKeyPressed(KEY_I) || IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_ENTER) || PadPressed(GAMEPAD_BUTTON_MIDDLE_LEFT) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) state = prevState;
             return;
         }
-        if (state == PLAYING && IsKeyPressed(KEY_I)) {
+        if (state == PLAYING && (IsKeyPressed(KEY_I) || PadPressed(GAMEPAD_BUTTON_MIDDLE_LEFT))) {
             prevState = PLAYING;
             state = INVENTORY;
             return;
         }
-        if (state == PLAYING && (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P))) {
+        if (state == PLAYING && (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P) || PadPressed(GAMEPAD_BUTTON_MIDDLE_RIGHT))) {
+            StopRumble();
             state = PAUSED;
             return;
         }
@@ -1022,15 +1062,15 @@ public:
 
         if (state == LEVEL_UP) {
             // Number keys 1, 2, 3 to choose
-            if (IsKeyPressed(KEY_ONE) && levelChoices.size() >= 1) ChooseUpgrade(levelChoices[0]);
-            if (IsKeyPressed(KEY_TWO) && levelChoices.size() >= 2) ChooseUpgrade(levelChoices[1]);
-            if (IsKeyPressed(KEY_THREE) && levelChoices.size() >= 3) ChooseUpgrade(levelChoices[2]);
+            if ((IsKeyPressed(KEY_ONE) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_LEFT)) && levelChoices.size() >= 1) ChooseUpgrade(levelChoices[0]);
+            if ((IsKeyPressed(KEY_TWO) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_UP)) && levelChoices.size() >= 2) ChooseUpgrade(levelChoices[1]);
+            if ((IsKeyPressed(KEY_THREE) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_RIGHT)) && levelChoices.size() >= 3) ChooseUpgrade(levelChoices[2]);
             return;
         }
 
         if (state == GAME_OVER) {
-            if (IsKeyPressed(KEY_S)) { OpenSanctuary(GAME_OVER); return; }
-            if (IsKeyPressed(KEY_R) || IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            if (IsKeyPressed(KEY_S) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_LEFT)) { OpenSanctuary(GAME_OVER); return; }
+            if (IsKeyPressed(KEY_R) || IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) {
                 RestartRun();
             }
             return;
@@ -1526,7 +1566,7 @@ public:
                 shopHinted = true;
                 ShowBanner("Merchant: press F to trade", 2.5f);
             }
-            if (md < 130.0f && IsKeyPressed(KEY_F)) {
+            if (md < 130.0f && (IsKeyPressed(KEY_F) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_UP))) {
                 state = SHOP;
                 shopSel = 0;
                 PlaySound(snd.sndPotion);
@@ -2194,6 +2234,57 @@ public:
     float DmgMult() const { return (1.0f + (floor - 1) * 0.10f + std::max(0, floor - 8) * 0.11f) * DiffDmg(); }
     float EliteChance() const { return std::min(0.45f, 0.20f + std::max(0, floor - 8) * 0.015f); }
 
+    // ── Tay cầm ──
+    bool PadPressed(int button) { return IsGamepadAvailable(0) && IsGamepadButtonPressed(0, button); }
+
+    // Rung tay cầm (chỉ khi bật Vibration và có tay cầm)
+    void Rumble(float strong, float weak, float duration) {
+        if (!settings.vibration || !IsGamepadAvailable(0)) return;
+        RumbleRaw(strong, weak);
+        rumbleTimer = duration;
+    }
+
+    void StopRumble() { rumbleTimer = 0.0f; RumbleRaw(0.0f, 0.0f); }
+
+    // Cần trái di chuyển, cần phải ngắm (không có thì tự ngắm vào quái gần nhất)
+    void PollGamepad() {
+        if (ctl.external) return;
+        ctl.active = false;
+        if (!IsGamepadAvailable(0)) return;
+        auto dz = [](float v) { return fabsf(v) < 0.2f ? 0.0f : v; };
+        Vector2 mv = { dz(GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_X)), dz(GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_Y)) };
+        Vector2 stick = { GetGamepadAxisMovement(0, GAMEPAD_AXIS_RIGHT_X), GetGamepadAxisMovement(0, GAMEPAD_AXIS_RIGHT_Y) };
+        bool aimStick = Vector2Length(stick) > 0.35f;
+        float rt = GetGamepadAxisMovement(0, GAMEPAD_AXIS_RIGHT_TRIGGER);
+        float lt = GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_TRIGGER);
+        bool atk = IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_TRIGGER_1) || IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_DOWN) || rt > 0.3f;
+        bool ltDown = lt > 0.5f;
+        bool dashBtn = IsGamepadButtonPressed(0, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT) || IsGamepadButtonPressed(0, GAMEPAD_BUTTON_LEFT_TRIGGER_1) || (ltDown && !padLtWas);
+        padLtWas = ltDown;
+        bool novaBtn = IsGamepadButtonPressed(0, GAMEPAD_BUTTON_RIGHT_FACE_LEFT) || IsGamepadButtonPressed(0, GAMEPAD_BUTTON_RIGHT_FACE_UP);
+        if (Vector2Length(mv) < 0.01f && !aimStick && !atk && !dashBtn && !novaBtn) return; // tay cầm đang rảnh: dùng bàn phím/chuột
+
+        if (aimStick) {
+            padAim = Vector2Normalize(stick);
+        } else {
+            // tự ngắm quái gần nhất trong tầm
+            float best = 380.0f; bool found = false;
+            for (const auto& e : enemies) {
+                if (e.hp <= 0) continue;
+                float d = Vector2Distance(player.pos, e.pos);
+                if (d < best) { best = d; padAim = Vector2Normalize(Vector2Subtract(e.pos, player.pos)); found = true; }
+            }
+            if (!found && Vector2Length(mv) > 0.3f) padAim = Vector2Normalize(mv);
+        }
+        ctl.active = true;
+        if (Vector2Length(mv) > 1.0f) mv = Vector2Normalize(mv);
+        ctl.move = mv;
+        ctl.aim = padAim;
+        ctl.attack = atk;
+        ctl.dash = dashBtn;
+        ctl.nova = novaBtn;
+    }
+
     // ── Quái phụ sinh ra khi đang duyệt danh sách: đưa vào hàng đợi, thêm vào cuối khung ──
     void FlushSpawns() {
         for (auto& m : pendingSpawns) enemies.push_back(m);
@@ -2481,10 +2572,10 @@ public:
     }
 
     void UpdateShop() {
-        if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_F) || IsKeyPressed(KEY_BACKSPACE)) { state = PLAYING; return; }
-        if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D)) shopSel = (shopSel + 1) % 5;
-        if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A)) shopSel = (shopSel + 4) % 5;
-        if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) BuyShopSlot(shopSel);
+        if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_F) || IsKeyPressed(KEY_BACKSPACE) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_UP)) { state = PLAYING; return; }
+        if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_RIGHT)) shopSel = (shopSel + 1) % 5;
+        if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_LEFT)) shopSel = (shopSel + 4) % 5;
+        if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) BuyShopSlot(shopSel);
         for (int i = 0; i < 5; ++i) if (IsKeyPressed(KEY_ONE + i)) { shopSel = i; BuyShopSlot(i); }
         Vector2 m = GetMousePosition();
         for (int i = 0; i < 5; ++i) {
@@ -2576,7 +2667,7 @@ public:
         // Biển hiệu nổi
         OutlinedText("SHOP", (int)p.x - MeasureText("SHOP", 20) / 2, (int)(p.y - 66.0f + bob), 20, GOLD, { 70, 36, 8, 255 });
         if (Vector2Distance(p, player.pos) < 130.0f) {
-            const char* prompt = "[F] Trade";
+            const char* prompt = IsGamepadAvailable(0) ? "[D-pad Up] Trade" : "[F] Trade";
             OutlinedText(prompt, (int)p.x - MeasureText(prompt, 20) / 2, (int)p.y + 40, 20, WHITE, { 20, 24, 40, 255 });
         }
     }
@@ -2825,7 +2916,7 @@ public:
         DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.86f));
         const char* title = "SETTINGS";
         OutlinedText(title, 1280 / 2 - MeasureText(title, 48) / 2, 70, 48, GOLD, { 90, 50, 10, 255 });
-        static const char* labels[11] = { "Resolution", "Fullscreen", "VSync", "FPS Limit", "Show FPS", "Vibration (screen shake)", "Lighting", "Particles", "Vignette", "Volume", "Difficulty (next floors)" };
+        static const char* labels[11] = { "Resolution", "Fullscreen", "VSync", "FPS Limit", "Show FPS", "Vibration (shake + controller)", "Lighting", "Particles", "Vignette", "Volume", "Difficulty (next floors)" };
         for (int i = 0; i < 12; ++i) {
             Rectangle r = { 330.0f, 138.0f + i * 36.0f, 620.0f, 32.0f };
             bool sel = (setSel == i);
@@ -3256,7 +3347,7 @@ public:
     }
 
     void DrawHelpPanel() {
-        int w = 800, h = 560, x = 1280 / 2 - w / 2, y = 80;
+        int w = 820, h = 594, x = 1280 / 2 - w / 2, y = 64;
         DrawRectangle(x, y, w, h, { 14, 18, 30, 245 });
         DrawRectangleLines(x, y, w, h, GOLD);
         DrawText("CONTROLS", x + w / 2 - MeasureText("CONTROLS", 30) / 2, y + 18, 30, GOLD);
@@ -3269,13 +3360,14 @@ public:
             { "1 / 2 / 3", "Pick an upgrade on level-up" },
             { "I", "Open the equipment screen" },
             { "F", "Trade with the merchant (every 3rd floor)" },
+            { "Gamepad", "Sticks, RT/A slash, B dash, X/Y Nova, Start pause" },
             { "O / F2", "Settings (title and pause menu)" },
             { "S", "Sanctuary: permanent upgrades (title / game over)" },
             { "M", "Toggle the radar" },
             { "Esc / P", "Pause" },
             { "F1 / H", "Show or hide this help" },
         };
-        for (int i = 0; i < 13; ++i) {
+        for (int i = 0; i < 14; ++i) {
             DrawText(rows[i][0], x + 36, y + 76 + i * 34, 20, SKYBLUE);
             DrawText(rows[i][1], x + 340, y + 76 + i * 34, 20, RAYWHITE);
         }
@@ -3698,6 +3790,7 @@ int main() {
         game.Draw();
     }
 
+    game.StopRumble();
     game.snd.Close();
     CloseWindow();
     return 0;

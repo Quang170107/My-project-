@@ -36,7 +36,7 @@ static void ChooseUpgradeBot(Game& g) {
 static int gSkill = 2; // 2 = giỏi, 1 = trung bình, 0 = vụng về
 static void BotControl(Game& g) {
     auto& c = g.ctl;
-    c.active = true; c.attack = c.dash = c.nova = false; c.move = { 0, 0 };
+    c.active = true; c.external = true; c.attack = c.dash = c.nova = false; c.move = { 0, 0 };
     if (g.state == Game::LEVEL_UP) { ChooseUpgradeBot(g); return; }
     if (g.state != Game::PLAYING) return;
     Vector2 P = g.player.pos;
