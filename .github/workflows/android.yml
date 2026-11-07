@@ -1,0 +1,57 @@
+name: Android APK
+
+on:
+  push:
+    branches: [ main, claude/android ]
+    paths:
+      - 'StandaloneApp/**'
+      - 'android/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Fetch raylib 5.5
+        run: git clone --depth 1 --branch 5.5 https://github.com/raysan5/raylib.git android/raylib
+
+      - name: Build APK
+        run: |
+          NDK_VER=$(grep '^Pkg.Revision' "$ANDROID_NDK_HOME/source.properties" | cut -d= -f2 | tr -d ' ')
+          echo "Using NDK $NDK_VER at $ANDROID_NDK_HOME"
+          gradle -p android assembleRelease -PndkVer="$NDK_VER" --no-daemon --stacktrace
+
+      - name: Collect APK
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release.apk dist/GeometricDungeon-android.apk
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GeometricDungeon-android
+          path: dist/GeometricDungeon-android.apk
+
+      - name: Publish pre-release 'android-latest'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete android-latest --yes --cleanup-tag || true
+          gh release create android-latest dist/GeometricDungeon-android.apk \
+            --prerelease --target "$GITHUB_SHA" \
+            --title "Android APK (latest build)" \
+            --notes "Debug-signed APK built from commit $GITHUB_SHA ($GITHUB_REF_NAME). Enable 'Install unknown apps' for your browser or file manager, then open the APK."
