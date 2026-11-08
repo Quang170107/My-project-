@@ -28,7 +28,7 @@ add_library(raylib_android STATIC
     "${RL}/rcore.c" "${RL}/rshapes.c" "${RL}/rtextures.c" "${RL}/rtext.c"
     "${RL}/rmodels.c" "${RL}/raudio.c" "${RL}/utils.c")
 target_compile_definitions(raylib_android PUBLIC PLATFORM_ANDROID GRAPHICS_API_OPENGL_ES2)
-target_include_directories(raylib_android PUBLIC "${RL}" "${RL}/external")
+target_include_directories(raylib_android PUBLIC "${RL}")
 target_link_libraries(raylib_android PUBLIC native_app_glue)
 target_compile_options(raylib_android PRIVATE -ffunction-sections -funwind-tables -fstack-protector-strong -Wno-unused-value -Wno-pointer-sign)
 
