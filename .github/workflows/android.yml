@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      issues: write
     steps:
       - uses: actions/checkout@v4
 
@@ -31,9 +32,29 @@ jobs:
 
       - name: Build APK
         run: |
+          set -o pipefail
           NDK_VER=$(grep '^Pkg.Revision' "$ANDROID_NDK_HOME/source.properties" | cut -d= -f2 | tr -d ' ')
           echo "Using NDK $NDK_VER at $ANDROID_NDK_HOME"
-          gradle -p android assembleRelease -PndkVer="$NDK_VER" --no-daemon --stacktrace
+          gradle -p android assembleRelease -PndkVer="$NDK_VER" --no-daemon --stacktrace 2>&1 | tee build.log
+
+      - name: Report build failure as an issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "Build log excerpt for run $GITHUB_RUN_ID (commit $GITHUB_SHA)."
+            echo
+            echo "### Errors"
+            echo '```'
+            grep -nE "error:|error |Error|FAILED|What went wrong|Caused by|fatal|undefined reference|not found|No such" build.log | head -60 || true
+            echo '```'
+            echo "### Last 120 lines"
+            echo '```'
+            tail -n 120 build.log
+            echo '```'
+          } | head -c 60000 > report.md
+          gh issue create --title "Android build failed (run $GITHUB_RUN_ID)" --body-file report.md
 
       - name: Collect APK
         run: |
