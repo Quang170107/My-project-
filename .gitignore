@@ -19,3 +19,9 @@
 *.mdb
 *.apk
 *.aab
+
+# Android build
+/android/raylib/
+/android/.gradle/
+/android/app/.cxx/
+/android/local.properties
