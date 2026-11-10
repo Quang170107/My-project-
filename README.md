@@ -316,3 +316,4 @@ Plug in a controller and it just works; keyboard and mouse keep working whenever
 ### Android version
 
 The standalone game now also runs on Android phones and tablets: touch controls (floating joystick, slash / dash / Nova buttons with auto-aim), tappable menus, the Back button, and an APK built automatically by GitHub Actions. See [`android/README.md`](android/README.md) for how to download and install it. On PC the title, pause and game over screens also got clickable buttons.
+- The rebuilt `GeometricDungeon.exe` also has the new clickable buttons on the title, pause and game over screens, and tappable level-up cards.
