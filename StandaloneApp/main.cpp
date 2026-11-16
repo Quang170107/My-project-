@@ -241,6 +241,7 @@ struct Player {
     float shieldTimer = 0.0f;
     int igniteLevel = 0; // Ember Edge: mỗi cấp = 50% sát thương cơ bản/giây trong 3s
     int frostLevel = 0;  // Frost Touch: mỗi cấp giảm 15% tốc độ quái (tối thiểu còn 40%)
+    float frostSlowTimer = 0.0f;
 };
 
 struct Enemy {
@@ -253,6 +254,8 @@ struct Enemy {
     float contactDmg;
     float radius;
     bool isElite = false;
+    int eliteAffix = 0;      // 0: none, 1: Vampiric, 2: Blink, 3: Molten, 4: Frostward
+    float affixTimer = 2.5f;
     float bounceTimer = 0.0f;
     float attackCooldown = 0.0f;
     bool isAttacking = false;
@@ -553,6 +556,33 @@ struct Chest {
     bool vault = false; // rương trong kho báu: chắc chắn có trang bị tốt
 };
 
+struct ArenaBarrel {
+    int kind = 0; // 0: Explosive Keg, 1: Cryo Crystal, 2: Shock Conduit
+    Vector2 pos = { 0, 0 };
+    float hp = 20.0f;
+    float maxHp = 20.0f;
+    float hitFlash = 0.0f;
+    bool destroyed = false;
+};
+
+struct FloorHazard {
+    int kind = 0; // 0: Spike Grate, 1: Toxic Vent, 2: Magma Geyser, 3: Arcane Leyline (Buff)
+    Vector2 pos = { 0, 0 };
+    float radius = 48.0f;
+    float timer = 0.0f;
+    float cycle = 3.6f;
+    float tickTimer = 0.0f;
+};
+
+struct PortalOption {
+    Vector2 pos = { 0, 0 };
+    int nextMod = MOD_NONE;
+    int rewardKind = 0; // 0: Gear/Relic, 1: +Bonus Gold, 2: +35% Heal, 3: +40 Rage
+    std::string title;
+    std::string subtitle;
+    Color color = SKYBLUE;
+};
+
 struct ShopSlot {
     bool potion = false;
     EquipItem item;
@@ -687,6 +717,17 @@ public:
     bool shopHinted = false;
     std::vector<Chest> chests;
     std::vector<Enemy> pendingSpawns;
+    std::vector<ArenaBarrel> barrels;
+    std::vector<FloorHazard> hazards;
+    std::vector<PortalOption> portalChoices;
+    std::vector<Enemy> wave2Spawns;
+    bool wave2Triggered = false;
+    int forcedNextMod = -1;
+    int forcedNextReward = -1;
+    bool hasTrialTotem = false;
+    bool trialUsed = false;
+    bool trialActive = false;
+    Vector2 trialPos = { 0, 0 };
     bool phoenixUsed = false;
     int souls = 0, runs = 0, lastRunSouls = 0, bossesKilled = 0;
     int meta[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -752,6 +793,10 @@ public:
         float r = player.attackRate;
         if (player.holyBuffTimer > 0.0f) r *= 1.25f;
         if (player.heroClass == CLASS_RANGER && player.hasteTimer > 0.0f) r *= 1.35f;
+        if (comboCount >= 10) r *= 1.20f; // Frenzy Overdrive
+        for (const auto& h : hazards) {
+            if (h.kind == 3 && Vector2Distance(player.pos, h.pos) < h.radius) { r *= 1.25f; break; }
+        }
         return r;
     }
     float EffectiveMoveSpeed() const {
@@ -760,6 +805,8 @@ public:
             if (player.ultActiveTimer > 0.0f) s *= 1.35f;
             else if (player.hasteTimer > 0.0f) s *= 1.25f;
         }
+        if (comboCount >= 10) s *= 1.18f; // Frenzy Overdrive
+        if (player.frostSlowTimer > 0.0f) s *= 0.72f;
         return s;
     }
     void AddRage(float amt) {
@@ -828,6 +875,16 @@ public:
         TryEquipItem(MakeStarterWeapon(cd.startWeapon), dummySold);
         itemDrops.clear();
         pendingSpawns.clear();
+        barrels.clear();
+        hazards.clear();
+        portalChoices.clear();
+        wave2Spawns.clear();
+        wave2Triggered = false;
+        forcedNextMod = -1;
+        forcedNextReward = -1;
+        hasTrialTotem = false;
+        trialUsed = false;
+        trialActive = false;
         phoenixUsed = false;
         newRecord = false;
         state = PLAYING;
@@ -958,6 +1015,56 @@ public:
         Rumble(k * 0.9f, k * 0.55f, std::min(0.45f, dur + 0.08f));
     }
 
+    void BuildPortalChoices() {
+        portalChoices.clear();
+        int nextF = floor + 1;
+        if (nextF % 5 == 0 || IsShopFloor(nextF)) {
+            PortalOption po;
+            po.pos = portalPos;
+            po.nextMod = -1;
+            po.rewardKind = 0;
+            if (nextF % 5 == 0) {
+                po.title = "BOSS GATE";
+                po.subtitle = "Defeat Boss for Relic";
+                po.color = { 255, 85, 85, 255 };
+            } else {
+                po.title = "MERCHANT SHOP";
+                po.subtitle = "Spend Gold & Heal";
+                po.color = GOLD;
+            }
+            portalChoices.push_back(po);
+            return;
+        }
+
+        struct Cand { int mod; int reward; const char* title; const char* sub; Color col; };
+        Cand pool[4] = {
+            { MOD_ELITE,  0, "ELITE ARENA",     "High Gear Drops",    { 255, 165, 50, 255 } },
+            { MOD_SWARM,  1, "SWARM GAUNTLET",  "+Bonus Gold",        { 80, 235, 155, 255 } },
+            { MOD_SNIPER, 3, "SNIPER NEST",     "+40 Starting Rage",  { 255, 85, 105, 255 } },
+            { MOD_NONE,   2, "SANCTIFIED HALL", "+35% HP Recovery",   SKYBLUE }
+        };
+        std::vector<Cand> cands(pool, pool + 4);
+        for (int i = 3; i > 0; --i) std::swap(cands[i], cands[rand() % (i + 1)]);
+        if (Rand01() < 0.22f) {
+            cands[2] = { MOD_TREASURE, 0, "TREASURE VAULT", "Free Vault Chest", { 195, 110, 255, 255 } };
+        }
+        Vector2 positions[3] = {
+            portalPos,
+            { -240.0f, -roomH / 2.0f + 80.0f },
+            {  240.0f, -roomH / 2.0f + 80.0f }
+        };
+        for (int i = 0; i < 3; ++i) {
+            PortalOption po;
+            po.pos = positions[i];
+            po.nextMod = cands[i].mod;
+            po.rewardKind = cands[i].reward;
+            po.title = cands[i].title;
+            po.subtitle = cands[i].sub;
+            po.color = cands[i].col;
+            portalChoices.push_back(po);
+        }
+    }
+
     void BuildFloor() {
         enemies.clear();
         projectiles.clear();
@@ -970,25 +1077,50 @@ public:
         particles.clear();
         itemDrops.clear();
         pendingSpawns.clear();
+        barrels.clear();
+        hazards.clear();
+        portalChoices.clear();
+        wave2Spawns.clear();
+        wave2Triggered = false;
+        hasTrialTotem = false;
+        trialUsed = false;
+        trialActive = false;
         player.ultActiveTimer = 0.0f;
         BuildDecor();
 
         portalOpen = false;
-        portalPos = { 0, -roomH / 2.0f + 70.0f };
+        portalPos = { 0, -roomH / 2.0f + 75.0f };
         player.pos = { 0, roomH / 2.0f - 90.0f };
 
         bool isBoss = (floor % 5 == 0);
         shopFloor = IsShopFloor(floor);
 
-        // Biến thể tầng (từ tầng 2, không áp dụng cho boss / cửa hàng)
+        // Biến thể tầng (từ tầng 2 hoặc theo Cổng đã chọn ở tầng trước)
         floorMod = MOD_NONE;
-        if (!isBoss && !shopFloor && floor >= 2) {
+        if (!isBoss && !shopFloor && forcedNextMod >= 0) {
+            floorMod = forcedNextMod;
+        } else if (!isBoss && !shopFloor && floor >= 2) {
             float r = Rand01();
             if (r < 0.12f) floorMod = MOD_TREASURE;
             else if (r < 0.32f) floorMod = MOD_SWARM;
             else if (floor >= 3 && r < 0.50f) floorMod = MOD_ELITE;
             else if (floor >= 3 && r < 0.68f) floorMod = MOD_SNIPER;
         }
+        forcedNextMod = -1;
+
+        if (forcedNextReward == 1) {
+            int bonusG = 30 + floor * 3;
+            player.gold += bonusG;
+            SpawnPopup(player.pos, "+" + std::to_string(bonusG) + "g PORTAL", GOLD);
+        } else if (forcedNextReward == 2) {
+            float hl = roundf(player.maxHp * 0.35f);
+            player.hp = std::min(player.maxHp, player.hp + hl);
+            SpawnPopup(player.pos, "+" + std::to_string((int)hl) + " HP", GREEN);
+        } else if (forcedNextReward == 3) {
+            AddRage(40.0f);
+            SpawnPopup(player.pos, "+40 RAGE!", ORANGE);
+        }
+        forcedNextReward = -1;
         eliteChance = (floorMod == MOD_ELITE) ? std::min(0.70f, EliteChance() + 0.35f) : EliteChance();
 
         // Bố cục phòng: không lặp lại bố cục tầng trước
@@ -1060,6 +1192,50 @@ public:
             if (floor == 4 || floor == 8) {
                 SpawnWarden(GetRandomSpawnPos());
             }
+
+            // Chia đợt quái thứ 2 trên các tầng đông để tạo nhịp dồn dập
+            if (enemies.size() >= 7) {
+                size_t w2Count = enemies.size() / 3;
+                for (size_t k = 0; k < w2Count && !enemies.empty(); ++k) {
+                    if (enemies.back().isWarden) break;
+                    wave2Spawns.push_back(enemies.back());
+                    enemies.pop_back();
+                }
+            }
+        }
+
+        // Thùng nổ / Tinh thể băng / Trụ sấm chiến thuật & Bẫy địa hình theo biome
+        if (!shopFloor && floorMod != MOD_TREASURE) {
+            int barrelCount = 3 + (rand() % 3); // 3..5
+            for (int i = 0; i < barrelCount; ++i) {
+                ArenaBarrel b;
+                b.kind = rand() % 3;
+                b.pos = GetRandomSpawnPos();
+                b.hp = 15.0f;
+                b.maxHp = 15.0f;
+                barrels.push_back(b);
+            }
+            int bio = ((floor - 1) / 3) % 4;
+            int hazCount = 3;
+            for (int i = 0; i < hazCount; ++i) {
+                FloorHazard h;
+                h.kind = (i == 0 && floor >= 2) ? 3 : bio;
+                h.radius = 48.0f;
+                h.timer = Rand01() * 3.0f;
+                for (int tries = 0; tries < 30; ++tries) {
+                    Vector2 hp = GetRandomSpawnPos();
+                    if (hp.y < roomH / 2.0f - 160.0f) { h.pos = hp; break; }
+                    h.pos = { (Rand01() - 0.5f) * (roomW - 260.0f), (Rand01() - 0.5f) * (roomH - 320.0f) - 40.0f };
+                }
+                hazards.push_back(h);
+            }
+        }
+
+        // Cột Thử Thách tùy chọn (từ tầng 2, không phải boss/cửa hàng/kho báu)
+        hasTrialTotem = (!isBoss && !shopFloor && floorMod != MOD_TREASURE && floor >= 2 && Rand01() < 0.55f);
+        if (hasTrialTotem) {
+            trialPos = { (Rand01() < 0.5f ? -260.0f : 260.0f), 20.0f };
+            ResolvePillars(trialPos, 35.0f);
         }
 
         // Rương: mỗi tầng 1 cái (2 cái ở tầng chia hết cho 3 hoặc kho báu), kho báu thêm rương trung tâm
@@ -1086,6 +1262,8 @@ public:
                 if (!nearPillar) break;
             }
         }
+
+        if (portalOpen) BuildPortalChoices();
     }
 
     void SpawnWarden(Vector2 pos) {
@@ -1179,7 +1357,9 @@ public:
         // Elite variant chance on floor 3+
         if (type != BOSS && floor >= 3 && ((float)rand() / RAND_MAX < eliteChance)) {
             e.isElite = true;
-            e.maxHp *= 1.8f;
+            e.eliteAffix = 1 + (rand() % 4);
+            e.affixTimer = 2.0f + Rand01() * 2.0f;
+            e.maxHp *= (e.eliteAffix == 4 ? 1.8f * 1.15f : 1.8f);
             e.hp = e.maxHp;
             e.contactDmg *= 1.3f;
             e.radius *= 1.2f;
@@ -1363,6 +1543,7 @@ public:
         if (player.invulnTimer > 0) player.invulnTimer -= dt;
         if (player.holyBuffTimer > 0) player.holyBuffTimer -= dt;
         if (player.hasteTimer > 0) player.hasteTimer -= dt;
+        if (player.frostSlowTimer > 0) player.frostSlowTimer -= dt;
         if (player.hpDisplay > player.hp) {
             player.hpDisplay = std::max(player.hp, player.hpDisplay - std::max(28.0f, (player.hpDisplay - player.hp) * 3.5f) * dt);
         } else {
@@ -1498,6 +1679,31 @@ public:
             float dist = Vector2Length(toPlayer);
             Vector2 dir = dist > 0.01f ? Vector2Normalize(toPlayer) : Vector2{ 1, 0 };
             if (e.stunTimer <= 0.0f && fabs(dir.x) > 0.05f) e.facingLeft = (dir.x < 0);
+
+            if (e.isElite && e.eliteAffix == 2 && e.stunTimer <= 0.0f) {
+                e.affixTimer -= dt;
+                if (e.affixTimer <= 0.0f && dist > 110.0f && dist < 380.0f) {
+                    e.affixTimer = 3.2f;
+                    Burst(e.pos, { 185, 85, 255, 255 }, 10, 180.0f, 0.35f);
+                    e.pos = Vector2Add(e.pos, Vector2Scale(dir, 95.0f));
+                    Burst(e.pos, { 185, 85, 255, 255 }, 12, 200.0f, 0.35f);
+                    SpawnPopup(e.pos, "BLINK", { 195, 120, 255, 255 });
+                }
+            }
+            if (e.isElite && e.eliteAffix == 4 && e.stunTimer <= 0.0f) {
+                e.affixTimer -= dt;
+                if (e.affixTimer <= 0.0f) {
+                    e.affixTimer = 3.8f;
+                    NovaVisual fn;
+                    fn.pos = e.pos; fn.maxRadius = 85.0f; fn.timer = 0.30f; fn.maxTimer = 0.30f; fn.color = SKYBLUE;
+                    novas.push_back(fn);
+                    if (dist < 85.0f && !player.isDashing) {
+                        player.frostSlowTimer = std::max(player.frostSlowTimer, 1.5f);
+                        Burst(player.pos, SKYBLUE, 8, 120.0f, 0.3f);
+                        SpawnPopup(player.pos, "CHILLED!", SKYBLUE);
+                    }
+                }
+            }
 
             if (e.stunTimer > 0.0f) {
                 // Đang bị choáng: đứng yên, không thể tấn công hoặc tiếp tục lao
@@ -1749,7 +1955,11 @@ public:
             }
             if (e.stunTimer <= 0.0f && Vector2Distance(e.pos, player.pos) < e.radius + 18.0f) {
                 float contactMul = ((e.type == CHARGER && e.chargeState == 2) || (e.type == BOSS && e.bossKind == 1 && e.chargeState == 4)) ? 1.8f : 1.0f;
-                DamagePlayer(e.contactDmg * contactMul);
+                if (DamagePlayer(e.contactDmg * contactMul) && e.isElite && e.eliteAffix == 1 && e.hp > 0) {
+                    float vh = std::min(e.maxHp - e.hp, e.maxHp * 0.12f);
+                    e.hp += vh;
+                    if (vh >= 1.0f) SpawnPopup(e.pos, "+VAMP", RED);
+                }
             }
         }
 
@@ -1792,7 +2002,19 @@ public:
                     }
                 }
             } else {
-                for (size_t ei = 0; ei < enemies.size(); ++ei) {
+                for (size_t bi = 0; bi < barrels.size(); ++bi) {
+                    ArenaBarrel& b = barrels[bi];
+                    if (b.destroyed) continue;
+                    if (Vector2Distance(p.pos, b.pos) < p.radius + 22.0f) {
+                        DamageBarrel(b, p.damage);
+                        if (p.splashRadius > 0.0f) {
+                            TriggerProjectileSplash(p.pos, p.damage * p.splashRatio, p.splashRadius, p.color, p.applyBurn, -1);
+                        }
+                        if (p.pierce > 0) p.pierce--;
+                        else { hit = true; break; }
+                    }
+                }
+                for (size_t ei = 0; !hit && ei < enemies.size(); ++ei) {
                     Enemy& e = enemies[ei];
                     if (e.hp <= 0 || (int)ei == p.hitMask) continue;
                     if (Vector2Distance(p.pos, e.pos) < p.radius + e.radius) {
@@ -1916,6 +2138,68 @@ public:
         UpdateChests(dt);
         UpdateItemDrops(dt);
 
+        // ── Thùng nổ / Tinh thể chiến thuật ──
+        for (size_t i = 0; i < barrels.size();) {
+            if (barrels[i].hitFlash > 0.0f) barrels[i].hitFlash -= dt;
+            if (barrels[i].destroyed) { barrels.erase(barrels.begin() + i); continue; }
+            ++i;
+        }
+
+        // ── Bẫy địa hình & Vòng năng lượng Leyline ──
+        for (auto& h : hazards) {
+            h.timer = fmodf(h.timer + dt, h.cycle);
+            if (h.tickTimer > 0.0f) h.tickTimer -= dt;
+            if (h.kind == 3) {
+                if (Vector2Distance(player.pos, h.pos) < h.radius) {
+                    AddRage(4.0f * dt);
+                }
+            } else if (h.timer > h.cycle * 0.68f && h.tickTimer <= 0.0f) {
+                h.tickTimer = 0.45f;
+                for (auto& e : enemies) {
+                    if (e.hp <= 0) continue;
+                    if (Vector2Distance(h.pos, e.pos) <= h.radius + e.radius * 0.35f) {
+                        float hdmg = 18.0f + floor * 4.0f;
+                        Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, h.pos));
+                        DamageEnemy(e, hdmg, kb, 80.0f, false, false);
+                        if (e.hp > 0) {
+                            if (h.kind == 1) { e.poisonTimer = std::max(e.poisonTimer, 2.5f); e.poisonDmg = std::max(e.poisonDmg, 10.0f + floor * 2.5f); }
+                            if (h.kind == 2) { e.burnTimer = std::max(e.burnTimer, 2.5f); e.burnDps = std::max(e.burnDps, 12.0f + floor * 3.0f); }
+                        }
+                    }
+                }
+                if (Vector2Distance(player.pos, h.pos) < h.radius - 8.0f && !player.isDashing) {
+                    DamagePlayer(8.0f);
+                }
+            }
+        }
+
+        // ── Cột Thử Thách (Trial Totem) ──
+        if (hasTrialTotem && !trialUsed) {
+            float td = Vector2Distance(player.pos, trialPos);
+            if (td < 95.0f && (IsKeyPressed(KEY_F) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_UP))) {
+                trialUsed = true;
+                trialActive = true;
+                PlaySound(snd.sndSpecial);
+                Shake(0.3f, 7.0f);
+                ShowBanner("TRIAL ACTIVATED! DEFEAT THE ELITE AMBUSH!", 3.0f);
+                static const EnemyType ambTypes[3] = { CHASER, RANGER, BRUTE };
+                for (int i = 0; i < 3; ++i) {
+                    float a = i * (2.0f * PI / 3.0f);
+                    Vector2 sp = { Clamp(trialPos.x + cosf(a) * 140.0f, -(roomW / 2.0f - 60.0f), roomW / 2.0f - 60.0f),
+                                   Clamp(trialPos.y + sinf(a) * 120.0f, -(roomH / 2.0f - 60.0f), roomH / 2.0f - 60.0f) };
+                    Enemy amb = BuildEnemy(ambTypes[i], sp);
+                    amb.isElite = true;
+                    amb.eliteAffix = 1 + (i % 4);
+                    amb.affixTimer = 1.8f;
+                    amb.maxHp *= 1.35f;
+                    amb.hp = amb.maxHp;
+                    enemies.push_back(amb);
+                    NovaVisual nv; nv.pos = sp; nv.maxRadius = 65.0f; nv.timer = 0.35f; nv.maxTimer = 0.35f; nv.color = GOLD;
+                    novas.push_back(nv);
+                }
+            }
+        }
+
         // ── Thương nhân ──
         if (shopFloor) {
             float md = Vector2Distance(player.pos, merchantPos);
@@ -1943,22 +2227,54 @@ public:
             if (sd < 44.0f && shrineRefuse <= 0) UseShrine();
         }
 
-        // ── Check Room Clearance ──
-        bool anyAlive = !pendingSpawns.empty();
+        // ── Đợt quái 2, Hoàn thành Trial & Kiểm tra Dọn Phòng ──
+        int aliveCount = 0;
         for (const auto& e : enemies) {
-            if (e.hp > 0) { anyAlive = true; break; }
+            if (e.hp > 0) aliveCount++;
         }
-        if (!anyAlive && !portalOpen) {
-            portalOpen = true;
-            PlaySound(snd.sndPortal);
-            ShowBanner("ROOM CLEARED! ENTER THE PORTAL!");
+        if (!wave2Spawns.empty() && !wave2Triggered && aliveCount <= 2) {
+            wave2Triggered = true;
+            PlaySound(snd.sndSpecial);
+            Shake(0.22f, 5.0f);
+            ShowBanner("WAVE 2 REINFORCEMENTS!", 2.5f);
+            for (const auto& w : wave2Spawns) {
+                enemies.push_back(w);
+                NovaVisual nv; nv.pos = w.pos; nv.maxRadius = 60.0f; nv.timer = 0.32f; nv.maxTimer = 0.32f; nv.color = ORANGE;
+                novas.push_back(nv);
+                aliveCount++;
+            }
+            wave2Spawns.clear();
+        }
+        if (trialActive && aliveCount == 0 && pendingSpawns.empty()) {
+            trialActive = false;
+            PlaySound(snd.sndLevelUp);
+            ShowBanner("TRIAL CONQUERED! VAULT CHEST UNLOCKED!", 3.0f);
+            Chest vc; vc.pos = trialPos; vc.vault = true;
+            chests.push_back(vc);
+            player.gold += 35;
+            AddRage(50.0f);
         }
 
-        // Teleport to next floor
-        if (portalOpen && Vector2Distance(player.pos, portalPos) < 45.0f) {
-            floor++;
+        bool anyAlive = (aliveCount > 0) || !pendingSpawns.empty() || !wave2Spawns.empty();
+        if (!anyAlive && !portalOpen) {
+            portalOpen = true;
+            BuildPortalChoices();
             PlaySound(snd.sndPortal);
-            BuildFloor();
+            ShowBanner(portalChoices.size() > 1 ? "ROOM CLEARED! CHOOSE YOUR NEXT PORTAL!" : "ROOM CLEARED! ENTER THE PORTAL!");
+        }
+
+        // Teleport to next floor (hỗ trợ 3 cổng rẽ nhánh)
+        if (portalOpen) {
+            for (const auto& pc : portalChoices) {
+                if (Vector2Distance(player.pos, pc.pos) < 46.0f) {
+                    forcedNextMod = pc.nextMod;
+                    forcedNextReward = pc.rewardKind;
+                    floor++;
+                    PlaySound(snd.sndPortal);
+                    BuildFloor();
+                    break;
+                }
+            }
         }
 
         // Camera Follow with Screen Shake
@@ -1966,6 +2282,82 @@ public:
         if (screenShakeTimer > 0) {
             camera.target.x += ((float)rand() / RAND_MAX * 2.0f - 1.0f) * screenShakeMag;
             camera.target.y += ((float)rand() / RAND_MAX * 2.0f - 1.0f) * screenShakeMag;
+        }
+    }
+
+    void DamageBarrel(ArenaBarrel& b, float dmg) {
+        if (b.destroyed) return;
+        b.hp -= dmg;
+        b.hitFlash = 0.08f;
+        Burst(b.pos, { 220, 210, 190, 255 }, 4, 120.0f, 0.25f);
+        if (b.hp > 0.0f) return;
+
+        b.destroyed = true;
+        PlaySound(snd.sndSpecial);
+        Shake(0.22f, 6.5f);
+
+        if (b.kind == 0) { // Explosive Keg
+            const float rad = 145.0f;
+            NovaVisual nv; nv.pos = b.pos; nv.maxRadius = rad; nv.timer = 0.34f; nv.maxTimer = 0.34f; nv.color = ORANGE;
+            novas.push_back(nv);
+            Burst(b.pos, ORANGE, 32, 340.0f, 0.6f);
+            Burst(b.pos, YELLOW, 16, 220.0f, 0.45f);
+            float dmgAoe = 45.0f + floor * 12.0f;
+            for (auto& e : enemies) {
+                if (e.hp <= 0) continue;
+                if (Vector2Distance(b.pos, e.pos) <= rad + e.radius * 0.4f) {
+                    Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, b.pos));
+                    DamageEnemy(e, dmgAoe, kb, 260.0f, false, false);
+                    if (e.hp > 0) { e.burnTimer = std::max(e.burnTimer, 3.0f); e.burnDps = std::max(e.burnDps, 12.0f + floor * 3.0f); }
+                }
+            }
+            if (Vector2Distance(b.pos, player.pos) <= 110.0f) DamagePlayer(15.0f);
+            TriggerBarrelsInRadius(b.pos, rad, 20.0f);
+        } else if (b.kind == 1) { // Cryo Crystal
+            const float rad = 155.0f;
+            PlaySound(snd.sndFreeze);
+            NovaVisual nv; nv.pos = b.pos; nv.maxRadius = rad; nv.timer = 0.36f; nv.maxTimer = 0.36f; nv.color = SKYBLUE;
+            novas.push_back(nv);
+            Burst(b.pos, SKYBLUE, 30, 320.0f, 0.6f);
+            float dmgAoe = 30.0f + floor * 8.0f;
+            for (auto& e : enemies) {
+                if (e.hp <= 0) continue;
+                if (Vector2Distance(b.pos, e.pos) <= rad + e.radius * 0.4f) {
+                    Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, b.pos));
+                    DamageEnemy(e, dmgAoe, kb, 160.0f, false, false);
+                    if (e.hp > 0) { e.stunTimer = std::max(e.stunTimer, 1.6f); e.chillTimer = std::max(e.chillTimer, 3.5f); }
+                }
+            }
+            TriggerBarrelsInRadius(b.pos, rad, 20.0f);
+        } else { // Shock Conduit
+            const float rad = 175.0f;
+            NovaVisual nv; nv.pos = b.pos; nv.maxRadius = rad; nv.timer = 0.32f; nv.maxTimer = 0.32f; nv.color = GOLD;
+            novas.push_back(nv);
+            Burst(b.pos, GOLD, 26, 300.0f, 0.5f);
+            AddRage(20.0f);
+            SpawnPopup(b.pos, "+20 RAGE", GOLD);
+            int hits = 0;
+            float dmgAoe = 38.0f + floor * 10.0f;
+            for (auto& e : enemies) {
+                if (e.hp <= 0) continue;
+                if (Vector2Distance(b.pos, e.pos) <= 190.0f + e.radius * 0.4f) {
+                    Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, b.pos));
+                    DamageEnemy(e, dmgAoe, kb, 140.0f, false, false);
+                    if (e.hp > 0) e.stunTimer = std::max(e.stunTimer, 0.8f);
+                    for (int k = 1; k <= 4; ++k) Burst(Vector2Lerp(b.pos, e.pos, k * 0.2f), SKYBLUE, 1, 50.0f, 0.22f);
+                    if (++hits >= 5) break;
+                }
+            }
+            TriggerBarrelsInRadius(b.pos, rad, 20.0f);
+        }
+    }
+
+    void TriggerBarrelsInRadius(Vector2 center, float radius, float dmg) {
+        for (size_t i = 0; i < barrels.size(); ++i) {
+            if (barrels[i].destroyed) continue;
+            if (Vector2Distance(center, barrels[i].pos) <= radius + 22.0f) {
+                DamageBarrel(barrels[i], dmg);
+            }
         }
     }
 
@@ -1983,6 +2375,7 @@ public:
             PlaySound(snd.sndSpecial);
             Shake(0.18f, 5.0f);
         }
+        TriggerBarrelsInRadius(pos, radius, baseSplashDmg);
         for (size_t i = 0; i < enemies.size(); ++i) {
             if ((int)i == skipIdx) continue;
             Enemy& other = enemies[i];
@@ -2012,7 +2405,7 @@ public:
         e.hitFlash = 0.09f;
         Burst(e.pos, isCrit ? Color{ 255, 217, 51, 255 } : WHITE, isCrit ? 9 : 4, isCrit ? 230.0f : 160.0f, isCrit ? 0.4f : 0.28f);
         if (isCrit) hitStop = 0.035f;
-        if (allowRage) AddRage(isCrit ? 4.0f : 2.5f);
+        if (allowRage) AddRage((isCrit ? 4.0f : 2.5f) + (comboCount >= 10 ? 1.5f : 0.0f));
 
         // Nội tại Sát Thủ: đòn chí mạng gây chảy máu/độc 2s
         if (player.heroClass == CLASS_ASSASSIN && isCrit) {
@@ -2133,6 +2526,20 @@ public:
         if (e.type == BOSS) {
             GiveRandomRelic();
         }
+        if (e.isElite && e.eliteAffix == 3) { // MOLTEN: rơi bom nham thạch
+            GroundEffect bomb;
+            bomb.kind = 4;
+            bomb.pos = e.pos;
+            bomb.radius = 90.0f;
+            bomb.maxTimer = 0.70f;
+            bomb.timer = 0.70f;
+            bomb.damage = player.baseDmg * 0.8f;
+            bomb.color = ORANGE;
+            groundEffects.push_back(bomb);
+        }
+        if (e.isElite && e.eliteAffix == 1) { // VAMPIRIC: rơi bình máu phụ
+            loots.push_back({ 2, Vector2Add(e.pos, { 0, -14 }), 25, 20.0f });
+        }
     }
 
     void KnightCounterShockwave() {
@@ -2155,8 +2562,8 @@ public:
         }
     }
 
-    void DamagePlayer(float dmg) {
-        if (player.isInvuln || player.hp <= 0) return;
+    bool DamagePlayer(float dmg) {
+        if (player.isInvuln || player.hp <= 0) return false;
 
         // Khiên chặn đòn (Divine Aegis hoặc Thánh Quang Xung của Knight)
         if (player.shieldActive) {
@@ -2166,7 +2573,7 @@ public:
             SpawnPopup(player.pos, "BLOCKED!", GOLD);
             Shake(0.12f, 3.0f);
             if (player.heroClass == CLASS_KNIGHT) KnightCounterShockwave();
-            return;
+            return false;
         }
 
         float effArmor = EffectiveArmor();
@@ -2209,6 +2616,7 @@ public:
                 newRecord = true;
             }
         }
+        return true;
     }
 
     void BomberExplode(Enemy& e) {
@@ -3619,6 +4027,7 @@ public:
                 }
             }
         }
+        TriggerBarrelsInRadius(wt == WP_SPEAR ? Vector2Lerp(player.pos, spearEnd, 0.55f) : hitCenter, wt == WP_SPEAR ? 82.0f : hitRadius + 10.0f, player.baseDmg * wDmg[wt]);
         if (hitAny) {
             float ls = std::min(0.35f, player.lifesteal + (wt == WP_SCYTHE ? 0.05f : 0.0f));
             if (ls > 0.0f && player.hp < player.maxHp) {
@@ -3699,6 +4108,7 @@ public:
                     if (e.hp > 0) e.stunTimer = std::max(e.stunTimer, 1.2f);
                 }
             }
+            TriggerBarrelsInRadius(slamCenter, 140.0f, player.baseDmg * 1.9f);
         } else if (player.heroClass == CLASS_ASSASSIN) {
             // Phi Tiêu Bóng Tối: phóng 5 phi tiêu xuyên 1 mục tiêu, làm chậm & trúng độc
             PlaySound(snd.sndSlash);
@@ -3796,6 +4206,7 @@ public:
                     DamageEnemy(e, dmg, kb, 280.0f, isCrit, true);
                 }
             }
+            TriggerBarrelsInRadius(player.pos, 190.0f, player.baseDmg * 1.8f);
         } else if (player.heroClass == CLASS_ASSASSIN) {
             // Ám Tập: bom khói tại chỗ cũ, dịch chuyển 210px & chém tất chí mạng 2.2x
             Vector2 origin = player.pos;
@@ -3853,6 +4264,7 @@ public:
                     DamageEnemy(e, dmg, kb, 220.0f, true, true);
                 }
             }
+            TriggerBarrelsInRadius(dest, 125.0f, player.baseDmg * 2.2f);
         } else if (player.heroClass == CLASS_MAGE) {
             // Vòng Băng Giá: nổ băng 185px, đóng băng/choáng 1.3s + làm chậm 3s
             PlaySound(snd.sndFreeze);
@@ -3879,6 +4291,7 @@ public:
                     }
                 }
             }
+            TriggerBarrelsInRadius(player.pos, 185.0f, player.baseDmg * 1.5f);
             TriggerArcaneResonance(aimDir);
         } else {
             // Bẫy Nổ & Nhào Lộn: đặt bẫy tại chỗ và lộn ngược 120px
@@ -3937,6 +4350,7 @@ public:
                     if (e.hp > 0) e.stunTimer = std::max(e.stunTimer, 1.5f);
                 }
             }
+            TriggerBarrelsInRadius(player.pos, 250.0f, player.baseDmg * 3.5f);
             GroundEffect zone;
             zone.kind = 1;
             zone.pos = player.pos;
@@ -4019,6 +4433,7 @@ public:
                             DamageEnemy(e, dmg, kb, 110.0f, isCrit, false);
                         }
                     }
+                    TriggerBarrelsInRadius(player.pos, 185.0f, player.baseDmg * 0.85f);
                 }
             }
         }
@@ -4060,6 +4475,7 @@ public:
                             }
                         }
                     }
+                    TriggerBarrelsInRadius(ge.pos, ge.radius, ge.damage);
                     groundEffects.erase(groundEffects.begin() + i);
                     continue;
                 }
@@ -4165,6 +4581,7 @@ public:
                             }
                         }
                     }
+                    TriggerBarrelsInRadius(ge.pos, ge.radius, ge.damage);
                     groundEffects.erase(groundEffects.begin() + i);
                     continue;
                 }
@@ -5188,7 +5605,19 @@ public:
             float fl = 0.85f + 0.15f * sinf(tm * 13.0f + t.x * 0.1f);
             AddLight({ t.x, t.y - 8.0f }, 260.0f, { 255, 150, 60, 255 }, 0.58f * fl);
         }
-        if (portalOpen) AddLight(portalPos, 230.0f, { 80, 220, 255, 255 }, 0.7f);
+        if (portalOpen) {
+            for (const auto& pc : portalChoices) AddLight(pc.pos, 220.0f, pc.color, 0.68f);
+        }
+        for (const auto& h : hazards) {
+            if (h.kind == 3) AddLight(h.pos, h.radius * 2.2f, { 90, 225, 255, 255 }, 0.45f);
+            else if (h.kind == 2 && h.timer > h.cycle * 0.48f) AddLight(h.pos, h.radius * 2.0f, { 255, 110, 30, 255 }, 0.55f);
+        }
+        for (const auto& b : barrels) {
+            if (b.destroyed) continue;
+            Color bc = (b.kind == 0) ? ORANGE : (b.kind == 1 ? SKYBLUE : GOLD);
+            AddLight(b.pos, 95.0f, bc, 0.40f);
+        }
+        if (hasTrialTotem && !trialUsed) AddLight(trialPos, 170.0f, { 255, 195, 70, 255 }, 0.55f);
         if (hasShrine && !shrineUsed) AddLight({ shrinePos.x, shrinePos.y - 40.0f }, 190.0f, { 255, 50, 80, 255 }, 0.55f + 0.1f * sinf(shrinePulse));
         for (const auto& pr : projectiles) AddLight(pr.pos, pr.kind == 4 ? 130.0f : 80.0f, pr.color, pr.kind == 4 ? 0.85f : 0.7f);
         for (const auto& ge : groundEffects) AddLight(ge.pos, ge.radius * 1.15f + 40.0f, ge.color, 0.55f);
@@ -5677,7 +6106,10 @@ public:
         if (roomCleared) {
             enemies.clear();
             pendingSpawns.clear();
+            wave2Spawns.clear();
+            hasTrialTotem = false;
             portalOpen = true;
+            BuildPortalChoices();
         }
         state = PLAYING;
         PlaySound(snd.sndPortal);
@@ -5955,6 +6387,55 @@ public:
 
         DrawDecals(biome);
 
+        // Bẫy địa hình & Vòng năng lượng Arcane Leyline
+        {
+            float tm = (float)GetTime();
+            for (const auto& h : hazards) {
+                bool warn = (h.timer > h.cycle * 0.48f);
+                bool active = (h.timer > h.cycle * 0.68f);
+                if (h.kind == 0) { // Spike Grate
+                    BoxRot(h.pos, h.radius * 1.45f, h.radius * 1.45f, 0.0f, { 34, 38, 48, 235 }, active ? Color{ 255, 110, 90, 255 } : (warn ? ORANGE : Color{ 85, 92, 112, 255 }), 2.0f);
+                    for (int gx = -1; gx <= 1; ++gx) {
+                        for (int gy = -1; gy <= 1; ++gy) {
+                            Vector2 gp = { h.pos.x + gx * 18.0f, h.pos.y + gy * 18.0f };
+                            DrawCircle((int)gp.x, (int)gp.y, 4.0f, { 14, 16, 22, 255 });
+                            if (active) {
+                                Tri({ gp.x - 4.5f, gp.y + 3.0f }, { gp.x + 4.5f, gp.y + 3.0f }, { gp.x, gp.y - 13.0f }, { 225, 235, 250, 255 });
+                            } else if (warn) {
+                                DrawCircleV(gp, 2.2f, { 255, 195, 70, 255 });
+                            }
+                        }
+                    }
+                } else if (h.kind == 1) { // Toxic Vent
+                    DrawPoly(h.pos, 8, h.radius * 0.86f, 22.5f, active ? Color{ 42, 130, 56, 220 } : Color{ 26, 56, 36, 220 });
+                    DrawPolyLinesEx(h.pos, 8, h.radius * 0.86f, 22.5f, 2.0f, active ? LIME : (warn ? YELLOW : Color{ 70, 130, 78, 255 }));
+                    if (active) {
+                        DrawCircleV(h.pos, h.radius * (0.7f + 0.25f * sinf(tm * 12.0f)), Fade(LIME, 0.28f));
+                        DrawCircleLines((int)h.pos.x, (int)h.pos.y, h.radius, Fade(LIME, 0.75f));
+                    } else if (warn) {
+                        DrawCircleV(h.pos, h.radius * 0.45f, Fade(LIME, 0.22f));
+                    }
+                } else if (h.kind == 2) { // Magma Geyser
+                    DrawPoly(h.pos, 7, h.radius * 0.86f, 0.0f, active ? Color{ 165, 52, 20, 240 } : Color{ 52, 26, 22, 230 });
+                    DrawPolyLinesEx(h.pos, 7, h.radius * 0.86f, 0.0f, 2.0f, active ? ORANGE : (warn ? GOLD : Color{ 125, 62, 42, 255 }));
+                    if (active) {
+                        DrawCircleV(h.pos, h.radius * 0.92f, Fade(ORANGE, 0.30f));
+                        for (int k = -1; k <= 1; ++k)
+                            Tri({ h.pos.x + k * 14.0f - 7.0f, h.pos.y + 4.0f }, { h.pos.x + k * 14.0f + 7.0f, h.pos.y + 4.0f }, { h.pos.x + k * 14.0f, h.pos.y - 20.0f - 5.0f * sinf(tm * 18.0f + k) }, { 255, 195, 55, 255 });
+                    } else if (warn) {
+                        DrawCircleV(h.pos, h.radius * 0.48f, Fade({ 255, 120, 35, 255 }, 0.30f));
+                    }
+                } else { // Arcane Leyline (Buff Pad)
+                    bool inside = Vector2Distance(player.pos, h.pos) < h.radius;
+                    DrawCircleV(h.pos, h.radius, Fade({ 80, 220, 255, 255 }, inside ? 0.18f : 0.09f));
+                    DrawPolyLinesEx(h.pos, 6, h.radius, tm * 35.0f, 2.0f, inside ? GOLD : Color{ 95, 230, 255, 220 });
+                    DrawRing(h.pos, h.radius * 0.58f, h.radius * 0.66f, -tm * 55.0f, -tm * 55.0f + 280.0f, 18, Fade(GOLD, 0.70f));
+                    const char* lt = "LEYLINE +SPD/+RAGE";
+                    DrawText(lt, (int)h.pos.x - MeasureText(lt, 11) / 2, (int)(h.pos.y + h.radius + 4.0f), 11, inside ? GOLD : SKYBLUE);
+                }
+            }
+        }
+
         // Bụi lơ lửng
         for (const auto& m : motes) {
             float a2 = 0.10f + 0.16f * (0.5f + 0.5f * sinf((float)GetTime() * 1.6f + m.phase));
@@ -5964,8 +6445,52 @@ public:
         for (const auto& tp : torches) DrawTorch(tp);
         for (const auto& pl : pillars) DrawPillar(pl, biome);
 
+        // Thùng nổ / Tinh thể băng / Trụ sấm chiến thuật
+        for (const auto& b : barrels) {
+            if (b.destroyed) continue;
+            Vector2 p = b.pos;
+            const Color ink = { 18, 16, 26, 255 };
+            DrawEllipse((int)p.x, (int)p.y + 15, 18.0f, 6.0f, Fade(BLACK, 0.38f));
+            if (b.kind == 0) { // Explosive Keg
+                Color bodyC = b.hitFlash > 0.0f ? WHITE : Color{ 165, 84, 44, 255 };
+                BoxRot(p, 26.0f, 30.0f, 0.0f, bodyC, ink, 1.8f);
+                BoxRot(p, 27.0f, 10.0f, 0.0f, b.hitFlash > 0.0f ? WHITE : Color{ 225, 58, 44, 255 }, ink, 1.3f);
+                DrawText("BOOM", (int)p.x - MeasureText("BOOM", 8) / 2, (int)p.y - 4, 8, WHITE);
+            } else if (b.kind == 1) { // Cryo Crystal
+                Color cry = b.hitFlash > 0.0f ? WHITE : SKYBLUE;
+                Tri({ p.x - 12.0f, p.y + 10.0f }, { p.x - 2.0f, p.y + 10.0f }, { p.x - 10.0f, p.y - 14.0f }, Shade(cry, 0.8f));
+                Tri({ p.x + 12.0f, p.y + 10.0f }, { p.x + 2.0f, p.y + 10.0f }, { p.x + 10.0f, p.y - 12.0f }, Shade(cry, 0.8f));
+                Diamond({ p.x, p.y - 2.0f }, 11.0f, 18.0f, cry, WHITE);
+            } else { // Shock Conduit
+                Color col = b.hitFlash > 0.0f ? WHITE : Color{ 115, 100, 195, 255 };
+                QuadOut({ p.x - 10.0f, p.y - 12.0f }, { p.x + 10.0f, p.y - 12.0f }, { p.x + 14.0f, p.y + 14.0f }, { p.x - 14.0f, p.y + 14.0f }, col, ink, 1.8f);
+                Diamond({ p.x, p.y - 18.0f + sinf((float)GetTime() * 6.0f) * 3.0f }, 6.5f, 8.5f, GOLD, WHITE);
+            }
+        }
+
         for (const auto& ch : chests) DrawChest(ch);
         if (shopFloor) DrawMerchant();
+
+        // Cột Thử Thách (Trial Totem)
+        if (hasTrialTotem) {
+            float tm = (float)GetTime();
+            Vector2 tp = trialPos;
+            const Color ink = { 18, 16, 26, 255 };
+            DrawEllipse((int)tp.x, (int)tp.y + 22, 26.0f, 9.0f, Fade(BLACK, 0.40f));
+            if (!trialUsed) {
+                DrawPolyLinesEx(tp, 6, 36.0f, tm * 30.0f, 2.0f, Fade(GOLD, 0.70f));
+            }
+            QuadOut({ tp.x - 16.0f, tp.y + 8.0f }, { tp.x + 16.0f, tp.y + 8.0f }, { tp.x + 20.0f, tp.y + 20.0f }, { tp.x - 20.0f, tp.y + 20.0f }, trialUsed ? Color{ 68, 66, 78, 255 } : Color{ 98, 72, 138, 255 }, ink, 1.8f);
+            QuadOut({ tp.x - 11.0f, tp.y - 24.0f }, { tp.x + 11.0f, tp.y - 24.0f }, { tp.x + 14.0f, tp.y + 10.0f }, { tp.x - 14.0f, tp.y + 10.0f }, trialUsed ? Color{ 56, 54, 68, 255 } : Color{ 126, 92, 178, 255 }, GOLD, 1.6f);
+            if (!trialUsed) {
+                Diamond({ tp.x, tp.y - 36.0f + sinf(tm * 3.5f) * 3.0f }, 7.5f, 10.5f, GOLD, WHITE);
+                DrawText("TRIAL TOTEM", (int)tp.x - MeasureText("TRIAL TOTEM", 13) / 2, (int)tp.y + 25, 13, GOLD);
+                if (Vector2Distance(tp, player.pos) < 120.0f) {
+                    const char* pr = "[F] Start Ambush (Vault Chest)";
+                    OutlinedText(pr, (int)tp.x - MeasureText(pr, 16) / 2, (int)tp.y + 42, 16, WHITE, { 20, 24, 40, 255 });
+                }
+            }
+        }
 
         // Blood Shrine
         if (hasShrine) {
@@ -5997,22 +6522,25 @@ public:
             }
         }
 
-        // Exit Portal (vòng ma pháp đa tầng xoay)
+        // Exit Portals (tối đa 3 cổng rẽ nhánh sau khi dọn phòng)
         if (portalOpen) {
             float tm = (float)GetTime();
             float pulse = sinf(tm * 6.0f) * 5.0f;
-            BeginBlendMode(BLEND_ADDITIVE);
-            CircleGrad(portalPos.x, portalPos.y, 58.0f + pulse, Fade(SKYBLUE, 0.45f), Fade(SKYBLUE, 0.0f));
-            EndBlendMode();
-            DrawRing(portalPos, 32.0f, 36.0f, tm * 70.0f, tm * 70.0f + 270.0f, 24, { 90, 225, 255, 210 });
-            DrawRing(portalPos, 23.0f, 27.0f, -tm * 110.0f, -tm * 110.0f + 260.0f, 20, { 170, 245, 255, 230 });
-            for (int i = 0; i < 8; ++i) {
-                float a = tm * 2.2f + i * (PI / 4.0f);
-                DrawCircleV({ portalPos.x + cosf(a) * 34.0f, portalPos.y + sinf(a) * 34.0f }, 3.0f, WHITE);
+            for (const auto& pc : portalChoices) {
+                BeginBlendMode(BLEND_ADDITIVE);
+                CircleGrad(pc.pos.x, pc.pos.y, 58.0f + pulse, Fade(pc.color, 0.45f), Fade(pc.color, 0.0f));
+                EndBlendMode();
+                DrawRing(pc.pos, 32.0f, 36.0f, tm * 70.0f, tm * 70.0f + 270.0f, 24, Fade(pc.color, 0.85f));
+                DrawRing(pc.pos, 23.0f, 27.0f, -tm * 110.0f, -tm * 110.0f + 260.0f, 20, Fade(WHITE, 0.85f));
+                for (int i = 0; i < 8; ++i) {
+                    float a = tm * 2.2f + i * (PI / 4.0f);
+                    DrawCircleV({ pc.pos.x + cosf(a) * 34.0f, pc.pos.y + sinf(a) * 34.0f }, 3.0f, WHITE);
+                }
+                DrawCircle((int)pc.pos.x, (int)pc.pos.y, 19.0f, Fade(pc.color, 0.85f));
+                DrawCircle((int)pc.pos.x, (int)pc.pos.y, 11.0f, WHITE);
+                OutlinedText(pc.title.c_str(), (int)pc.pos.x - MeasureText(pc.title.c_str(), 14) / 2, (int)pc.pos.y + 39, 14, pc.color, { 12, 14, 24, 255 });
+                DrawText(pc.subtitle.c_str(), (int)pc.pos.x - MeasureText(pc.subtitle.c_str(), 12) / 2, (int)pc.pos.y + 55, 12, WHITE);
             }
-            DrawCircle((int)portalPos.x, (int)portalPos.y, 19.0f, { 70, 210, 255, 220 });
-            DrawCircle((int)portalPos.x, (int)portalPos.y, 11.0f, WHITE);
-            DrawText("PORTAL", (int)portalPos.x - 26, (int)portalPos.y + 40, 14, SKYBLUE);
         }
 
         // Ground Effects (Traps, Consecrated Ground, Void Vortex, Phoenix Rain, Falling Meteors/Arrows)
@@ -6147,11 +6675,17 @@ public:
 
             DrawEnemyBody(e);
 
-            // Health bar
+            // Health bar + Elite affix tag
             float barW = e.radius * 2.2f;
             float pct = std::max(0.0f, e.hp / e.maxHp);
             DrawRectangle((int)(e.pos.x - barW / 2), (int)(e.pos.y - e.radius - 12), (int)barW, 5, BLACK);
             DrawRectangle((int)(e.pos.x - barW / 2), (int)(e.pos.y - e.radius - 12), (int)(barW * pct), 5, RED);
+            if (e.isElite && e.eliteAffix >= 1 && e.eliteAffix <= 4) {
+                static const char* affNames[5] = { "", "VAMPIRIC", "BLINK", "MOLTEN", "FROSTWARD" };
+                static const Color affCols[5]  = { WHITE, { 255, 80, 110, 255 }, { 195, 115, 255, 255 }, ORANGE, SKYBLUE };
+                const char* an = affNames[e.eliteAffix];
+                DrawText(an, (int)e.pos.x - MeasureText(an, 10) / 2, (int)(e.pos.y - e.radius - 24), 10, affCols[e.eliteAffix]);
+            }
         }
 
         // Projectiles: mũi tên, phi tiêu, sao chổi lửa & tinh thể phép định hướng
@@ -6191,6 +6725,10 @@ public:
         }
 
         // Player
+        if (comboCount >= 10) {
+            float tm = (float)GetTime();
+            DrawPolyLinesEx(player.pos, 6, 30.0f + sinf(tm * 12.0f) * 2.0f, tm * 120.0f, 2.2f, Fade(ORANGE, 0.78f));
+        }
         DrawEllipse((int)player.pos.x, (int)player.pos.y + 16, 20, 8, { 0, 0, 0, 100 }); // Shadow
         DrawPlayerSprite();
 
@@ -6279,7 +6817,15 @@ public:
         if (comboCount > 1) {
             std::string comboStr = "COMBO x" + std::to_string(comboCount) + "!";
             Color cCol = comboCount >= 20 ? RED : (comboCount >= 10 ? ORANGE : YELLOW);
-            DrawText(comboStr.c_str(), 1280 - 240, 160, 26, cCol);
+            DrawText(comboStr.c_str(), 1280 - 240, 154, 26, cCol);
+            if (comboCount >= 10) {
+                DrawText("FRENZY OVERDRIVE!", 1280 - 240, 182, 14, GOLD);
+                DrawText("+20% ATK SPD  +18% SPD", 1280 - 240, 198, 12, { 255, 200, 110, 255 });
+            }
+        }
+        if (trialActive) {
+            const char* tt = "TRIAL AMBUSH ACTIVE!";
+            DrawText(tt, 1280 / 2 - MeasureText(tt, 18) / 2, 54, 18, GOLD);
         }
 
         // Trang bị đang đeo (HUD)
@@ -6325,8 +6871,13 @@ public:
 
             // Player dot
             DrawCircle((int)(midX + player.pos.x * sX), (int)(midY + player.pos.y * sY), 3.5f, GREEN);
-            // Portal dot
-            if (portalOpen) DrawCircle((int)(midX + portalPos.x * sX), (int)(midY + portalPos.y * sY), 4.5f, SKYBLUE);
+            // Trial Totem dot
+            if (hasTrialTotem && !trialUsed) DrawCircle((int)(midX + trialPos.x * sX), (int)(midY + trialPos.y * sY), 3.5f, GOLD);
+            // Portal dots
+            if (portalOpen) {
+                for (const auto& pc : portalChoices)
+                    DrawCircle((int)(midX + pc.pos.x * sX), (int)(midY + pc.pos.y * sY), 4.5f, pc.color);
+            }
             // Enemy dots
             for (const auto& e : enemies) {
                 if (e.hp <= 0) continue;
