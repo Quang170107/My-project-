@@ -312,3 +312,43 @@ Plug in a controller and it just works; keyboard and mouse keep working whenever
 | Title / game over | A starts or restarts, X on game over opens the Sanctuary |
 
 **Vibration** (Settings -> "Vibration (shake + controller)") now also rumbles an Xbox/XInput controller on Windows: every screen shake (hits, Nova, explosions, boss slams) is mapped to the strong and weak motors, and it stops when you pause. It uses `xinput1_4.dll` loaded at run time, so there is nothing extra to install. Settings, Sanctuary and the Settings screen still need the keyboard or mouse.
+
+### Android version
+
+The standalone game now also runs on Android phones and tablets: touch controls (floating joystick, slash / dash / Nova buttons with auto-aim), tappable menus, the Back button, and an APK built automatically by GitHub Actions. See [`android/README.md`](android/README.md) for how to download and install it. On PC the title, pause and game over screens also got clickable buttons.
+- The rebuilt `GeometricDungeon.exe` also has the new clickable buttons on the title, pause and game over screens, and tappable level-up cards.
+
+---
+
+### Graphics Upgrade, 4 Hero Classes, 8 Weapons & 4-Skill System (standalone exe)
+
+- **Graphics & UI Upgrade:**
+  - Beveled dungeon stone tiles with mortar lines and procedural surface details.
+  - Multi-layered rotating arcane Exit Portal, Blood Shrine floor rune circle, and enhanced dynamic lighting for skills and ground effects.
+  - Distinct live-rendered character models (`DrawHeroModel`) and custom weapon visuals (`DrawWeaponModel`) for all classes and weapons.
+  - Smooth HP damage-lag bar, fiery **Rage (Nộ)** bar (`0–100`), and a **5-slot Bottom-Center Skill Dock** (`[PSV]`, `[RMB] Dash`, `[Q] Skill 1`, `[E] Skill 2`, `[R] Ultimate`) with vector skill icons (plus touch buttons for Skill 1, Skill 2, and Ultimate on mobile).
+- **Interactive Hero Selection (`CLASS_SELECT`):** Choose from 4 distinct classes before each run (saved in `settings.cfg`, or switch via `C` / **Change Hero** from the Pause / Game Over menus):
+  - **Vanguard Knight (Hiệp Sĩ)** — Starts with **Sword** (`120 HP`, `275 SPD`, `26 DMG`, `2.0 ARM`, `5% CRIT`):
+    - *Passive — Unyielding Aegis*: `-15%` damage taken; taking or blocking hits grants `+8` Rage and reflects a `30%` shockwave; every 5th basic attack heals `4 HP`.
+    - *Skill 1 (`Q`) — Shield Bash*: Lunges forward `75px` and slams for `1.9x` DMG + `1.2s` Stun.
+    - *Skill 2 (`E`) — Holy Nova*: `1.8x` radial DMG + `3.5s` Holy Barrier (`+4 ARM`, `+25% ATK SPD`, blocks 1 hit).
+    - *Ultimate (`R`, 100 Rage) — Heaven's Judgment*: `3.5x` Light Sword + `1.5s` Stun, leaving a `4.0s` consecrated zone (`0.85x` ticks & `4% maxHP/s` heal).
+  - **Shadow Assassin (Sát Thủ)** — Starts with **Dagger** (`85 HP`, `320 SPD`, `22 DMG`, `0.0 ARM`, `18% CRIT`):
+    - *Passive — Lethal Momentum*: Crits deal `2.4x` DMG + `2s` poison; kills refund `50%` Dash cooldown and grant `+25%` move speed for `2s`.
+    - *Skill 1 (`Q`) — Fan of Knives*: Throws 5 piercing shadow daggers (`1.1x` DMG, poison & slow).
+    - *Skill 2 (`E`) — Shadow Step*: Blinks up to `210px`, drops a smoke bomb (slows), and unleashes a guaranteed-crit `2.2x` slash with `0.5s` invulnerability.
+    - *Ultimate (`R`, 100 Rage) — Blade Storm*: `3.5s` shadow whirlwind (`+35%` move speed, `-50%` damage taken, `0.85x` slashes every `0.2s`).
+  - **Arcane Mage (Pháp Sư)** — Starts with **Staff** (`80 HP`, `285 SPD`, `28 DMG`, `0.5 ARM`, `10% CRIT`):
+    - *Passive — Arcane Resonance*: `-15%` Skill cooldowns; casting `Q`, `E`, or `R` fires 3 homing arcane missiles (`0.55x` DMG each) & grants `+6` Rage.
+    - *Skill 1 (`Q`) — Fireball*: Blazing comet explodes in `135px` AoE (`2.3x` DMG + Burn).
+    - *Skill 2 (`E`) — Frost Nova*: `185px` ice blast (`1.5x` DMG, `1.3s` Freeze/Stun & `3s` Chill).
+    - *Ultimate (`R`, 100 Rage) — Void Cataclysm*: `3.8s` black hole vortex pulls enemies and rains 12 arcane meteors (`1.5x` AoE each).
+  - **Emerald Ranger (Xạ Thủ)** — Starts with **Bow** (`90 HP`, `310 SPD`, `24 DMG`, `0.5 ARM`, `14% CRIT`):
+    - *Passive — Eagle Mark*: Every 3rd basic attack fires a piercing `1.5x` Wind Shot (`+10%` bonus Crit).
+    - *Skill 1 (`Q`) — Multishot Volley*: Fires a 7-arrow fan (`1.0x` DMG each) with knockback.
+    - *Skill 2 (`E`) — Explosive Vault*: Drops an explosive rune trap (`2.4x` AoE + `3s` slow) and vaults back `120px` (`0.4s` invulnerability).
+    - *Ultimate (`R`, 100 Rage) — Phoenix Rain*: `3.6s` storm of 16 fiery arrows (`1.15x` DMG + Burn) and `+35%` attack speed.
+- **8 Weapon Types** (usable by any hero via drops & shop):
+  - **Sword** (balanced), **Dagger** (fast strikes), **Axe** (heavy wide cleave), **Spear** (long piercing thrust), **Hammer** (crushing `1.55x` slam with shockwave & `0.55s` stun), **Scythe** (`220°` reap pulling enemies inward + `+5%` lifesteal), **Bow** (fast ranged arrows; crits pierce +1), and **Staff** (ranged arcane orbs with `52px` splash).
+- **Controls Update:** `Q` / `U` (Skill 1), `E` / `L` (Skill 2), `R` / Middle Click / Gamepad `LB` (Ultimate at 100 Rage), Gamepad `X` (Skill 1), Gamepad `Y` (Skill 2).
+
