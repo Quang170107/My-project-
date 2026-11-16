@@ -2255,7 +2255,7 @@ public:
         else if (up == UP_FROST) { player.frostLevel++; }
     }
 
-    // ── Vẽ nhân vật & quái bằng hình học có đổ bóng ──
+    // ── Vẽ nhân vật & quái bằng mô hình đa giác phân mảnh (khớp chi & giáp) ──
     static void Tri(Vector2 a, Vector2 b, Vector2 c, Color col) {
         DrawTriangle(a, b, c, col);
         DrawTriangle(a, c, b, col); // vẽ cả hai chiều để không bị culling
@@ -2266,12 +2266,44 @@ public:
                  (unsigned char)std::min(255.0f, c.b * k), c.a };
     }
 
-    // Thân dạng blob: viền tối, mảng tối ở đáy, thân sáng, vệt highlight
-    static void Blob(Vector2 c, float rx, float ry, Color base) {
-        DrawEllipse((int)c.x, (int)c.y, rx + 2.5f, ry + 2.5f, Shade(base, 0.25f));
-        DrawEllipse((int)c.x, (int)c.y, rx, ry, Shade(base, 0.55f));
-        DrawEllipse((int)c.x, (int)(c.y - ry * 0.10f), rx * 0.96f, ry * 0.88f, base);
-        DrawEllipse((int)(c.x - rx * 0.30f), (int)(c.y - ry * 0.42f), rx * 0.34f, ry * 0.20f, Fade(Shade(base, 1.7f), 0.75f));
+    static Color TintCol(Color col, const Enemy& e) {
+        if (e.chillTimer > 0) col = LerpColor(col, SKYBLUE, 0.55f);
+        if (e.hitFlash > 0) col = LerpColor(col, WHITE, 0.80f);
+        return col;
+    }
+
+    static void Quad(Vector2 a, Vector2 b, Vector2 c, Vector2 d, Color col) {
+        Tri(a, b, c, col);
+        Tri(a, c, d, col);
+    }
+
+    static void QuadOut(Vector2 a, Vector2 b, Vector2 c, Vector2 d, Color fill, Color border, float thick = 1.6f) {
+        Quad(a, b, c, d, fill);
+        DrawLineEx(a, b, thick, border);
+        DrawLineEx(b, c, thick, border);
+        DrawLineEx(c, d, thick, border);
+        DrawLineEx(d, a, thick, border);
+    }
+
+    static void BoxRot(Vector2 center, float w, float h, float deg, Color fill, Color border, float thick = 1.5f) {
+        float rad = deg * DEG2RAD;
+        float ca = cosf(rad), sa = sinf(rad);
+        float hw = w * 0.5f, hh = h * 0.5f;
+        Vector2 p0 = { center.x + (-hw * ca - (-hh) * sa), center.y + (-hw * sa + (-hh) * ca) };
+        Vector2 p1 = { center.x + ( hw * ca - (-hh) * sa), center.y + ( hw * sa + (-hh) * ca) };
+        Vector2 p2 = { center.x + ( hw * ca - ( hh) * sa), center.y + ( hw * sa + ( hh) * ca) };
+        Vector2 p3 = { center.x + (-hw * ca - ( hh) * sa), center.y + (-hw * sa + ( hh) * ca) };
+        QuadOut(p0, p1, p2, p3, fill, border, thick);
+    }
+
+    static void Diamond(Vector2 c, float rx, float ry, Color fill, Color border) {
+        Vector2 top = { c.x, c.y - ry };
+        Vector2 right = { c.x + rx, c.y };
+        Vector2 bot = { c.x, c.y + ry };
+        Vector2 left = { c.x - rx, c.y };
+        QuadOut(top, right, bot, left, fill, border, 1.4f);
+        Tri(top, left, c, Shade(fill, 1.35f));
+        Tri(c, right, bot, Shade(fill, 0.70f));
     }
 
     // Mắt nhìn theo hướng look (vector chuẩn hoá)
@@ -2290,6 +2322,8 @@ public:
         float r = e.radius;
         Vector2 look = Vector2Subtract(player.pos, e.pos);
         look = (Vector2Length(look) > 0.01f) ? Vector2Normalize(look) : Vector2{ 0, 1 };
+        const float face = (look.x < -0.10f) ? -1.0f : (look.x > 0.10f ? 1.0f : (e.facingLeft ? -1.0f : 1.0f));
+        const Color ink = { 18, 16, 26, 255 };
 
         Color base = { 90, 210, 90, 255 };
         if (e.type == SPLITTER) base = { 70, 190, 205, 255 };
@@ -2300,95 +2334,186 @@ public:
         else if (e.type == BOMBER) base = { 255, 140, 38, 255 };
         else if (e.type == CHARGER) base = { 205, 120, 66, 255 };
 
-        // Bomber cháy ngòi: phồng lên, nháy đỏ, vòng cảnh báo bán kính nổ
+        bool bomberBlink = false;
+        // Bomber cháy ngòi: rung lắc, phồng lên, nháy đỏ, vòng cảnh báo bán kính nổ
         if (e.type == BOMBER && e.fusing) {
             float f = e.fuseTimer / 0.75f;
-            r = e.radius * (1.0f + 0.35f * f);
-            bool blink = sinf(f * f * 40.0f) > 0.0f;
-            DrawCircle((int)c.x, (int)c.y, 120.0f, Fade({ 255, 60, 30, 255 }, blink ? 0.22f : 0.10f));
-            DrawCircleLines((int)c.x, (int)c.y, 120.0f, Fade({ 255, 90, 40, 255 }, blink ? 1.0f : 0.55f));
-            if (blink) base = { 255, 60, 50, 255 };
+            r = e.radius * (1.0f + 0.30f * f);
+            bomberBlink = sinf(f * f * 40.0f) > 0.0f;
+            DrawCircle((int)c.x, (int)c.y, 120.0f, Fade({ 255, 60, 30, 255 }, bomberBlink ? 0.22f : 0.10f));
+            DrawCircleLines((int)c.x, (int)c.y, 120.0f, Fade({ 255, 90, 40, 255 }, bomberBlink ? 1.0f : 0.55f));
+            if (bomberBlink) base = { 255, 60, 50, 255 };
         }
-        if (e.chillTimer > 0) base = LerpColor(base, SKYBLUE, 0.6f);
-        if (e.hitFlash > 0) base = LerpColor(base, WHITE, 0.8f);
+        base = TintCol(base, e);
 
         // Hào quang elite / boss
         if (e.isElite) {
             float k = 0.5f + 0.5f * sinf(t * 5.0f + c.x);
-            DrawCircle((int)c.x, (int)c.y, r + 10.0f, Fade(GOLD, 0.07f + 0.07f * k));
-            DrawCircleLines((int)c.x, (int)c.y, r + 10.0f, Fade(GOLD, 0.45f + 0.4f * k));
+            DrawRing(c, r + 8.0f, r + 11.5f, t * 45.0f, t * 45.0f + 300.0f, 20, Fade(GOLD, 0.50f + 0.4f * k));
         }
         if (e.type == BOSS) {
             float k = 0.5f + 0.5f * sinf(t * 3.0f);
             Color aura = (e.bossKind == 1) ? (e.enraged ? Color{ 255, 90, 30, 255 } : Color{ 255, 150, 50, 255 }) : (e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 170, 80, 255, 255 });
-            DrawCircle((int)c.x, (int)c.y, r * 1.55f, Fade(aura, 0.07f + 0.05f * k));
-            DrawCircle((int)c.x, (int)c.y, r * 1.25f, Fade(aura, 0.10f + 0.05f * k));
+            DrawPolyLinesEx(c, 8, r * 1.38f, t * 22.0f, 2.0f, Fade(aura, 0.25f + 0.15f * k));
+            DrawPolyLinesEx(c, 8, r * 1.18f, -t * 18.0f, 1.5f, Fade(aura, 0.35f + 0.15f * k));
             for (int i = 0; i < 4; ++i) {
                 float a = t * (e.enraged ? 2.4f : 1.5f) + i * (PI / 2.0f);
-                Vector2 o = { c.x + cosf(a) * r * 1.4f, c.y + sinf(a) * r * 1.4f * 0.8f };
-                DrawCircleV(o, 9.0f, Fade(aura, 0.25f));
-                DrawCircleV(o, 5.5f, { 255, 220, 120, 255 });
-                DrawCircleV(o, 2.5f, WHITE);
+                Vector2 o = { c.x + cosf(a) * r * 1.45f, c.y + sinf(a) * r * 1.45f * 0.78f };
+                Diamond(o, 5.5f, 8.0f, { 255, 220, 120, 255 }, aura);
             }
         }
 
-        if (e.type == CHASER || e.type == SPLITTER) {
-            // Slime nhảy: co giãn theo nhịp nhảy
-            float hop = std::max(0.2f, sinf(e.bounceTimer));
-            float rx = r * (1.0f + 0.14f * (1.0f - hop));
-            float ry = r * (0.80f + 0.22f * hop);
-            Vector2 bc = { c.x, c.y + (r - ry) - hop * 5.0f };
-            Blob(bc, rx, ry, base);
-            if (e.type == SPLITTER && e.splitLevel == 0) { // nhân bên trong: dấu hiệu sẽ chia đôi
-                DrawCircleV({ bc.x, bc.y + ry * 0.2f }, rx * 0.36f, Fade(Shade(base, 0.55f), 0.75f));
-                DrawCircleV({ bc.x - rx * 0.1f, bc.y + ry * 0.12f }, rx * 0.12f, Fade(WHITE, 0.5f));
+        if (e.type == CHASER) {
+            // Goblin Raider: ủng chạy bước dài, giáp da, dao găm sắc, đầu góc cạnh + tai nhọn
+            float step = sinf(e.bounceTimer * 1.4f) * 4.5f;
+            float hop = fabsf(sinf(e.bounceTimer * 1.4f)) * 2.5f;
+            Vector2 bc = { c.x, c.y - hop };
+            Color skin = base;
+            Color leather = TintCol({ 104, 72, 48, 255 }, e);
+            // Chân & ủng
+            BoxRot({ c.x - r * 0.34f, c.y + r * 0.68f + step * 0.45f }, r * 0.32f, r * 0.42f, -step * 2.5f, Shade(leather, 0.65f), ink);
+            BoxRot({ c.x + r * 0.34f, c.y + r * 0.68f - step * 0.45f }, r * 0.32f, r * 0.42f, step * 2.5f, Shade(leather, 0.65f), ink);
+            // Thân hình thang mặc giáp da + đai lưng
+            QuadOut({ bc.x - r * 0.56f, bc.y - r * 0.18f }, { bc.x + r * 0.56f, bc.y - r * 0.18f },
+                    { bc.x + r * 0.40f, bc.y + r * 0.55f }, { bc.x - r * 0.40f, bc.y + r * 0.55f }, leather, ink);
+            BoxRot({ bc.x, bc.y + r * 0.28f }, r * 0.88f, r * 0.18f, 0.0f, Shade(leather, 0.55f), ink, 1.2f);
+            BoxRot({ bc.x, bc.y + r * 0.28f }, r * 0.22f, r * 0.20f, 0.0f, TintCol(GOLD, e), ink, 1.0f);
+            // Tay cầm dao găm hướng về người chơi
+            Vector2 wHand = { bc.x + face * r * 0.64f, bc.y + r * 0.06f };
+            BoxRot({ bc.x - face * r * 0.58f, bc.y + r * 0.08f }, r * 0.24f, r * 0.36f, face * 20.0f, skin, ink);
+            BoxRot(wHand, r * 0.26f, r * 0.32f, -face * 25.0f, skin, ink);
+            Vector2 perp = { -look.y, look.x };
+            Vector2 bladeTip = { wHand.x + look.x * r * 0.95f, wHand.y + look.y * r * 0.95f };
+            Tri({ wHand.x + perp.x * 3.0f, wHand.y + perp.y * 3.0f }, { wHand.x - perp.x * 3.0f, wHand.y - perp.y * 3.0f }, bladeTip, TintCol({ 205, 218, 236, 255 }, e));
+            DrawLineEx(wHand, bladeTip, 1.5f, WHITE);
+            // Đầu Goblin góc cạnh + tai nhọn dài
+            Vector2 hc = { bc.x + face * r * 0.06f, bc.y - r * 0.46f };
+            Tri({ hc.x - r * 0.42f, hc.y - r * 0.10f }, { hc.x - r * 0.28f, hc.y + r * 0.18f }, { hc.x - r * 1.08f, hc.y - r * 0.42f }, Shade(skin, 0.8f));
+            Tri({ hc.x + r * 0.42f, hc.y - r * 0.10f }, { hc.x + r * 0.28f, hc.y + r * 0.18f }, { hc.x + r * 1.08f, hc.y - r * 0.42f }, Shade(skin, 0.8f));
+            QuadOut({ hc.x - r * 0.48f, hc.y - r * 0.36f }, { hc.x + r * 0.48f, hc.y - r * 0.36f },
+                    { hc.x + r * 0.38f, hc.y + r * 0.28f }, { hc.x - r * 0.38f, hc.y + r * 0.28f }, skin, ink);
+            Tri({ hc.x - r * 0.38f, hc.y + r * 0.28f }, { hc.x + r * 0.38f, hc.y + r * 0.28f }, { hc.x, hc.y + r * 0.46f }, Shade(skin, 0.85f));
+            for (int s2 = -1; s2 <= 1; s2 += 2) {
+                Vector2 ec = { hc.x + s2 * r * 0.22f, hc.y - r * 0.04f };
+                Eye(ec, r * 0.16f, r * 0.15f, look, { 255, 195, 45, 255 });
+                DrawLineEx({ ec.x - s2 * r * 0.20f, ec.y - r * 0.22f }, { ec.x + s2 * r * 0.12f, ec.y - r * 0.10f }, 2.4f, Shade(skin, 0.35f));
             }
-            DrawCircle((int)(bc.x - rx * 0.55f), (int)(bc.y + ry * 0.92f), 3.0f, Shade(base, 0.75f)); // giọt nhầy
-            DrawCircle((int)(bc.x + rx * 0.45f), (int)(bc.y + ry * 0.98f), 2.2f, Shade(base, 0.75f));
-            Eye({ bc.x - rx * 0.36f, bc.y - ry * 0.12f }, rx * 0.21f, ry * 0.27f, look, { 30, 120, 40, 255 });
-            Eye({ bc.x + rx * 0.36f, bc.y - ry * 0.12f }, rx * 0.21f, ry * 0.27f, look, { 30, 120, 40, 255 });
-            DrawEllipse((int)bc.x, (int)(bc.y + ry * 0.38f), rx * 0.20f, ry * 0.09f, { 30, 60, 30, 255 });
+            Tri({ hc.x - r * 0.20f, hc.y + r * 0.25f }, { hc.x - r * 0.10f, hc.y + r * 0.25f }, { hc.x - r * 0.15f, hc.y + r * 0.12f }, WHITE);
+            Tri({ hc.x + r * 0.20f, hc.y + r * 0.25f }, { hc.x + r * 0.10f, hc.y + r * 0.25f }, { hc.x + r * 0.15f, hc.y + r * 0.12f }, WHITE);
+        } else if (e.type == SPLITTER) {
+            // Prismatic Crystal Golem: thân pha lê lục giác sắc cạnh + gai vai + 2 lõi tách đôi
+            float bob = sinf(e.bounceTimer * 0.9f) * 3.0f;
+            Vector2 bc = { c.x, c.y - bob * 0.8f };
+            Color cryDark = Shade(base, 0.58f);
+            Color cryLight = Shade(base, 1.32f);
+            // Chân pha lê lơ lửng
+            Diamond({ c.x - r * 0.42f, c.y + r * 0.74f }, r * 0.20f, r * 0.30f, cryDark, ink);
+            Diamond({ c.x + r * 0.42f, c.y + r * 0.74f }, r * 0.20f, r * 0.30f, cryDark, ink);
+            // Gai tinh thể hai bên vai
+            Tri({ bc.x - r * 0.65f, bc.y - r * 0.25f }, { bc.x - r * 0.40f, bc.y + r * 0.25f }, { bc.x - r * 1.18f, bc.y - r * 0.65f }, cryLight);
+            Tri({ bc.x + r * 0.65f, bc.y - r * 0.25f }, { bc.x + r * 0.40f, bc.y + r * 0.25f }, { bc.x + r * 1.18f, bc.y - r * 0.65f }, cryLight);
+            // Thân lục giác vát mặt sáng tối
+            DrawPoly(bc, 6, r * 0.94f, 30.0f, base);
+            Tri(bc, { bc.x - r * 0.82f, bc.y - r * 0.42f }, { bc.x, bc.y - r * 0.94f }, cryLight);
+            Tri(bc, { bc.x + r * 0.82f, bc.y + r * 0.42f }, { bc.x, bc.y + r * 0.94f }, cryDark);
+            DrawPolyLinesEx(bc, 6, r * 0.94f, 30.0f, 2.2f, ink);
+            // Nếu chưa tách: 2 lõi pha lê bên trong báo hiệu sẽ phân đôi
+            if (e.splitLevel == 0) {
+                Diamond({ bc.x - r * 0.28f, bc.y + r * 0.26f }, r * 0.16f, r * 0.24f, { 185, 255, 255, 255 }, cryDark);
+                Diamond({ bc.x + r * 0.28f, bc.y + r * 0.26f }, r * 0.16f, r * 0.24f, { 185, 255, 255, 255 }, cryDark);
+            }
+            // Mão đầu tinh thể + khe mắt phát sáng
+            Diamond({ bc.x, bc.y - r * 0.56f }, r * 0.34f, r * 0.34f, cryLight, ink);
+            BoxRot({ bc.x - r * 0.24f, bc.y - r * 0.20f }, r * 0.28f, r * 0.12f, -15.0f, { 220, 255, 255, 255 }, ink, 1.0f);
+            BoxRot({ bc.x + r * 0.24f, bc.y - r * 0.20f }, r * 0.28f, r * 0.12f, 15.0f, { 220, 255, 255, 255 }, ink, 1.0f);
         } else if (e.type == RANGER) {
+            // Cultist Crossbowman: áo choàng đỏ thẫm, mũ trùm nhọn, nỏ nặng ngắm theo look
             float charge = std::min(1.0f, e.attackTimer / 2.2f);
-            Color dark = Shade(base, 0.5f);
-            Tri({ c.x - r * 0.75f, c.y - r * 0.30f }, { c.x - r * 0.30f, c.y - r * 0.85f }, { c.x - r * 1.05f, c.y - r * 1.20f }, dark); // tai nhọn
-            Tri({ c.x + r * 0.75f, c.y - r * 0.30f }, { c.x + r * 0.30f, c.y - r * 0.85f }, { c.x + r * 1.05f, c.y - r * 1.20f }, dark);
-            Blob(c, r, r * 0.95f, base);
+            Color robe = base;
+            Color cloak = Shade(base, 0.50f);
+            Color iron = TintCol({ 124, 134, 156, 255 }, e);
+            // Giày & áo choàng xẻ tà
+            BoxRot({ c.x - r * 0.30f, c.y + r * 0.78f }, r * 0.28f, r * 0.36f, 0.0f, TintCol({ 42, 32, 38, 255 }, e), ink);
+            BoxRot({ c.x + r * 0.30f, c.y + r * 0.78f }, r * 0.28f, r * 0.36f, 0.0f, TintCol({ 42, 32, 38, 255 }, e), ink);
+            QuadOut({ c.x - r * 0.52f, c.y - r * 0.20f }, { c.x + r * 0.52f, c.y - r * 0.20f },
+                    { c.x + r * 0.80f, c.y + r * 0.78f }, { c.x - r * 0.80f, c.y + r * 0.78f }, cloak, ink);
+            QuadOut({ c.x - r * 0.42f, c.y - r * 0.18f }, { c.x + r * 0.42f, c.y - r * 0.18f },
+                    { c.x + r * 0.54f, c.y + r * 0.66f }, { c.x - r * 0.54f, c.y + r * 0.66f }, robe, ink);
+            // Giáp vai + đai
+            BoxRot({ c.x - r * 0.60f, c.y - r * 0.14f }, r * 0.38f, r * 0.28f, -18.0f, iron, ink);
+            BoxRot({ c.x + r * 0.60f, c.y - r * 0.14f }, r * 0.38f, r * 0.28f, 18.0f, iron, ink);
+            // Mũ trùm nhọn có sừng nhỏ + khuôn mặt tối + mắt bắn tỉa
+            Vector2 hc = { c.x, c.y - r * 0.46f };
+            Tri({ hc.x - r * 0.54f, hc.y + r * 0.22f }, { hc.x + r * 0.54f, hc.y + r * 0.22f }, { hc.x - face * r * 0.20f, hc.y - r * 0.88f }, cloak);
+            DrawLineEx({ hc.x - r * 0.54f, hc.y + r * 0.22f }, { hc.x - face * r * 0.20f, hc.y - r * 0.88f }, 1.6f, ink);
+            DrawLineEx({ hc.x + r * 0.54f, hc.y + r * 0.22f }, { hc.x - face * r * 0.20f, hc.y - r * 0.88f }, 1.6f, ink);
+            QuadOut({ hc.x - r * 0.38f, hc.y - r * 0.18f }, { hc.x + r * 0.38f, hc.y - r * 0.18f },
+                    { hc.x + r * 0.32f, hc.y + r * 0.28f }, { hc.x - r * 0.32f, hc.y + r * 0.28f }, { 24, 14, 22, 255 }, ink);
             for (int s2 = -1; s2 <= 1; s2 += 2) {
-                Vector2 ec = { c.x + s2 * r * 0.38f, c.y - r * 0.18f };
-                DrawCircleV(ec, r * 0.42f, Fade({ 255, 220, 60, 255 }, 0.22f)); // mắt phát sáng
-                Eye(ec, r * 0.22f, r * 0.26f, look, { 255, 190, 40, 255 });
-                DrawLineEx({ ec.x - s2 * r * 0.28f, ec.y - r * 0.34f }, { ec.x + s2 * r * 0.18f, ec.y - r * 0.20f }, 3.0f, Shade(base, 0.3f)); // lông mày
+                Vector2 ec = { hc.x + s2 * r * 0.18f, hc.y + r * 0.04f };
+                Eye(ec, r * 0.15f, r * 0.15f, look, { 255, 200, 50, 255 });
             }
-            // Miệng mở rộng dần và phát sáng khi sắp bắn
-            DrawEllipse((int)c.x, (int)(c.y + r * 0.40f), r * (0.20f + 0.16f * charge), r * (0.10f + 0.18f * charge), { 60, 10, 20, 255 });
-            if (charge > 0.55f)
-                DrawCircleV({ c.x, c.y + r * 0.40f }, r * 0.14f * charge, Fade({ 255, 170, 50, 255 }, 0.5f + 0.5f * charge));
+            // Nỏ nặng ngắm theo hướng look
+            Vector2 perp = { -look.y, look.x };
+            Vector2 xRoot = { c.x + look.x * r * 0.35f, c.y + look.y * r * 0.35f };
+            Vector2 xTip = { c.x + look.x * r * 1.18f, c.y + look.y * r * 1.18f };
+            DrawLineEx(xRoot, xTip, 4.5f, TintCol({ 115, 72, 44, 255 }, e));
+            Vector2 pL = Vector2Add(xTip, Vector2Add(Vector2Scale(look, -r * 0.25f), Vector2Scale(perp, r * 0.65f)));
+            Vector2 pR = Vector2Add(xTip, Vector2Add(Vector2Scale(look, -r * 0.25f), Vector2Scale(perp, -r * 0.65f)));
+            DrawLineEx(xTip, pL, 3.2f, iron);
+            DrawLineEx(xTip, pR, 3.2f, iron);
+            Vector2 nock = Vector2Add(xTip, Vector2Scale(look, -r * (0.16f + 0.38f * charge)));
+            DrawLineEx(pL, nock, 1.4f, WHITE);
+            DrawLineEx(pR, nock, 1.4f, WHITE);
+            Color boltCol = charge > 0.6f ? Color{ 255, 195, 65, 255 } : Color{ 255, 95, 95, 255 };
+            DrawLineEx(nock, Vector2Add(xTip, Vector2Scale(look, 4.0f)), 2.8f, boltCol);
+            if (charge > 0.45f) Diamond(Vector2Add(xTip, Vector2Scale(look, 5.0f)), 4.0f * charge + 1.5f, 4.0f * charge + 1.5f, YELLOW, ORANGE);
         } else if (e.type == BRUTE) {
-            Color steel = e.isWarden ? Color{ 236, 192, 84, 255 } : Color{ 152, 158, 180, 255 };
-            Color horn = e.isWarden ? Color{ 255, 240, 190, 255 } : Color{ 232, 226, 210, 255 };
-            float hs = e.isWarden ? 1.35f : 1.0f;
-            Tri({ c.x - r * 0.72f, c.y - r * 0.62f }, { c.x - r * 0.40f, c.y - r * 0.92f }, { c.x - r * 1.00f * hs, c.y - r * 1.38f * hs }, horn); // sừng
-            Tri({ c.x + r * 0.72f, c.y - r * 0.62f }, { c.x + r * 0.40f, c.y - r * 0.92f }, { c.x + r * 1.00f * hs, c.y - r * 1.38f * hs }, horn);
-            Blob(c, r, r * 0.96f, base);
-            DrawCircleSector({ c.x, c.y - r * 0.08f }, r * 1.0f, 180.0f, 360.0f, 28, steel);     // mũ giáp
-            DrawCircleSectorLines({ c.x, c.y - r * 0.08f }, r * 1.0f, 180.0f, 360.0f, 28, Shade(steel, 0.45f));
-            DrawLineEx({ c.x - r, c.y - r * 0.08f }, { c.x + r, c.y - r * 0.08f }, 4.0f, Shade(steel, 0.5f));
-            DrawEllipse((int)(c.x - r * 0.35f), (int)(c.y - r * 0.55f), r * 0.2f, r * 0.10f, Fade(WHITE, 0.45f)); // ánh kim loại
+            // Iron Juggernaut / Minotaur Knight (hoặc Golden Warden): giáp tấm nặng, khiên lớn, búa/rìu chiến
+            Color armor = base;
+            Color steel = TintCol(e.isWarden ? Color{ 242, 198, 86, 255 } : Color{ 154, 164, 188, 255 }, e);
+            Color horn = TintCol(e.isWarden ? Color{ 255, 240, 190, 255 } : Color{ 232, 226, 210, 255 }, e);
+            float hs = e.isWarden ? 1.32f : 1.0f;
+            float walk = sinf(e.bounceTimer * 0.8f) * 3.0f;
+            // Chân giáp sắt to bản
+            BoxRot({ c.x - r * 0.40f, c.y + r * 0.72f + walk * 0.4f }, r * 0.38f, r * 0.44f, 0.0f, Shade(steel, 0.62f), ink);
+            BoxRot({ c.x + r * 0.40f, c.y + r * 0.72f - walk * 0.4f }, r * 0.38f, r * 0.44f, 0.0f, Shade(steel, 0.62f), ink);
+            // Thân giáp hình thang + tà giáp hông
+            QuadOut({ c.x - r * 0.76f, c.y - r * 0.32f }, { c.x + r * 0.76f, c.y - r * 0.32f },
+                    { c.x + r * 0.56f, c.y + r * 0.54f }, { c.x - r * 0.56f, c.y + r * 0.54f }, armor, ink, 2.0f);
+            QuadOut({ c.x - r * 0.50f, c.y - r * 0.24f }, { c.x + r * 0.50f, c.y - r * 0.24f },
+                    { c.x + r * 0.36f, c.y + r * 0.28f }, { c.x - r * 0.36f, c.y + r * 0.28f }, steel, ink, 1.5f);
+            BoxRot({ c.x, c.y + r * 0.42f }, r * 1.05f, r * 0.22f, 0.0f, Shade(steel, 0.58f), ink);
+            // Cầu vai có gai
             for (int s2 = -1; s2 <= 1; s2 += 2) {
-                Vector2 ec = { c.x + s2 * r * 0.36f, c.y + r * 0.16f };
-                Eye(ec, r * 0.17f, r * 0.17f, look, { 255, 90, 60, 255 });
-                DrawLineEx({ ec.x - s2 * r * 0.26f, ec.y - r * 0.28f }, { ec.x + s2 * r * 0.14f, ec.y - r * 0.12f }, 3.5f, { 20, 12, 30, 255 }); // lông mày giận dữ
+                BoxRot({ c.x + s2 * r * 0.82f, c.y - r * 0.22f }, r * 0.48f, r * 0.42f, s2 * 18.0f, steel, ink);
+                Tri({ c.x + s2 * r * 0.74f, c.y - r * 0.40f }, { c.x + s2 * r * 0.98f, c.y - r * 0.24f }, { c.x + s2 * r * 1.18f, c.y - r * 0.68f }, horn);
             }
-            Tri({ c.x - r * 0.34f, c.y + r * 0.50f }, { c.x - r * 0.14f, c.y + r * 0.50f }, { c.x - r * 0.24f, c.y + r * 0.78f }, horn); // răng nanh
-            Tri({ c.x + r * 0.34f, c.y + r * 0.50f }, { c.x + r * 0.14f, c.y + r * 0.50f }, { c.x + r * 0.24f, c.y + r * 0.78f }, horn);
+            // Mũ giáp sừng bò + khe mắt rực đỏ
+            Vector2 hc = { c.x, c.y - r * 0.54f };
+            Tri({ hc.x - r * 0.48f, hc.y - r * 0.08f }, { hc.x - r * 0.30f, hc.y - r * 0.34f }, { hc.x - r * 1.02f * hs, hc.y - r * 0.90f * hs }, horn);
+            Tri({ hc.x + r * 0.48f, hc.y - r * 0.08f }, { hc.x + r * 0.30f, hc.y - r * 0.34f }, { hc.x + r * 1.02f * hs, hc.y - r * 0.90f * hs }, horn);
+            QuadOut({ hc.x - r * 0.48f, hc.y - r * 0.36f }, { hc.x + r * 0.48f, hc.y - r * 0.36f },
+                    { hc.x + r * 0.40f, hc.y + r * 0.30f }, { hc.x - r * 0.40f, hc.y + r * 0.30f }, steel, ink, 1.8f);
+            BoxRot({ hc.x, hc.y + r * 0.04f }, r * 0.68f, r * 0.20f, 0.0f, { 20, 14, 24, 255 }, ink, 1.0f);
+            DrawRectangle((int)(hc.x - r * 0.24f), (int)(hc.y - r * 0.02f), (int)(r * 0.18f), (int)(r * 0.10f), { 255, 90, 60, 255 });
+            DrawRectangle((int)(hc.x + r * 0.06f), (int)(hc.y - r * 0.02f), (int)(r * 0.18f), (int)(r * 0.10f), { 255, 90, 60, 255 });
+            // Tay trái cầm Khiên Tháp, tay phải vác Chùy/Rìu
+            Vector2 shC = { c.x - face * r * 0.84f, c.y + r * 0.16f };
+            QuadOut({ shC.x - r * 0.26f, shC.y - r * 0.46f }, { shC.x + r * 0.26f, shC.y - r * 0.46f },
+                    { shC.x + r * 0.20f, shC.y + r * 0.44f }, { shC.x - r * 0.20f, shC.y + r * 0.44f }, Shade(steel, 0.72f), ink, 1.8f);
+            Diamond(shC, r * 0.12f, r * 0.18f, e.isWarden ? WHITE : GOLD, ink);
+            Vector2 wHand = { c.x + face * r * 0.86f, c.y + r * 0.10f };
+            float slamLift = (e.attackTimer > 2.8f) ? -r * 0.35f : 0.0f;
+            DrawLineEx({ wHand.x, wHand.y + r * 0.35f }, { wHand.x + face * r * 0.10f, wHand.y - r * 0.65f + slamLift }, 4.2f, TintCol({ 110, 74, 42, 255 }, e));
+            BoxRot({ wHand.x + face * r * 0.10f, wHand.y - r * 0.62f + slamLift }, r * 0.56f, r * 0.32f, face * 12.0f, steel, ink, 1.8f);
             // Báo hiệu đập đất
             if (e.attackTimer > 2.8f && Vector2Distance(c, player.pos) < 150.0f) {
                 float k = (e.attackTimer - 2.8f) / 0.7f;
                 DrawCircleLines((int)c.x, (int)c.y, 140.0f * std::min(1.0f, k), Fade({ 200, 120, 255, 255 }, 0.8f));
             }
         } else if (e.type == BOSS && e.bossKind == 1) {
-            // Báo hiệu: vòng đập đất / làn lao
+            // THE MOLTEN COLOSSUS: Titan dung nham thân đá góc cạnh, nắm đấm khổng lồ, khe nứt lửa
             if (e.chargeState == 1) {
                 float k = 1.0f - e.chargeTimer / 0.9f;
                 DrawCircle((int)c.x, (int)c.y, 190.0f, Fade({ 255, 70, 30, 255 }, 0.06f + 0.12f * k));
@@ -2401,56 +2526,99 @@ public:
                 DrawLineEx(c, end, r * 1.6f, Fade({ 255, 60, 40, 255 }, 0.10f + 0.10f * k));
                 DrawLineEx(c, end, 4.0f, Fade({ 255, 120, 60, 255 }, 0.6f + 0.4f * k));
             }
-            float sq = (e.chargeState == 4) ? 1.12f : 1.0f;
-            Blob(c, r * sq, r * (2.0f - sq) * 0.98f, base);
-            // Giáp đá trên lưng
+            float sq = (e.chargeState == 4) ? 1.10f : 1.0f;
+            float smashY = (e.chargeState == 4) ? r * 0.25f : sinf(t * 3.0f) * 3.5f;
+            Color rockDark = Shade(base, 0.48f);
+            Color rockMid = base;
+            Color rockHi = Shade(base, 1.25f);
+            Color lava = { 255, 185, 55, 255 };
+            // Hai cột chân đá núi lửa
+            BoxRot({ c.x - r * 0.42f, c.y + r * 0.72f }, r * 0.42f, r * 0.50f, 0.0f, rockDark, ink, 2.2f);
+            BoxRot({ c.x + r * 0.42f, c.y + r * 0.72f }, r * 0.42f, r * 0.50f, 0.0f, rockDark, ink, 2.2f);
+            // Gai đá sau lưng
             for (int i = -2; i <= 2; ++i) {
-                float bx2 = c.x + i * r * 0.32f;
-                Tri({ bx2 - r * 0.14f, c.y - r * 0.55f }, { bx2 + r * 0.14f, c.y - r * 0.55f }, { bx2, c.y - r * (1.0f + 0.12f * (2 - abs(i))) }, Shade(base, 0.45f));
+                float bx2 = c.x + i * r * 0.30f;
+                Tri({ bx2 - r * 0.16f, c.y - r * 0.42f }, { bx2 + r * 0.16f, c.y - r * 0.42f },
+                    { bx2 + i * 4.0f, c.y - r * (1.06f + 0.12f * (2 - abs(i))) }, rockDark);
             }
-            // Vết nứt dung nham phát sáng
-            for (int i = -2; i <= 2; ++i) {
-                float gl = 0.7f + 0.3f * sinf(t * 3.0f + i);
-                DrawLineEx({ c.x + i * r * 0.26f, c.y + r * 0.05f }, { c.x + i * r * 0.36f + sinf(t * 2.0f + i) * 3.0f, c.y + r * 0.8f }, 3.0f, Fade({ 255, 190, 60, 255 }, gl));
+            // Thân đá V-shape khổng lồ
+            QuadOut({ c.x - r * 0.92f * sq, c.y - r * 0.45f }, { c.x + r * 0.92f * sq, c.y - r * 0.45f },
+                    { c.x + r * 0.56f * sq, c.y + r * 0.58f }, { c.x - r * 0.56f * sq, c.y + r * 0.58f }, rockMid, ink, 2.5f);
+            // Vết nứt dung nham phát sáng + lõi lò ngực
+            for (int i = -1; i <= 1; ++i) {
+                float gl = 0.72f + 0.28f * sinf(t * 4.0f + i);
+                DrawLineEx({ c.x + i * r * 0.34f, c.y - r * 0.15f }, { c.x + i * r * 0.26f, c.y + r * 0.50f }, 3.5f, Fade(lava, gl));
             }
-            Color eyeC = e.enraged ? Color{ 255, 240, 120, 255 } : Color{ 255, 200, 70, 255 };
+            Diamond({ c.x, c.y + r * 0.14f }, r * 0.24f, r * 0.30f, lava, { 255, 80, 20, 255 });
+            // Hai khối vai nham thạch + hai nắm đấm đá khổng lồ
             for (int s2 = -1; s2 <= 1; s2 += 2) {
-                Vector2 ec = { c.x + s2 * r * 0.36f, c.y - r * 0.14f };
-                DrawCircleV(ec, r * 0.28f, Fade(eyeC, 0.3f));
-                DrawEllipse((int)ec.x, (int)ec.y, r * 0.16f, r * 0.09f, eyeC);
-                DrawLineEx({ ec.x - s2 * r * 0.28f, ec.y - r * 0.26f }, { ec.x + s2 * r * 0.16f, ec.y - r * 0.08f }, 4.0f, { 40, 14, 8, 255 });
+                BoxRot({ c.x + s2 * r * 0.92f, c.y - r * 0.34f }, r * 0.52f, r * 0.44f, s2 * 22.0f, rockHi, ink, 2.2f);
+                BoxRot({ c.x + s2 * r * 1.10f, c.y + r * 0.18f + smashY }, r * 0.46f, r * 0.54f, s2 * 10.0f, rockDark, ink, 2.2f);
+                DrawLineEx({ c.x + s2 * r * 0.98f, c.y + r * 0.18f + smashY }, { c.x + s2 * r * 1.22f, c.y + r * 0.18f + smashY }, 3.0f, lava);
             }
-            DrawEllipse((int)c.x, (int)(c.y + r * 0.46f), r * 0.34f, r * 0.12f, Fade({ 255, 150, 40, 255 }, 0.9f));
-            // Ngọn lửa trên đầu
+            // Đầu Titan góc cạnh + mắt khe dung nham + ngọn lửa hình đa giác
+            Vector2 hc = { c.x, c.y - r * 0.56f };
+            QuadOut({ hc.x - r * 0.44f, hc.y - r * 0.34f }, { hc.x + r * 0.44f, hc.y - r * 0.34f },
+                    { hc.x + r * 0.32f, hc.y + r * 0.32f }, { hc.x - r * 0.32f, hc.y + r * 0.32f }, rockDark, ink, 2.2f);
+            Color eyeC = e.enraged ? Color{ 255, 245, 130, 255 } : lava;
+            for (int s2 = -1; s2 <= 1; s2 += 2) {
+                BoxRot({ hc.x + s2 * r * 0.19f, hc.y - r * 0.04f }, r * 0.22f, r * 0.10f, -s2 * 14.0f, eyeC, ink, 1.0f);
+            }
             for (int i = -1; i <= 1; ++i) {
                 float fl = 0.7f + 0.3f * sinf(t * 14.0f + i * 2.0f);
-                DrawCircleV({ c.x + i * r * 0.28f, c.y - r * 1.05f - fl * 6.0f }, r * 0.14f * fl + 3.0f, Fade({ 255, 140, 40, 255 }, 0.85f));
-                DrawCircleV({ c.x + i * r * 0.28f, c.y - r * 1.02f - fl * 4.0f }, r * 0.07f * fl + 1.5f, { 255, 235, 150, 255 });
+                float fx = hc.x + i * r * 0.22f, fy = hc.y - r * 0.34f;
+                Tri({ fx - 6.0f, fy }, { fx + 6.0f, fy }, { fx, fy - r * 0.42f * fl - 6.0f }, { 255, 130, 35, 255 });
+                Tri({ fx - 3.0f, fy }, { fx + 3.0f, fy }, { fx, fy - r * 0.26f * fl - 3.0f }, { 255, 240, 140, 255 });
             }
         } else if (e.type == BOSS) {
-            Blob(c, r, r * 0.98f, base);
-            for (int i = -2; i <= 2; ++i) // vết nứt phát sáng
-                DrawLineEx({ c.x + i * r * 0.28f, c.y + r * 0.2f }, { c.x + i * r * 0.40f, c.y + r * 0.75f }, 2.0f, Fade({ 220, 140, 255, 255 }, 0.6f));
-            Color eyeC = e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 255, 210, 80, 255 };
+            // THE VOID SOVEREIGN: Hoàng đế Hư Không - cánh kiếm nổi, áo choàng, vương miện, đại kiếm Void
+            float hover = sinf(t * 2.5f) * 4.0f;
+            Vector2 bc = { c.x, c.y + hover * 0.5f };
+            Color darkVoid = Shade(base, 0.42f);
+            Color accent = e.enraged ? Color{ 255, 80, 90, 255 } : Color{ 195, 110, 255, 255 };
+            // Cánh kiếm obsidian nổi phía sau 2 bên
             for (int s2 = -1; s2 <= 1; s2 += 2) {
-                Vector2 ec = { c.x + s2 * r * 0.38f, c.y - r * 0.12f };
-                DrawCircleV(ec, r * 0.30f, Fade(eyeC, 0.25f));
-                Eye(ec, r * 0.18f, r * 0.22f, look, eyeC);
-                DrawLineEx({ ec.x - s2 * r * 0.30f, ec.y - r * 0.32f }, { ec.x + s2 * r * 0.16f, ec.y - r * 0.16f }, 4.0f, { 20, 10, 30, 255 });
+                for (int w = 0; w < 2; ++w) {
+                    float wy = bc.y - r * 0.28f + w * r * 0.34f + sinf(t * 3.0f + w) * 3.0f;
+                    Tri({ bc.x + s2 * r * 0.42f, wy },
+                        { bc.x + s2 * r * (1.28f - w * 0.18f), wy - r * 0.48f },
+                        { bc.x + s2 * r * (0.95f - w * 0.12f), wy + r * 0.20f }, darkVoid);
+                    DrawLineEx({ bc.x + s2 * r * 0.42f, wy }, { bc.x + s2 * r * (1.28f - w * 0.18f), wy - r * 0.48f }, 2.0f, accent);
+                }
             }
-            for (int i = 0; i < 6; ++i) { // miệng răng cưa
-                float x0 = c.x - r * 0.42f + i * r * 0.168f;
-                Tri({ x0, c.y + r * 0.42f }, { x0 + r * 0.168f, c.y + r * 0.42f }, { x0 + r * 0.084f, c.y + r * 0.62f }, WHITE);
+            // Áo choàng hoàng gia rộng
+            QuadOut({ bc.x - r * 0.56f, bc.y - r * 0.30f }, { bc.x + r * 0.56f, bc.y - r * 0.30f },
+                    { bc.x + r * 0.88f, bc.y + r * 0.96f }, { bc.x - r * 0.88f, bc.y + r * 0.96f }, darkVoid, ink, 2.2f);
+            // Thân giáp Hư Không + lõi pha lê ngực
+            QuadOut({ bc.x - r * 0.58f, bc.y - r * 0.38f }, { bc.x + r * 0.58f, bc.y - r * 0.38f },
+                    { bc.x + r * 0.40f, bc.y + r * 0.54f }, { bc.x - r * 0.40f, bc.y + r * 0.54f }, base, ink, 2.2f);
+            Diamond({ bc.x, bc.y + r * 0.06f }, r * 0.20f, r * 0.28f, accent, GOLD);
+            for (int s2 = -1; s2 <= 1; s2 += 2) {
+                BoxRot({ bc.x + s2 * r * 0.68f, bc.y - r * 0.28f }, r * 0.44f, r * 0.34f, s2 * 22.0f, Shade(base, 1.25f), GOLD, 1.8f);
             }
-            // Vương miện
-            float cx = c.x, cy = c.y - r * 0.98f - 2.0f;
+            // Đầu giáp sừng + vương miện 3 ngọn + mắt rực
+            Vector2 hc = { bc.x, bc.y - r * 0.64f };
+            QuadOut({ hc.x - r * 0.36f, hc.y - r * 0.30f }, { hc.x + r * 0.36f, hc.y - r * 0.30f },
+                    { hc.x + r * 0.26f, hc.y + r * 0.30f }, { hc.x - r * 0.26f, hc.y + r * 0.30f }, darkVoid, ink, 2.0f);
+            Color eyeC = e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 255, 220, 90, 255 };
+            for (int s2 = -1; s2 <= 1; s2 += 2) {
+                BoxRot({ hc.x + s2 * r * 0.16f, hc.y + r * 0.02f }, r * 0.18f, r * 0.10f, -s2 * 16.0f, eyeC, ink, 1.0f);
+            }
+            float cx = hc.x, cy = hc.y - r * 0.32f;
             DrawRectangle((int)cx - 16, (int)cy - 7, 32, 8, GOLD);
-            Tri({ cx - 16, cy - 7 }, { cx - 10, cy - 7 }, { cx - 16, cy - 20 }, GOLD);
-            Tri({ cx - 7, cy - 7 }, { cx + 7, cy - 7 }, { cx, cy - 26 }, GOLD);
-            Tri({ cx + 10, cy - 7 }, { cx + 16, cy - 7 }, { cx + 16, cy - 20 }, GOLD);
-            DrawCircle((int)cx, (int)cy - 3, 2.5f, RED);
+            Tri({ cx - 16, cy - 7 }, { cx - 10, cy - 7 }, { cx - 17, cy - 22 }, GOLD);
+            Tri({ cx - 7, cy - 7 }, { cx + 7, cy - 7 }, { cx, cy - 28 }, GOLD);
+            Tri({ cx + 10, cy - 7 }, { cx + 16, cy - 7 }, { cx + 17, cy - 22 }, GOLD);
+            Diamond({ cx, cy - 3 }, 3.5f, 3.5f, RED, ink);
+            // Đại kiếm Hư Không bên tay phải
+            Vector2 swBase = { bc.x + face * r * 0.78f, bc.y + r * 0.22f };
+            Vector2 swTip = { swBase.x + face * r * 0.32f, swBase.y - r * 1.15f };
+            DrawLineEx(swBase, swTip, 8.0f, ink);
+            DrawLineEx(swBase, swTip, 5.0f, accent);
+            DrawLineEx(swBase, swTip, 1.8f, WHITE);
+            DrawLineEx({ swBase.x - 10.0f, swBase.y + 2.0f }, { swBase.x + 10.0f, swBase.y - 2.0f }, 4.5f, GOLD);
         } else if (e.type == CHARGER) {
-            // Báo hiệu hướng lao: vệt đỏ nhấp nháy
+            // Armored War-Boar: thú chiến bọc giáp sắt định hướng theo fwd, 4 vó, 2 ngà lớn
             if (e.chargeState == 1) {
                 float k = 0.5f + 0.5f * sinf(t * 30.0f);
                 Vector2 end = { c.x + e.chargeDir.x * 460.0f, c.y + e.chargeDir.y * 460.0f };
@@ -2459,36 +2627,64 @@ public:
                 OutlinedText("!", (int)c.x - 5, (int)(c.y - r - 34.0f), 30, { 255, 220, 60, 255 }, { 80, 10, 10, 255 });
             }
             Vector2 fwd = (e.chargeState >= 1 && e.chargeState <= 2) ? e.chargeDir : look;
-            float sq = (e.chargeState == 2) ? 1.18f : (e.chargeState == 1 ? 0.92f : 1.0f);
-            if (e.chargeState == 2) // vệt tốc độ phía sau
-                for (int i = 1; i <= 4; ++i)
-                    DrawCircleV(Vector2Subtract(c, Vector2Scale(fwd, i * r * 0.7f)), r * (1.0f - i * 0.18f), Fade(base, 0.22f - i * 0.04f));
-            Vector2 bc = { c.x + (e.chargeState == 1 ? sinf(t * 60.0f) * 2.0f : 0.0f), c.y };
-            Blob(bc, r * sq, r * (2.0f - sq) * 0.95f, base);
-            // Sừng / ngà hướng về phía trước
             Vector2 perp = { -fwd.y, fwd.x };
-            for (int s2 = -1; s2 <= 1; s2 += 2) {
-                Vector2 b0 = { bc.x + fwd.x * r * 0.55f + perp.x * s2 * r * 0.45f, bc.y + fwd.y * r * 0.55f + perp.y * s2 * r * 0.45f };
-                Vector2 b1 = { b0.x + perp.x * s2 * r * 0.12f, b0.y + perp.y * s2 * r * 0.12f };
-                Vector2 tip2 = { b0.x + fwd.x * r * 0.75f + perp.x * s2 * r * 0.28f, b0.y + fwd.y * r * 0.75f + perp.y * s2 * r * 0.28f };
-                Tri({ b0.x - perp.x * s2 * 3.0f, b0.y - perp.y * s2 * 3.0f }, { b1.x + perp.x * s2 * 3.0f, b1.y + perp.y * s2 * 3.0f }, tip2, { 240, 232, 210, 255 });
+            float angDeg = atan2f(fwd.y, fwd.x) * RAD2DEG;
+            if (e.chargeState == 2) {
+                for (int i = 1; i <= 3; ++i) {
+                    Vector2 ghostP = Vector2Subtract(c, Vector2Scale(fwd, i * r * 0.68f));
+                    Diamond(ghostP, r * (0.75f - i * 0.15f), r * (0.55f - i * 0.12f), Fade(base, 0.24f - i * 0.05f), Fade(GOLD, 0.18f));
+                }
             }
-            for (int s2 = -1; s2 <= 1; s2 += 2) {
-                Vector2 ec = { c.x + s2 * r * 0.36f, c.y - r * 0.12f };
-                Eye(ec, r * 0.19f, r * 0.22f, (e.chargeState == 3) ? Vector2{ 0, 0 } : fwd, e.chargeState == 3 ? Color{ 200, 200, 80, 255 } : Color{ 255, 70, 40, 255 });
-                DrawLineEx({ ec.x - s2 * r * 0.30f, ec.y - r * 0.32f }, { ec.x + s2 * r * 0.16f, ec.y - r * 0.14f }, 3.0f, { 60, 20, 10, 255 });
+            Vector2 bc = { c.x + (e.chargeState == 1 ? sinf(t * 60.0f) * 2.0f : 0.0f), c.y };
+            Color hide = base;
+            Color plate = TintCol({ 138, 146, 168, 255 }, e);
+            float gallop = sinf(t * (e.chargeState == 2 ? 26.0f : 10.0f) + c.x * 0.1f) * 5.0f;
+            // 4 chân vó đang phi
+            for (int f2 = -1; f2 <= 1; f2 += 2) {
+                for (int s2 = -1; s2 <= 1; s2 += 2) {
+                    Vector2 legP = Vector2Add(bc, Vector2Add(Vector2Scale(fwd, f2 * r * 0.42f + f2 * gallop * 0.5f), Vector2Scale(perp, s2 * r * 0.62f)));
+                    BoxRot(legP, r * 0.34f, r * 0.24f, angDeg, Shade(hide, 0.55f), ink);
+                }
             }
-            // Choáng: sao quay quanh đầu
-            if (e.chargeState == 3)
+            // Thân hình bọc giáp hướng về fwd
+            Vector2 rearL = Vector2Add(bc, Vector2Add(Vector2Scale(fwd, -r * 0.82f), Vector2Scale(perp, -r * 0.56f)));
+            Vector2 rearR = Vector2Add(bc, Vector2Add(Vector2Scale(fwd, -r * 0.82f), Vector2Scale(perp,  r * 0.56f)));
+            Vector2 midL  = Vector2Add(bc, Vector2Add(Vector2Scale(fwd,  r * 0.35f), Vector2Scale(perp, -r * 0.72f)));
+            Vector2 midR  = Vector2Add(bc, Vector2Add(Vector2Scale(fwd,  r * 0.35f), Vector2Scale(perp,  r * 0.72f)));
+            QuadOut(rearL, midL, midR, rearR, hide, ink, 1.9f);
+            // Tấm giáp lưng sắt
+            Vector2 armA = Vector2Add(bc, Vector2Add(Vector2Scale(fwd, -r * 0.42f), Vector2Scale(perp, -r * 0.54f)));
+            Vector2 armB = Vector2Add(bc, Vector2Add(Vector2Scale(fwd,  r * 0.30f), Vector2Scale(perp, -r * 0.62f)));
+            Vector2 armC = Vector2Add(bc, Vector2Add(Vector2Scale(fwd,  r * 0.30f), Vector2Scale(perp,  r * 0.62f)));
+            Vector2 armD = Vector2Add(bc, Vector2Add(Vector2Scale(fwd, -r * 0.42f), Vector2Scale(perp,  r * 0.54f)));
+            QuadOut(armA, armB, armC, armD, plate, ink, 1.5f);
+            // Sống lưng gai
+            DrawLineEx(Vector2Subtract(bc, Vector2Scale(fwd, r * 0.65f)), Vector2Add(bc, Vector2Scale(fwd, r * 0.35f)), 4.0f, Shade(plate, 0.5f));
+            // Đầu nêm bọc sắt + ngà voi cong
+            Vector2 snL = Vector2Add(bc, Vector2Add(Vector2Scale(fwd, r * 0.92f), Vector2Scale(perp, -r * 0.28f)));
+            Vector2 snR = Vector2Add(bc, Vector2Add(Vector2Scale(fwd, r * 0.92f), Vector2Scale(perp,  r * 0.28f)));
+            QuadOut(midL, snL, snR, midR, Shade(plate, 0.85f), ink, 1.8f);
+            for (int s2 = -1; s2 <= 1; s2 += 2) {
+                Vector2 tBase = Vector2Add(bc, Vector2Add(Vector2Scale(fwd, r * 0.62f), Vector2Scale(perp, s2 * r * 0.44f)));
+                Vector2 tMid  = Vector2Add(bc, Vector2Add(Vector2Scale(fwd, r * 1.05f), Vector2Scale(perp, s2 * r * 0.62f)));
+                Vector2 tTip  = Vector2Add(bc, Vector2Add(Vector2Scale(fwd, r * 1.40f), Vector2Scale(perp, s2 * r * 0.30f)));
+                Tri(tBase, Vector2Add(tBase, Vector2Scale(perp, -s2 * 4.5f)), tMid, { 242, 234, 212, 255 });
+                Tri(tBase, tMid, tTip, { 255, 248, 230, 255 });
+                Vector2 eyeP = Vector2Add(bc, Vector2Add(Vector2Scale(fwd, r * 0.52f), Vector2Scale(perp, s2 * r * 0.32f)));
+                Diamond(eyeP, 3.8f, 3.0f, e.chargeState == 3 ? YELLOW : Color{ 255, 70, 45, 255 }, ink);
+            }
+            // Choáng: sao 4 cánh quay quanh đầu
+            if (e.chargeState == 3) {
                 for (int i = 0; i < 3; ++i) {
                     float a3 = t * 6.0f + i * 2.094f;
-                    DrawCircleV({ c.x + cosf(a3) * r * 0.8f, c.y - r - 8.0f + sinf(a3) * 5.0f }, 4.0f, { 255, 230, 80, 255 });
+                    Diamond({ c.x + cosf(a3) * r * 0.85f, c.y - r - 8.0f + sinf(a3) * 5.0f }, 4.5f, 4.5f, { 255, 230, 80, 255 }, ink);
                 }
+            }
         } else if (e.type == SUMMONER) {
-            // Pháp sư: áo choàng, mũ trùm, 3 quả cầu xoay, vòng triệu hồi khi niệm chú
+            // Void Lich / Necromancer: áo choàng rách tầng, xương sườn ngực, hộp sọ + quyền trượng sọ
             if (e.chargeState == 1) {
                 float k = 1.0f - e.chargeTimer;
-                DrawCircleLines((int)c.x, (int)c.y, 40.0f + 30.0f * k, Fade({ 190, 130, 255, 255 }, 0.9f));
+                DrawPolyLinesEx(c, 6, 42.0f + 28.0f * k, t * 40.0f, 2.0f, Fade({ 190, 130, 255, 255 }, 0.9f));
                 DrawCircleLines((int)c.x, (int)c.y, 22.0f + 16.0f * k, Fade({ 190, 130, 255, 255 }, 0.7f));
                 for (int i = 0; i < 6; ++i) {
                     float a = t * 3.0f + i * (PI / 3.0f);
@@ -2496,62 +2692,97 @@ public:
                 }
             }
             float bob = sinf(t * 2.5f + c.x) * 3.0f;
-            Color robe = e.hitFlash > 0 ? WHITE : Color{ 96, 60, 168, 255 };
-            Tri({ c.x - r * 1.05f, c.y + r * 0.95f + bob }, { c.x + r * 1.05f, c.y + r * 0.95f + bob }, { c.x, c.y - r * 0.6f + bob }, Shade(robe, 0.55f));
-            Tri({ c.x - r * 0.85f, c.y + r * 0.9f + bob }, { c.x + r * 0.85f, c.y + r * 0.9f + bob }, { c.x, c.y - r * 0.55f + bob }, robe);
-            DrawCircleV({ c.x, c.y - r * 0.45f + bob }, r * 0.62f, Shade(robe, 0.7f));
-            DrawCircleV({ c.x, c.y - r * 0.40f + bob }, r * 0.46f, { 16, 10, 30, 255 });
-            for (int s2 = -1; s2 <= 1; s2 += 2) {
-                DrawCircleV({ c.x + s2 * r * 0.2f, c.y - r * 0.40f + bob }, 3.0f, { 255, 120, 255, 255 });
-                DrawCircleV({ c.x + s2 * r * 0.2f, c.y - r * 0.40f + bob }, 6.5f, Fade({ 255, 120, 255, 255 }, 0.25f));
+            Color robe = base;
+            Color robeDark = Shade(robe, 0.52f);
+            Color bone = TintCol({ 228, 222, 204, 255 }, e);
+            // Áo choàng đa giác + tà rách
+            QuadOut({ c.x - r * 0.55f, c.y - r * 0.25f + bob }, { c.x + r * 0.55f, c.y - r * 0.25f + bob },
+                    { c.x + r * 0.92f, c.y + r * 0.88f + bob }, { c.x - r * 0.92f, c.y + r * 0.88f + bob }, robeDark, ink, 1.8f);
+            QuadOut({ c.x - r * 0.42f, c.y - r * 0.22f + bob }, { c.x + r * 0.42f, c.y - r * 0.22f + bob },
+                    { c.x + r * 0.62f, c.y + r * 0.82f + bob }, { c.x - r * 0.62f, c.y + r * 0.82f + bob }, robe, ink, 1.4f);
+            // Xương sườn trước ngực + cổ áo gai vàng sẫm
+            DrawLineEx({ c.x, c.y - r * 0.16f + bob }, { c.x, c.y + r * 0.34f + bob }, 3.0f, bone);
+            for (int rb = 0; rb < 3; ++rb) {
+                float ry = c.y - r * 0.08f + rb * r * 0.15f + bob;
+                DrawLineEx({ c.x - r * 0.24f, ry }, { c.x + r * 0.24f, ry }, 2.4f, bone);
             }
+            Tri({ c.x - r * 0.48f, c.y - r * 0.20f + bob }, { c.x - r * 0.22f, c.y - r * 0.30f + bob }, { c.x - r * 0.72f, c.y - r * 0.62f + bob }, TintCol({ 195, 160, 75, 255 }, e));
+            Tri({ c.x + r * 0.48f, c.y - r * 0.20f + bob }, { c.x + r * 0.22f, c.y - r * 0.30f + bob }, { c.x + r * 0.72f, c.y - r * 0.62f + bob }, TintCol({ 195, 160, 75, 255 }, e));
+            // Mũ trùm + đầu lâu sọ
+            Vector2 hc = { c.x, c.y - r * 0.52f + bob };
+            Tri({ hc.x - r * 0.56f, hc.y + r * 0.26f }, { hc.x + r * 0.56f, hc.y + r * 0.26f }, { hc.x, hc.y - r * 0.72f }, robeDark);
+            QuadOut({ hc.x - r * 0.28f, hc.y - r * 0.20f }, { hc.x + r * 0.28f, hc.y - r * 0.20f },
+                    { hc.x + r * 0.20f, hc.y + r * 0.26f }, { hc.x - r * 0.20f, hc.y + r * 0.26f }, bone, ink, 1.5f);
+            for (int s2 = -1; s2 <= 1; s2 += 2) {
+                Diamond({ hc.x + s2 * r * 0.12f, hc.y - r * 0.02f }, 3.8f, 3.8f, { 255, 110, 255, 255 }, { 30, 12, 42, 255 });
+            }
+            // Quyền trượng xương bên cạnh
+            Vector2 stBot = { c.x + face * r * 0.74f, c.y + r * 0.75f + bob };
+            Vector2 stTop = { c.x + face * r * 0.74f, c.y - r * 0.68f + bob };
+            DrawLineEx(stBot, stTop, 3.4f, Shade(bone, 0.75f));
+            Diamond(stTop, 6.0f, 8.0f, { 215, 155, 255, 255 }, ink);
+            // 3 tinh thể linh hồn quay quanh
             for (int i = 0; i < 3; ++i) {
                 float a = t * 2.2f + i * (2.0f * PI / 3.0f);
                 Vector2 o = { c.x + cosf(a) * r * 1.35f, c.y + sinf(a) * r * 0.6f + bob - r * 0.1f };
-                DrawCircleV(o, 7.0f, Fade({ 190, 130, 255, 255 }, 0.3f));
-                DrawCircleV(o, 4.0f, { 220, 180, 255, 255 });
-                DrawCircleV(o, 1.8f, WHITE);
+                Diamond(o, 5.0f, 7.5f, { 215, 165, 255, 255 }, { 90, 40, 150, 255 });
             }
         } else if (e.type == BOMBER) {
-            Blob(c, r, r * 0.95f, base);
-            for (int s2 = -1; s2 <= 1; s2 += 2) {
-                Vector2 ec = { c.x + s2 * r * 0.36f, c.y - r * 0.08f };
-                Eye(ec, r * 0.20f, r * 0.24f, look, { 120, 40, 20, 255 });
-                DrawLineEx({ ec.x - s2 * r * 0.30f, ec.y - r * 0.34f }, { ec.x + s2 * r * 0.14f, ec.y - r * 0.16f }, 3.0f, { 70, 20, 10, 255 });
-            }
-            DrawLineEx({ c.x - r * 0.40f, c.y + r * 0.42f }, { c.x + r * 0.40f, c.y + r * 0.42f }, 3.0f, { 70, 20, 10, 255 }); // miệng
-            for (int i = 0; i < 4; ++i)
-                DrawRectangle((int)(c.x - r * 0.36f + i * r * 0.2f), (int)(c.y + r * 0.42f), 4, 5, WHITE);
-            Vector2 top = { c.x, c.y - r * 0.95f };
-            Vector2 tip = { c.x + 6.0f, c.y - r * 0.95f - 12.0f };
-            DrawLineEx(top, tip, 3.5f, { 110, 70, 40, 255 });
+            // Goblin Sapper vác Thùng thuốc nổ TNT: chân chạy gắt, đầu đội kính bảo hộ, thùng TNT sọc đỏ + dây cháy xẹt tia lửa
+            float sprint = sinf(t * (e.fusing ? 34.0f : 18.0f) + c.x) * 5.0f;
+            Color skin = TintCol(bomberBlink ? Color{ 255, 90, 75, 255 } : Color{ 130, 195, 92, 255 }, e);
+            Color wood = TintCol(bomberBlink ? Color{ 230, 75, 65, 255 } : Color{ 156, 98, 52, 255 }, e);
+            Color band = TintCol({ 68, 72, 86, 255 }, e);
+            Color haz  = TintCol({ 228, 56, 48, 255 }, e);
+            // Hai chân chạy nhanh
+            BoxRot({ c.x - r * 0.34f, c.y + r * 0.76f + sprint * 0.45f }, r * 0.30f, r * 0.40f, -sprint * 3.0f, { 68, 48, 36, 255 }, ink);
+            BoxRot({ c.x + r * 0.34f, c.y + r * 0.76f - sprint * 0.45f }, r * 0.30f, r * 0.40f, sprint * 3.0f, { 68, 48, 36, 255 }, ink);
+            // Đầu Goblin nhô phía trên thùng thuốc nổ + kính bảo hộ
+            Vector2 hc = { c.x, c.y - r * 0.56f };
+            Tri({ hc.x - r * 0.38f, hc.y }, { hc.x - r * 0.20f, hc.y + r * 0.2f }, { hc.x - r * 0.96f, hc.y - r * 0.25f }, Shade(skin, 0.8f));
+            Tri({ hc.x + r * 0.38f, hc.y }, { hc.x + r * 0.20f, hc.y + r * 0.2f }, { hc.x + r * 0.96f, hc.y - r * 0.25f }, Shade(skin, 0.8f));
+            QuadOut({ hc.x - r * 0.42f, hc.y - r * 0.30f }, { hc.x + r * 0.42f, hc.y - r * 0.30f },
+                    { hc.x + r * 0.34f, hc.y + r * 0.22f }, { hc.x - r * 0.34f, hc.y + r * 0.22f }, skin, ink);
+            BoxRot({ hc.x - r * 0.18f, hc.y - r * 0.04f }, r * 0.28f, r * 0.24f, 0.0f, { 255, 220, 90, 255 }, band, 2.0f);
+            BoxRot({ hc.x + r * 0.18f, hc.y - r * 0.04f }, r * 0.28f, r * 0.24f, 0.0f, { 255, 220, 90, 255 }, band, 2.0f);
+            // Thùng thuốc nổ TNT vác trước ngực
+            float wob = sinf(t * (e.fusing ? 42.0f : 12.0f)) * 4.0f;
+            Vector2 bc = { c.x, c.y + r * 0.12f };
+            BoxRot(bc, r * 1.42f, r * 1.18f, wob, wood, ink, 2.0f);
+            BoxRot(bc, r * 1.44f, r * 0.40f, wob, haz, ink, 1.4f);
+            BoxRot({ bc.x, bc.y - r * 0.40f }, r * 1.44f, r * 0.16f, wob, band, ink, 1.2f);
+            BoxRot({ bc.x, bc.y + r * 0.40f }, r * 1.44f, r * 0.16f, wob, band, ink, 1.2f);
+            DrawText("TNT", (int)(bc.x - MeasureText("TNT", 10) / 2), (int)(bc.y - 5), 10, WHITE);
+            // Ngòi nổ + tia lửa hình sao nhấp nháy
+            Vector2 top = { bc.x + r * 0.26f, bc.y - r * 0.60f };
+            Vector2 tip = { top.x + 8.0f, top.y - 12.0f };
+            DrawLineEx(top, tip, 3.2f, { 110, 70, 40, 255 });
             float tw = 0.6f + 0.4f * sinf(t * 25.0f);
-            DrawCircleV(tip, 6.0f * tw + 2.0f, Fade({ 255, 200, 60, 255 }, 0.4f));
-            DrawCircleV(tip, 3.2f * tw + 1.2f, { 255, 235, 90, 255 });
-            DrawCircleV(tip, 1.6f, WHITE);
+            Diamond(tip, 6.0f * tw + 2.0f, 6.0f * tw + 2.0f, { 255, 195, 50, 255 }, { 255, 90, 20, 255 });
+            Diamond(tip, 2.8f * tw + 1.0f, 2.8f * tw + 1.0f, WHITE, YELLOW);
         }
 
         // Viền trạng thái
         if (e.slowTimer > 0) {
-            DrawCircleLines((int)c.x, (int)c.y, r + 4.0f, { 120, 200, 255, 255 });
-            DrawCircleLines((int)c.x, (int)c.y, r + 5.0f, { 120, 200, 255, 160 });
+            DrawPolyLinesEx(c, 6, r + 5.0f, t * 25.0f, 2.0f, { 120, 210, 255, 220 });
         }
         if (e.burnTimer > 0) {
             float fl = 0.6f + 0.4f * sinf(t * 30.0f + c.x);
-            DrawCircleLines((int)c.x, (int)c.y, r + 7.0f, Fade({ 255, 130, 30, 255 }, fl));
-            DrawCircleV({ c.x - r * 0.5f, c.y - r - 4.0f }, 3.0f + 2.0f * fl, Fade({ 255, 170, 40, 255 }, 0.9f));
+            DrawPolyLinesEx(c, 5, r + 7.0f, -t * 50.0f, 2.0f, Fade({ 255, 130, 30, 255 }, fl));
+            Tri({ c.x - r * 0.55f, c.y - r }, { c.x - r * 0.35f, c.y - r }, { c.x - r * 0.45f, c.y - r - 8.0f * fl }, { 255, 185, 50, 255 });
         }
         if (e.stunTimer > 0.0f && !(e.type == CHARGER && e.chargeState == 3)) {
             Color starCol = (e.chillTimer > 0.0f) ? Color{ 150, 235, 255, 255 } : Color{ 255, 230, 80, 255 };
             for (int i = 0; i < 3; ++i) {
                 float a3 = t * 6.5f + i * 2.094f;
-                DrawCircleV({ c.x + cosf(a3) * r * 0.85f, c.y - r - 8.0f + sinf(a3) * 5.0f }, 4.2f, starCol);
+                Diamond({ c.x + cosf(a3) * r * 0.85f, c.y - r - 8.0f + sinf(a3) * 5.0f }, 4.5f, 4.5f, starCol, ink);
             }
         }
     }
 
     static void DrawWeaponModel(Vector2 hand, Vector2 dir, int wt, float t) {
         Vector2 perp = { -dir.y, dir.x };
+        const Color ink = { 18, 16, 26, 255 };
         if (wt == WP_BOW) {
             float ang = atan2f(dir.y, dir.x) * RAD2DEG;
             Vector2 bowC = { hand.x + dir.x * 4.0f, hand.y + dir.y * 4.0f };
@@ -2559,61 +2790,85 @@ public:
             DrawRing(bowC, 17.5f, 19.5f, ang - 75.0f, ang + 75.0f, 16, { 110, 215, 130, 255 });
             Vector2 topLimb = { bowC.x + cosf((ang - 75.0f) * DEG2RAD) * 16.5f, bowC.y + sinf((ang - 75.0f) * DEG2RAD) * 16.5f };
             Vector2 botLimb = { bowC.x + cosf((ang + 75.0f) * DEG2RAD) * 16.5f, bowC.y + sinf((ang + 75.0f) * DEG2RAD) * 16.5f };
-            DrawLineEx(topLimb, botLimb, 1.5f, Fade(WHITE, 0.7f));
-            // Mũi tên đặt sẵn trên cung
-            Vector2 arrTail = Vector2Subtract(bowC, Vector2Scale(dir, 4.0f));
+            DrawLineEx(topLimb, botLimb, 1.5f, Fade(WHITE, 0.75f));
+            Vector2 arrTail = Vector2Subtract(bowC, Vector2Scale(dir, 5.0f));
             Vector2 arrTip = Vector2Add(bowC, Vector2Scale(dir, 24.0f));
             DrawLineEx(arrTail, arrTip, 2.5f, { 225, 200, 140, 255 });
-            Tri({ arrTip.x + dir.x * 7.0f, arrTip.y + dir.y * 7.0f }, { arrTip.x + perp.x * 4.0f, arrTip.y + perp.y * 4.0f }, { arrTip.x - perp.x * 4.0f, arrTip.y - perp.y * 4.0f }, { 120, 245, 160, 255 });
+            Tri({ arrTip.x + dir.x * 8.0f, arrTip.y + dir.y * 8.0f }, { arrTip.x + perp.x * 4.2f, arrTip.y + perp.y * 4.2f }, { arrTip.x - perp.x * 4.2f, arrTip.y - perp.y * 4.2f }, { 120, 245, 160, 255 });
         } else if (wt == WP_STAFF) {
-            Vector2 tail = Vector2Subtract(hand, Vector2Scale(dir, 12.0f));
-            Vector2 tip = Vector2Add(hand, Vector2Scale(dir, 30.0f));
-            DrawLineEx(tail, tip, 5.0f, { 88, 52, 128, 255 });
+            Vector2 tail = Vector2Subtract(hand, Vector2Scale(dir, 14.0f));
+            Vector2 tip = Vector2Add(hand, Vector2Scale(dir, 28.0f));
+            DrawLineEx(tail, tip, 5.4f, { 68, 40, 102, 255 });
             DrawLineEx(tail, tip, 2.8f, { 145, 95, 200, 255 });
-            // Chạc vàng giữ ngọc phép
-            Vector2 pL = Vector2Add(tip, Vector2Add(Vector2Scale(dir, 7.0f), Vector2Scale(perp, 6.0f)));
-            Vector2 pR = Vector2Add(tip, Vector2Add(Vector2Scale(dir, 7.0f), Vector2Scale(perp, -6.0f)));
-            DrawLineEx(tip, pL, 2.5f, GOLD);
-            DrawLineEx(tip, pR, 2.5f, GOLD);
-            Vector2 orb = Vector2Add(tip, Vector2Scale(dir, 6.0f));
-            float pulse = 0.8f + 0.2f * sinf(t * 7.0f);
-            DrawCircleV(orb, 9.0f * pulse, Fade({ 95, 225, 255, 255 }, 0.35f));
-            DrawCircleV(orb, 5.2f * pulse, { 115, 230, 255, 255 });
-            DrawCircleV(orb, 2.2f, WHITE);
+            Vector2 pL = Vector2Add(tip, Vector2Add(Vector2Scale(dir, 8.0f), Vector2Scale(perp, 6.5f)));
+            Vector2 pR = Vector2Add(tip, Vector2Add(Vector2Scale(dir, 8.0f), Vector2Scale(perp, -6.5f)));
+            DrawLineEx(tip, pL, 2.6f, GOLD);
+            DrawLineEx(tip, pR, 2.6f, GOLD);
+            Vector2 orb = Vector2Add(tip, Vector2Scale(dir, 8.0f));
+            float pulse = 0.85f + 0.15f * sinf(t * 7.0f);
+            Diamond(orb, 6.5f * pulse, 8.5f * pulse, { 115, 235, 255, 255 }, WHITE);
         } else if (wt == WP_HAMMER) {
-            Vector2 tip = Vector2Add(hand, Vector2Scale(dir, 26.0f));
-            DrawLineEx(hand, tip, 5.0f, { 110, 74, 42, 255 });
-            DrawLineEx(hand, tip, 2.0f, { 160, 112, 64, 255 });
-            Vector2 hA = Vector2Add(tip, Vector2Scale(perp, 12.0f));
-            Vector2 hB = Vector2Subtract(tip, Vector2Scale(perp, 12.0f));
-            DrawLineEx(hA, hB, 14.0f, { 90, 98, 122, 255 });
-            DrawLineEx(hA, hB, 10.0f, { 188, 198, 220, 255 });
-            DrawLineEx(Vector2Add(tip, Vector2Scale(perp, 4.0f)), Vector2Subtract(tip, Vector2Scale(perp, 4.0f)), 11.0f, GOLD);
+            Vector2 tail = Vector2Subtract(hand, Vector2Scale(dir, 8.0f));
+            Vector2 tip = Vector2Add(hand, Vector2Scale(dir, 27.0f));
+            DrawLineEx(tail, tip, 5.2f, { 105, 70, 38, 255 });
+            DrawLineEx(tail, tip, 2.2f, { 160, 112, 64, 255 });
+            float deg = atan2f(dir.y, dir.x) * RAD2DEG;
+            BoxRot(tip, 14.0f, 24.0f, deg, { 176, 186, 210, 255 }, ink, 1.8f);
+            BoxRot(tip, 14.5f, 7.0f, deg, GOLD, ink, 1.2f);
+            Tri(Vector2Add(tip, Vector2Scale(dir, 7.0f)), Vector2Add(tip, Vector2Add(Vector2Scale(dir, 3.0f), Vector2Scale(perp, 5.0f))),
+                Vector2Add(tip, Vector2Add(Vector2Scale(dir, 3.0f), Vector2Scale(perp, -5.0f))), GOLD);
         } else if (wt == WP_SCYTHE) {
-            Vector2 tail = Vector2Subtract(hand, Vector2Scale(dir, 10.0f));
+            Vector2 tail = Vector2Subtract(hand, Vector2Scale(dir, 12.0f));
             Vector2 tip = Vector2Add(hand, Vector2Scale(dir, 34.0f));
-            DrawLineEx(tail, tip, 4.5f, { 54, 44, 72, 255 });
-            DrawLineEx(tail, tip, 2.2f, { 100, 88, 130, 255 });
-            Vector2 bladeTip = Vector2Add(tip, Vector2Add(Vector2Scale(dir, -12.0f), Vector2Scale(perp, 24.0f)));
-            Vector2 bladeMid = Vector2Add(tip, Vector2Add(Vector2Scale(dir, 5.0f), Vector2Scale(perp, 13.0f)));
+            DrawLineEx(tail, tip, 4.8f, { 46, 38, 66, 255 });
+            DrawLineEx(tail, tip, 2.2f, { 105, 92, 138, 255 });
+            Vector2 bladeTip = Vector2Add(tip, Vector2Add(Vector2Scale(dir, -13.0f), Vector2Scale(perp, 25.0f)));
+            Vector2 bladeMid = Vector2Add(tip, Vector2Add(Vector2Scale(dir, 6.0f), Vector2Scale(perp, 14.0f)));
             Tri(tip, bladeMid, bladeTip, { 195, 210, 235, 255 });
-            DrawLineEx(tip, bladeTip, 2.5f, { 190, 120, 255, 255 });
+            DrawLineEx(tip, bladeMid, 2.2f, ink);
+            DrawLineEx(bladeMid, bladeTip, 2.6f, { 210, 120, 255, 255 });
+        } else if (wt == WP_AXE) {
+            Vector2 tail = Vector2Subtract(hand, Vector2Scale(dir, 8.0f));
+            Vector2 tip = Vector2Add(hand, Vector2Scale(dir, 28.0f));
+            DrawLineEx(tail, tip, 5.0f, { 112, 74, 42, 255 });
+            QuadOut(Vector2Add(tip, Vector2Add(Vector2Scale(dir, -10.0f), Vector2Scale(perp, 3.0f))),
+                    Vector2Add(tip, Vector2Add(Vector2Scale(dir,  6.0f), Vector2Scale(perp, 4.0f))),
+                    Vector2Add(tip, Vector2Add(Vector2Scale(dir,  4.0f), Vector2Scale(perp, 16.0f))),
+                    Vector2Add(tip, Vector2Add(Vector2Scale(dir, -14.0f), Vector2Scale(perp, 14.0f))), { 198, 206, 228, 255 }, ink, 1.4f);
+            QuadOut(Vector2Add(tip, Vector2Add(Vector2Scale(dir, -10.0f), Vector2Scale(perp, -3.0f))),
+                    Vector2Add(tip, Vector2Add(Vector2Scale(dir,  6.0f), Vector2Scale(perp, -4.0f))),
+                    Vector2Add(tip, Vector2Add(Vector2Scale(dir,  4.0f), Vector2Scale(perp, -16.0f))),
+                    Vector2Add(tip, Vector2Add(Vector2Scale(dir, -14.0f), Vector2Scale(perp, -14.0f))), { 166, 174, 198, 255 }, ink, 1.4f);
+            DrawLineEx(Vector2Add(hand, Vector2Scale(perp, 6.0f)), Vector2Subtract(hand, Vector2Scale(perp, 6.0f)), 3.5f, GOLD);
+        } else if (wt == WP_SPEAR) {
+            Vector2 tail = Vector2Subtract(hand, Vector2Scale(dir, 14.0f));
+            Vector2 tip = Vector2Add(hand, Vector2Scale(dir, 40.0f));
+            DrawLineEx(tail, tip, 4.4f, { 126, 86, 52, 255 });
+            Tri(tip, { tip.x - dir.x * 9.0f + perp.x * 5.0f, tip.y - dir.y * 9.0f + perp.y * 5.0f }, { tip.x - dir.x * 9.0f - perp.x * 5.0f, tip.y - dir.y * 9.0f - perp.y * 5.0f }, { 215, 52, 68, 255 });
+            Diamond(Vector2Add(tip, Vector2Scale(dir, 7.0f)), 4.0f, 4.0f, { 220, 232, 248, 255 }, ink);
+            Tri(Vector2Add(tip, Vector2Scale(dir, 18.0f)),
+                { tip.x + perp.x * 5.5f, tip.y + perp.y * 5.5f },
+                { tip.x - perp.x * 5.5f, tip.y - perp.y * 5.5f }, { 238, 244, 255, 255 });
+            DrawLineEx(tip, Vector2Add(tip, Vector2Scale(dir, 18.0f)), 1.6f, WHITE);
         } else {
-            float wlen = (wt == WP_DAGGER) ? 19.0f : (wt == WP_SPEAR ? 44.0f : (wt == WP_AXE ? 24.0f : 27.0f));
-            Vector2 tip = { hand.x + dir.x * wlen, hand.y + dir.y * wlen };
-            DrawLineEx(hand, tip, 6.0f, { 90, 100, 130, 255 });
-            DrawLineEx(hand, tip, 4.0f, { 232, 238, 250, 255 });
-            DrawLineEx(hand, tip, 1.5f, WHITE);
-            if (wt == WP_AXE) {
-                Tri({ tip.x - dir.x * 16.0f + perp.x * 15.0f, tip.y - dir.y * 16.0f + perp.y * 15.0f }, { tip.x + dir.x * 6.0f, tip.y + dir.y * 6.0f }, { tip.x - dir.x * 16.0f - perp.x * 3.0f, tip.y - dir.y * 16.0f - perp.y * 3.0f }, { 196, 204, 224, 255 });
-                Tri({ tip.x - dir.x * 16.0f - perp.x * 15.0f, tip.y - dir.y * 16.0f - perp.y * 15.0f }, { tip.x + dir.x * 6.0f, tip.y + dir.y * 6.0f }, { tip.x - dir.x * 16.0f + perp.x * 3.0f, tip.y - dir.y * 16.0f + perp.y * 3.0f }, { 170, 178, 200, 255 });
-            } else if (wt == WP_SPEAR) {
-                Tri({ tip.x + dir.x * 16.0f, tip.y + dir.y * 16.0f }, { tip.x + perp.x * 6.0f, tip.y + perp.y * 6.0f }, { tip.x - perp.x * 6.0f, tip.y - perp.y * 6.0f }, { 236, 242, 255, 255 });
-                Tri(tip, { tip.x - dir.x * 8.0f + perp.x * 5.0f, tip.y - dir.y * 8.0f + perp.y * 5.0f }, { tip.x - dir.x * 8.0f - perp.x * 5.0f, tip.y - dir.y * 8.0f - perp.y * 5.0f }, { 210, 50, 65, 255 });
-            }
-            DrawLineEx({ hand.x + perp.x * 7.0f, hand.y + perp.y * 7.0f }, { hand.x - perp.x * 7.0f, hand.y - perp.y * 7.0f }, 4.0f, GOLD);
+            // Sword / Dagger: lưỡi đa giác vát nhọn + sống kiếm + chắn tay vàng
+            bool isDagger = (wt == WP_DAGGER);
+            float wlen = isDagger ? 17.0f : 26.0f;
+            float hw = isDagger ? 2.6f : 3.4f;
+            Vector2 baseBlade = Vector2Add(hand, Vector2Scale(dir, 3.0f));
+            Vector2 shoulder = Vector2Add(hand, Vector2Scale(dir, wlen - 6.0f));
+            Vector2 tip = Vector2Add(hand, Vector2Scale(dir, wlen + (isDagger ? 5.0f : 8.0f)));
+            QuadOut(Vector2Add(baseBlade, Vector2Scale(perp, hw)), Vector2Add(shoulder, Vector2Scale(perp, hw * 0.82f)),
+                    Vector2Subtract(shoulder, Vector2Scale(perp, hw * 0.82f)), Vector2Subtract(baseBlade, Vector2Scale(perp, hw)),
+                    isDagger ? Color{ 205, 215, 238, 255 } : Color{ 230, 238, 252, 255 }, ink, 1.4f);
+            Tri(Vector2Add(shoulder, Vector2Scale(perp, hw * 0.82f)), Vector2Subtract(shoulder, Vector2Scale(perp, hw * 0.82f)), tip, WHITE);
+            DrawLineEx(baseBlade, tip, 1.4f, isDagger ? Color{ 255, 85, 130, 255 } : WHITE);
+            DrawLineEx({ hand.x + perp.x * (isDagger ? 6.0f : 8.0f), hand.y + perp.y * (isDagger ? 6.0f : 8.0f) },
+                       { hand.x - perp.x * (isDagger ? 6.0f : 8.0f), hand.y - perp.y * (isDagger ? 6.0f : 8.0f) }, 4.2f, GOLD);
+            DrawLineEx(Vector2Subtract(hand, Vector2Scale(dir, 6.0f)), hand, 3.6f, { 95, 60, 36, 255 });
         }
-        DrawCircleV(hand, 4.2f, { 140, 150, 176, 255 });
+        float hdeg = atan2f(dir.y, dir.x) * RAD2DEG;
+        BoxRot(hand, 7.5f, 7.5f, hdeg, { 150, 160, 188, 255 }, ink, 1.3f);
     }
 
     static void DrawHeroModel(Vector2 p, int heroClass, int wt, Vector2 aimDir, bool facingLeft, float walkTimer, bool moving,
@@ -2621,95 +2876,149 @@ public:
         const float t = (float)GetTime();
         const float face = facingLeft ? -1.0f : 1.0f;
         const float back = -face;
-        float bob = moving ? fabsf(sinf(walkTimer)) * -2.5f : sinf(t * 3.0f) * 1.2f;
-        float sway = sinf(t * 8.0f) * 2.5f + (moving ? 4.0f : 0.0f);
-        Vector2 body = { p.x, p.y + bob };
-        float step = moving ? sinf(walkTimer) * 4.0f : 0.0f;
+        const Color ink = { 18, 16, 26, 255 };
+        float bob = moving ? fabsf(sinf(walkTimer)) * -2.2f : sinf(t * 3.0f) * 1.0f;
+        float sway = sinf(t * 8.0f) * 2.5f + (moving ? 4.5f : 0.0f);
+        Vector2 body = { p.x, p.y + bob + 2.0f };
+        Vector2 head = { body.x, body.y - 14.5f };
+        float step = moving ? sinf(walkTimer) * 5.0f : 0.0f;
 
         if (holyBuffTimer > 0.0f) {
             float k = 0.65f + 0.35f * sinf(t * 10.0f);
-            DrawCircleV(body, 28.0f, Fade(GOLD, 0.14f * k));
-            DrawCircleLines((int)body.x, (int)body.y, 27.0f, Fade(GOLD, 0.65f * k));
+            DrawPolyLinesEx({ body.x, body.y - 4.0f }, 8, 29.0f, t * 35.0f, 2.0f, Fade(GOLD, 0.70f * k));
         }
 
         if (heroClass == CLASS_KNIGHT) {
+            // VANGUARD KNIGHT: áo choàng xanh hoàng gia, giáp ngực thép bạc, cầu vai vàng, khiên tháp & mũ Crusader
             Color cape = { 44, 74, 168, 255 };
-            Vector2 A = { body.x + back * 6.0f, body.y - 11.0f }, B = { body.x + back * 6.0f, body.y + 11.0f };
-            Vector2 C = { body.x + back * (31.0f + sway), body.y + 20.0f + sway * 0.4f }, D = { body.x + back * (31.0f + sway), body.y - 4.0f };
-            Tri(A, B, C, cape); Tri(A, C, D, cape);
-            DrawLineEx(A, D, 2.0f, Shade(cape, 0.55f)); DrawLineEx(B, C, 2.0f, Shade(cape, 0.55f));
-            DrawEllipse((int)(p.x - 7.0f), (int)(p.y + 16.0f + step * 0.5f), 6.0f, 4.0f, { 52, 46, 64, 255 });
-            DrawEllipse((int)(p.x + 7.0f), (int)(p.y + 16.0f - step * 0.5f), 6.0f, 4.0f, { 52, 46, 64, 255 });
-            Tri({ body.x, body.y - 16.0f }, { body.x + back * (30.0f + sway * 0.5f), body.y - 26.0f + sway * 0.3f }, { body.x + back * 9.0f, body.y - 8.0f }, { 224, 52, 66, 255 });
-            DrawLineEx({ body.x, body.y - 16.0f }, { body.x + back * (30.0f + sway * 0.5f), body.y - 26.0f + sway * 0.3f }, 2.0f, { 140, 24, 36, 255 });
-            Blob(body, 17.0f, 17.5f, { 222, 228, 244, 255 });
-            DrawCircleSector({ body.x, body.y - 1.0f }, 17.0f, 180.0f, 360.0f, 28, { 176, 188, 214, 255 });
-            DrawLineEx({ body.x - 17.0f, body.y - 1.0f }, { body.x + 17.0f, body.y - 1.0f }, 2.0f, { 98, 110, 140, 255 });
-            DrawEllipse((int)(body.x - 6.0f), (int)(body.y - 11.0f), 5.0f, 2.2f, Fade(WHITE, 0.7f));
-            DrawCircleV({ body.x - 13.0f, body.y + 1.0f }, 4.5f, GOLD);
-            DrawCircleV({ body.x + 13.0f, body.y + 1.0f }, 4.5f, GOLD);
-            DrawEllipse((int)(body.x + face * 5.5f), (int)(body.y + 2.0f), 9.0f, 3.6f, { 18, 24, 48, 255 });
-            DrawEllipse((int)(body.x + face * 8.0f), (int)(body.y + 2.0f), 4.5f, 1.8f, { 90, 230, 255, 255 });
+            QuadOut({ body.x + back * 5.0f, body.y - 9.0f }, { body.x + back * 6.0f, body.y + 8.0f },
+                    { body.x + back * (30.0f + sway), body.y + 18.0f + sway * 0.35f }, { body.x + back * (28.0f + sway), body.y - 4.0f }, cape, ink, 1.5f);
+            DrawLineEx({ body.x + back * (28.0f + sway), body.y - 4.0f }, { body.x + back * (30.0f + sway), body.y + 18.0f + sway * 0.35f }, 2.2f, GOLD);
+            // Giày giáp sắt
+            BoxRot({ p.x - 6.0f, p.y + 15.0f + step * 0.55f }, 7.5f, 8.5f, -step * 2.2f, { 112, 122, 148, 255 }, ink);
+            BoxRot({ p.x + 6.0f, p.y + 15.0f - step * 0.55f }, 7.5f, 8.5f,  step * 2.2f, { 112, 122, 148, 255 }, ink);
+            // Lông mũ đỏ bay phía sau
+            Tri({ head.x, head.y - 9.0f }, { head.x + back * (26.0f + sway * 0.45f), head.y - 16.0f + sway * 0.25f }, { head.x + back * 7.0f, head.y - 2.0f }, { 224, 52, 66, 255 });
+            // Giáp ngực hình thang + chữ thập vàng + đai lưng
+            QuadOut({ body.x - 13.0f, body.y - 8.0f }, { body.x + 13.0f, body.y - 8.0f },
+                    { body.x + 9.5f, body.y + 10.0f }, { body.x - 9.5f, body.y + 10.0f }, { 214, 222, 240, 255 }, ink, 1.8f);
+            DrawLineEx({ body.x, body.y - 5.0f }, { body.x, body.y + 7.0f }, 2.6f, GOLD);
+            DrawLineEx({ body.x - 5.0f, body.y - 1.0f }, { body.x + 5.0f, body.y - 1.0f }, 2.4f, GOLD);
+            BoxRot({ body.x, body.y + 7.5f }, 20.0f, 4.5f, 0.0f, { 92, 62, 42, 255 }, ink, 1.2f);
+            BoxRot({ body.x, body.y + 7.5f }, 6.0f, 5.5f, 0.0f, GOLD, ink, 1.0f);
+            // Cầu vai thép viền vàng
+            BoxRot({ body.x - 13.5f, body.y - 6.0f }, 9.0f, 8.5f, -18.0f, { 188, 198, 224, 255 }, GOLD, 1.4f);
+            BoxRot({ body.x + 13.5f, body.y - 6.0f }, 9.0f, 8.5f,  18.0f, { 188, 198, 224, 255 }, GOLD, 1.4f);
+            // Khiên phụ bên tay còn lại
+            Vector2 sh = { body.x + back * 14.5f, body.y + 1.5f };
+            QuadOut({ sh.x - 5.5f, sh.y - 8.0f }, { sh.x + 5.5f, sh.y - 8.0f }, { sh.x + 4.5f, sh.y + 4.0f }, { sh.x - 4.5f, sh.y + 4.0f }, { 44, 78, 172, 255 }, { 205, 214, 236, 255 }, 1.8f);
+            Tri({ sh.x - 4.5f, sh.y + 4.0f }, { sh.x + 4.5f, sh.y + 4.0f }, { sh.x, sh.y + 10.5f }, { 205, 214, 236, 255 });
+            DrawLineEx({ sh.x, sh.y - 5.0f }, { sh.x, sh.y + 6.0f }, 2.0f, GOLD);
+            // Mũ giáp Crusader tách khối rõ ràng
+            QuadOut({ head.x - 10.0f, head.y - 8.5f }, { head.x + 10.0f, head.y - 8.5f },
+                    { head.x + 9.0f, head.y + 6.5f }, { head.x - 9.0f, head.y + 6.5f }, { 222, 228, 244, 255 }, ink, 1.7f);
+            Tri({ head.x - 10.0f, head.y - 8.5f }, { head.x + 10.0f, head.y - 8.5f }, { head.x, head.y - 13.5f }, { 190, 202, 226, 255 });
+            BoxRot({ head.x + face * 3.0f, head.y + 0.5f }, 12.0f, 4.2f, 0.0f, { 18, 24, 48, 255 }, ink, 1.0f);
+            DrawRectangle((int)(head.x + face * 5.0f - 4), (int)(head.y - 0.5f), 8, 2, { 90, 230, 255, 255 });
         } else if (heroClass == CLASS_ASSASSIN) {
-            // Khăn quàng đỏ bay phía sau
-            Color scarf = { 210, 42, 74, 255 };
-            Tri({ body.x + back * 4.0f, body.y - 6.0f }, { body.x + back * (34.0f + sway * 1.2f), body.y - 14.0f + sway * 0.5f }, { body.x + back * (28.0f + sway), body.y + 4.0f }, scarf);
-            Tri({ body.x + back * 4.0f, body.y + 2.0f }, { body.x + back * (30.0f + sway), body.y + 8.0f }, { body.x + back * (24.0f + sway), body.y + 18.0f + sway * 0.4f }, Shade(scarf, 0.7f));
-            DrawEllipse((int)(p.x - 6.5f), (int)(p.y + 16.0f + step * 0.5f), 5.5f, 3.5f, { 30, 26, 38, 255 });
-            DrawEllipse((int)(p.x + 6.5f), (int)(p.y + 16.0f - step * 0.5f), 5.5f, 3.5f, { 30, 26, 38, 255 });
-            Blob(body, 15.0f, 16.5f, { 44, 42, 62, 255 });
-            // Mũ trùm sát thủ
-            Tri({ body.x - 16.0f, body.y + 1.0f }, { body.x + 16.0f, body.y + 1.0f }, { body.x + back * 8.0f, body.y - 23.0f }, { 34, 30, 50, 255 });
-            DrawCircleSector({ body.x, body.y - 2.0f }, 15.5f, 180.0f, 360.0f, 24, { 52, 46, 74, 255 });
-            DrawEllipse((int)(body.x + face * 4.5f), (int)(body.y + 2.0f), 9.0f, 4.5f, { 16, 12, 24, 255 });
-            DrawCircleV({ body.x + face * 7.5f, body.y + 1.5f }, 2.4f, { 255, 70, 120, 255 });
-            DrawCircleV({ body.x + face * 2.5f, body.y + 1.5f }, 2.4f, { 255, 70, 120, 255 });
-            // Dao găm phụ ở tay còn lại
+            // SHADOW ASSASSIN: khăn đỏ bay đôi, giáp da sát thủ, dao găm phụ, đầu mũ ninja & mặt nạ
+            Color scarf = { 212, 42, 74, 255 };
+            Tri({ body.x + back * 3.0f, body.y - 9.0f }, { body.x + back * (32.0f + sway * 1.15f), body.y - 14.0f + sway * 0.45f }, { body.x + back * (25.0f + sway), body.y + 1.0f }, scarf);
+            Tri({ body.x + back * 3.0f, body.y - 4.0f }, { body.x + back * (28.0f + sway), body.y + 4.0f }, { body.x + back * (22.0f + sway), body.y + 14.0f + sway * 0.35f }, Shade(scarf, 0.72f));
+            // Ủng ninja gọn
+            BoxRot({ p.x - 5.5f, p.y + 15.0f + step * 0.55f }, 6.5f, 8.0f, -step * 2.5f, { 34, 30, 44, 255 }, ink);
+            BoxRot({ p.x + 5.5f, p.y + 15.0f - step * 0.55f }, 6.5f, 8.0f,  step * 2.5f, { 34, 30, 44, 255 }, ink);
+            // Thân giáp da tối + dây chéo + đai đỏ
+            QuadOut({ body.x - 11.5f, body.y - 8.5f }, { body.x + 11.5f, body.y - 8.5f },
+                    { body.x + 8.5f, body.y + 9.5f }, { body.x - 8.5f, body.y + 9.5f }, { 46, 44, 66, 255 }, ink, 1.7f);
+            DrawLineEx({ body.x - 9.0f, body.y - 7.0f }, { body.x + 7.5f, body.y + 7.5f }, 2.2f, { 112, 92, 130, 255 });
+            DrawLineEx({ body.x + 9.0f, body.y - 7.0f }, { body.x - 7.5f, body.y + 7.5f }, 2.2f, { 112, 92, 130, 255 });
+            BoxRot({ body.x, body.y + 7.5f }, 17.5f, 4.0f, 0.0f, scarf, ink, 1.0f);
+            // Vai góc cạnh
+            Tri({ body.x - 10.0f, body.y - 8.0f }, { body.x - 16.5f, body.y - 4.0f }, { body.x - 11.0f, body.y }, { 70, 64, 96, 255 });
+            Tri({ body.x + 10.0f, body.y - 8.0f }, { body.x + 16.5f, body.y - 4.0f }, { body.x + 11.0f, body.y }, { 70, 64, 96, 255 });
+            // Dao găm phụ tay trái
             if (wt == WP_DAGGER) {
-                Vector2 offH = { body.x - aimDir.x * 10.0f + back * 8.0f, body.y + 5.0f };
-                DrawLineEx(offH, { offH.x + face * 13.0f, offH.y + 5.0f }, 3.0f, { 210, 220, 245, 255 });
+                Vector2 offH = { body.x - aimDir.x * 8.0f + back * 10.0f, body.y + 3.0f };
+                DrawLineEx(offH, { offH.x + face * 12.0f, offH.y + 6.0f }, 3.0f, { 215, 224, 248, 255 });
+                BoxRot(offH, 5.5f, 5.5f, 0.0f, { 70, 64, 96, 255 }, ink, 1.0f);
             }
+            // Đầu trùm mũ ninja + mặt nạ + mắt đỏ rực
+            QuadOut({ head.x - 9.5f, head.y - 7.5f }, { head.x + 9.5f, head.y - 7.5f },
+                    { head.x + 8.0f, head.y + 6.5f }, { head.x - 8.0f, head.y + 6.5f }, { 42, 38, 60, 255 }, ink, 1.6f);
+            Tri({ head.x - 9.5f, head.y - 7.5f }, { head.x + 9.5f, head.y - 7.5f }, { head.x + back * 8.0f, head.y - 16.0f }, { 34, 30, 50, 255 });
+            BoxRot({ head.x + face * 3.0f, head.y + 0.2f }, 11.5f, 5.2f, 0.0f, { 16, 12, 24, 255 }, ink, 1.0f);
+            Diamond({ head.x + face * 6.0f, head.y + 0.2f }, 2.6f, 2.0f, { 255, 70, 125, 255 }, RED);
+            Diamond({ head.x + face * 0.5f, head.y + 0.2f }, 2.6f, 2.0f, { 255, 70, 125, 255 }, RED);
             if (ultActiveTimer > 0.0f) {
                 for (int i = 0; i < 4; ++i) {
                     float a3 = t * 14.0f + i * (PI / 2.0f);
-                    DrawRing(body, 32.0f, 37.0f, a3 * RAD2DEG, a3 * RAD2DEG + 55.0f, 8, Fade({ 255, 70, 140, 255 }, 0.85f));
+                    DrawRing({ body.x, body.y - 4.0f }, 32.0f, 37.0f, a3 * RAD2DEG, a3 * RAD2DEG + 55.0f, 8, Fade({ 255, 70, 140, 255 }, 0.85f));
                 }
             }
         } else if (heroClass == CLASS_MAGE) {
-            // Áo choàng pháp sư
+            // ARCANE MAGE: áo choàng tầng thêu chỉ vàng, sách phép bay tay trái, mũ phù thủy vành rộng chóp lệch
             Color robe = { 82, 66, 178, 255 };
-            Tri({ body.x - 19.0f, body.y + 19.0f }, { body.x + 19.0f, body.y + 19.0f }, { body.x, body.y - 12.0f }, Shade(robe, 0.72f));
-            Tri({ body.x - 15.0f, body.y + 18.0f }, { body.x + 15.0f, body.y + 18.0f }, { body.x, body.y - 10.0f }, robe);
-            DrawLineEx({ body.x, body.y - 8.0f }, { body.x, body.y + 18.0f }, 3.0f, GOLD);
-            Blob({ body.x, body.y - 2.0f }, 14.5f, 14.5f, { 102, 86, 208, 255 });
-            // Mũ phù thủy chóp nhọn + vành
-            DrawEllipse((int)body.x, (int)(body.y - 9.0f), 22.0f, 6.0f, { 54, 42, 128, 255 });
-            DrawEllipse((int)body.x, (int)(body.y - 10.0f), 20.0f, 4.5f, { 78, 62, 168, 255 });
-            Tri({ body.x - 13.0f, body.y - 10.0f }, { body.x + 13.0f, body.y - 10.0f }, { body.x + back * 7.0f, body.y - 34.0f }, { 68, 52, 152, 255 });
-            DrawCircleV({ body.x + face * 3.0f, body.y - 16.0f }, 3.2f, { 110, 240, 255, 255 });
-            DrawEllipse((int)(body.x + face * 4.5f), (int)(body.y + 1.0f), 8.5f, 4.0f, { 16, 12, 34, 255 });
-            DrawCircleV({ body.x + face * 7.0f, body.y + 1.0f }, 2.3f, { 100, 240, 255, 255 });
-            DrawCircleV({ body.x + face * 2.0f, body.y + 1.0f }, 2.3f, { 100, 240, 255, 255 });
-            // 2 ấn ký ma pháp xoay quanh vai
+            BoxRot({ p.x - 5.0f, p.y + 16.0f + step * 0.35f }, 6.0f, 6.5f, 0.0f, { 42, 34, 72, 255 }, ink);
+            BoxRot({ p.x + 5.0f, p.y + 16.0f - step * 0.35f }, 6.0f, 6.5f, 0.0f, { 42, 34, 72, 255 }, ink);
+            // Váy áo choàng xòe tầng dưới + thân trên + dây đai rune vàng
+            QuadOut({ body.x - 11.0f, body.y - 7.5f }, { body.x + 11.0f, body.y - 7.5f },
+                    { body.x + 16.0f, body.y + 15.0f }, { body.x - 16.0f, body.y + 15.0f }, Shade(robe, 0.78f), ink, 1.7f);
+            QuadOut({ body.x - 10.5f, body.y - 8.5f }, { body.x + 10.5f, body.y - 8.5f },
+                    { body.x + 8.0f, body.y + 5.5f }, { body.x - 8.0f, body.y + 5.5f }, robe, ink, 1.5f);
+            DrawLineEx({ body.x, body.y - 6.0f }, { body.x, body.y + 14.0f }, 3.2f, GOLD);
+            Diamond({ body.x, body.y - 2.0f }, 3.6f, 4.6f, { 110, 240, 255, 255 }, ink);
+            BoxRot({ body.x - 12.0f, body.y - 5.5f }, 7.5f, 6.5f, -20.0f, Shade(robe, 1.25f), GOLD, 1.2f);
+            BoxRot({ body.x + 12.0f, body.y - 5.5f }, 7.5f, 6.5f,  20.0f, Shade(robe, 1.25f), GOLD, 1.2f);
+            // Sách phép mở bay ở tay còn lại
+            Vector2 bk = { body.x + back * 15.5f, body.y - 1.0f + sinf(t * 4.5f) * 2.0f };
+            BoxRot(bk, 10.0f, 11.0f, back * 14.0f, { 95, 42, 130, 255 }, GOLD, 1.2f);
+            BoxRot(bk, 7.5f, 8.5f, back * 14.0f, { 238, 232, 210, 255 }, { 140, 120, 90, 255 }, 0.8f);
+            // Đầu + khuôn mặt trong bóng râm + mắt sáng cyan
+            QuadOut({ head.x - 8.5f, head.y - 5.0f }, { head.x + 8.5f, head.y - 5.0f },
+                    { head.x + 7.5f, head.y + 6.5f }, { head.x - 7.5f, head.y + 6.5f }, { 22, 16, 44, 255 }, ink, 1.5f);
+            Diamond({ head.x + face * 5.5f, head.y + 1.0f }, 2.4f, 2.0f, { 105, 240, 255, 255 }, ink);
+            Diamond({ head.x + face * 0.5f, head.y + 1.0f }, 2.4f, 2.0f, { 105, 240, 255, 255 }, ink);
+            // Mũ phù thủy vành đa giác rộng + chóp cong nhọn + đai vàng
+            QuadOut({ head.x - 19.0f, head.y - 5.5f }, { head.x + 19.0f, head.y - 5.5f },
+                    { head.x + 13.0f, head.y - 2.0f }, { head.x - 13.0f, head.y - 2.0f }, { 64, 48, 148, 255 }, ink, 1.6f);
+            QuadOut({ head.x - 10.5f, head.y - 13.5f }, { head.x + 10.5f, head.y - 13.5f },
+                    { head.x + 11.5f, head.y - 5.5f }, { head.x - 11.5f, head.y - 5.5f }, { 78, 60, 170, 255 }, ink, 1.5f);
+            Tri({ head.x - 10.5f, head.y - 13.5f }, { head.x + 10.5f, head.y - 13.5f }, { head.x + back * 12.0f, head.y - 26.5f }, { 68, 52, 152, 255 });
+            DrawLineEx({ head.x - 11.0f, head.y - 6.5f }, { head.x + 11.0f, head.y - 6.5f }, 2.4f, GOLD);
+            Diamond({ head.x + face * 2.5f, head.y - 9.5f }, 3.2f, 3.6f, { 110, 240, 255, 255 }, ink);
             for (int i = 0; i < 2; ++i) {
                 float a3 = t * 3.2f + i * PI;
-                DrawCircleV({ body.x + cosf(a3) * 23.0f, body.y - 4.0f + sinf(a3) * 8.0f }, 3.2f, { 110, 235, 255, 255 });
+                Diamond({ body.x + cosf(a3) * 23.0f, body.y - 4.0f + sinf(a3) * 8.0f }, 3.4f, 4.4f, { 110, 235, 255, 255 }, ink);
             }
         } else {
-            // Emerald Ranger: áo choàng xanh lục + ống tên sau lưng + mũ trùm
+            // EMERALD RANGER: áo choàng rừng xanh, ống tên lông chim sau lưng, giáp da thợ săn, mũ trùm gắn lông vàng
             Color cloak = { 42, 134, 78, 255 };
-            Tri({ body.x + back * 5.0f, body.y - 10.0f }, { body.x + back * 5.0f, body.y + 12.0f }, { body.x + back * (28.0f + sway), body.y + 19.0f + sway * 0.3f }, cloak);
-            DrawLineEx({ body.x + back * 8.0f, body.y - 15.0f }, { body.x + back * 14.0f, body.y + 6.0f }, 6.0f, { 126, 84, 46, 255 }); // ống tên
-            DrawCircleV({ body.x + back * 9.0f, body.y - 16.0f }, 2.5f, { 255, 220, 110, 255 });
-            DrawEllipse((int)(p.x - 6.5f), (int)(p.y + 16.0f + step * 0.5f), 5.5f, 3.8f, { 78, 52, 34, 255 });
-            DrawEllipse((int)(p.x + 6.5f), (int)(p.y + 16.0f - step * 0.5f), 5.5f, 3.8f, { 78, 52, 34, 255 });
-            Blob(body, 15.5f, 16.5f, { 62, 178, 102, 255 });
-            DrawCircleSector({ body.x, body.y - 2.0f }, 16.0f, 180.0f, 360.0f, 24, { 44, 138, 76, 255 });
-            Tri({ body.x - 14.0f, body.y - 2.0f }, { body.x + 14.0f, body.y - 2.0f }, { body.x + back * 9.0f, body.y - 21.0f }, { 48, 150, 84, 255 });
-            DrawEllipse((int)(body.x + face * 5.0f), (int)(body.y + 2.0f), 8.5f, 4.0f, { 18, 28, 22, 255 });
-            DrawCircleV({ body.x + face * 7.5f, body.y + 1.5f }, 2.3f, { 255, 225, 95, 255 });
-            DrawCircleV({ body.x + face * 2.5f, body.y + 1.5f }, 2.3f, { 255, 225, 95, 255 });
-            DrawCircleV({ body.x, body.y + 9.0f }, 3.2f, GOLD);
+            QuadOut({ body.x + back * 4.0f, body.y - 8.5f }, { body.x + back * 6.0f, body.y + 8.0f },
+                    { body.x + back * (28.0f + sway), body.y + 16.5f + sway * 0.3f }, { body.x + back * (24.0f + sway), body.y - 3.0f }, cloak, ink, 1.5f);
+            // Ống tên đeo chéo sau vai + 2 đuôi lông tên
+            DrawLineEx({ body.x + back * 7.0f, body.y - 14.0f }, { body.x + back * 14.0f, body.y + 5.0f }, 6.0f, { 126, 84, 46, 255 });
+            Tri({ body.x + back * 5.0f, body.y - 16.0f }, { body.x + back * 9.0f, body.y - 15.0f }, { body.x + back * 6.5f, body.y - 21.0f }, { 255, 220, 110, 255 });
+            Tri({ body.x + back * 8.0f, body.y - 15.0f }, { body.x + back * 12.0f, body.y - 14.0f }, { body.x + back * 10.5f, body.y - 20.0f }, { 120, 240, 160, 255 });
+            // Ủng săn da nâu
+            BoxRot({ p.x - 5.5f, p.y + 15.0f + step * 0.55f }, 7.0f, 8.5f, -step * 2.4f, { 88, 58, 38, 255 }, ink);
+            BoxRot({ p.x + 5.5f, p.y + 15.0f - step * 0.55f }, 7.0f, 8.5f,  step * 2.4f, { 88, 58, 38, 255 }, ink);
+            // Áo giáp da + đai chéo đựng tên
+            QuadOut({ body.x - 12.0f, body.y - 8.0f }, { body.x + 12.0f, body.y - 8.0f },
+                    { body.x + 9.0f, body.y + 9.5f }, { body.x - 9.0f, body.y + 9.5f }, { 56, 168, 96, 255 }, ink, 1.7f);
+            QuadOut({ body.x - 8.5f, body.y - 6.0f }, { body.x + 8.5f, body.y - 6.0f },
+                    { body.x + 7.5f, body.y + 5.5f }, { body.x - 7.5f, body.y + 5.5f }, { 116, 80, 48, 255 }, ink, 1.2f);
+            DrawLineEx({ body.x - 9.0f, body.y - 7.0f }, { body.x + 7.0f, body.y + 8.0f }, 2.6f, { 150, 106, 64, 255 });
+            Diamond({ body.x, body.y + 7.5f }, 3.2f, 2.8f, GOLD, ink);
+            BoxRot({ body.x + back * 12.5f, body.y - 5.5f }, 8.0f, 7.0f, back * 16.0f, { 116, 80, 48, 255 }, ink, 1.3f);
+            // Đầu + mũ trùm thợ săn + lông vàng trên mũ + khăn che mặt
+            QuadOut({ head.x - 9.5f, head.y - 7.5f }, { head.x + 9.5f, head.y - 7.5f },
+                    { head.x + 8.5f, head.y + 6.5f }, { head.x - 8.5f, head.y + 6.5f }, { 48, 148, 84, 255 }, ink, 1.6f);
+            Tri({ head.x - 9.5f, head.y - 7.5f }, { head.x + 9.5f, head.y - 7.5f }, { head.x + back * 9.0f, head.y - 16.0f }, { 38, 120, 68, 255 });
+            Tri({ head.x + back * 5.0f, head.y - 9.0f }, { head.x + back * 8.0f, head.y - 7.0f }, { head.x + back * 16.0f, head.y - 21.0f }, GOLD);
+            BoxRot({ head.x + face * 3.0f, head.y + 0.5f }, 11.0f, 5.0f, 0.0f, { 18, 28, 22, 255 }, ink, 1.0f);
+            Diamond({ head.x + face * 6.0f, head.y + 0.5f }, 2.4f, 2.0f, { 255, 225, 95, 255 }, ink);
+            Diamond({ head.x + face * 0.5f, head.y + 0.5f }, 2.4f, 2.0f, { 255, 225, 95, 255 }, ink);
         }
 
         // Vũ khí theo hướng ngắm
@@ -2720,11 +3029,11 @@ public:
         DrawWeaponModel(hand, dir, wt, t);
 
         if (shieldActive) {
-            DrawCircleLines((int)body.x, (int)body.y, 28, Fade(GOLD, 0.85f));
+            DrawPolyLinesEx({ body.x, body.y - 4.0f }, 8, 28.0f, t * 20.0f, 2.0f, Fade(GOLD, 0.85f));
         }
         if (isInvuln) {
             float k = 0.5f + 0.5f * sinf(t * 30.0f);
-            DrawCircleLines((int)body.x, (int)body.y, 24.0f, Fade(SKYBLUE, 0.4f + 0.5f * k));
+            DrawPolyLinesEx({ body.x, body.y - 4.0f }, 8, 24.5f, -t * 45.0f, 1.8f, Fade(SKYBLUE, 0.4f + 0.5f * k));
         }
     }
 
@@ -4050,28 +4359,43 @@ public:
         float t = (float)GetTime();
         Vector2 p = merchantPos;
         float bob = sinf(t * 2.0f) * 2.0f;
-        DrawEllipse((int)p.x, (int)p.y + 26, 34.0f, 10.0f, Fade(BLACK, 0.4f));
-        // Bàn hàng nhỏ với đống vàng
-        DrawRectangle((int)p.x + 34, (int)p.y + 4, 46, 26, { 120, 78, 44, 255 });
-        DrawRectangle((int)p.x + 34, (int)p.y + 4, 46, 5, { 160, 108, 60, 255 });
-        for (int i = 0; i < 5; ++i) DrawCircleV({ p.x + 42.0f + i * 8.0f, p.y + 2.0f - (i % 2) * 3.0f }, 5.0f, GOLD);
-        // Áo choàng + mũ trùm
-        Tri({ p.x - 28, p.y + 24 + bob }, { p.x + 28, p.y + 24 + bob }, { p.x, p.y - 28 + bob }, { 92, 52, 150, 255 });
-        Tri({ p.x - 20, p.y + 22 + bob }, { p.x + 20, p.y + 22 + bob }, { p.x, p.y - 22 + bob }, { 122, 74, 190, 255 });
-        DrawCircleV({ p.x, p.y - 24.0f + bob }, 17.0f, { 70, 38, 120, 255 });
-        DrawCircleV({ p.x, p.y - 22.0f + bob }, 13.0f, { 20, 12, 36, 255 });
-        DrawCircleV({ p.x - 5.0f, p.y - 22.0f + bob }, 2.5f, { 255, 220, 90, 255 });
-        DrawCircleV({ p.x + 5.0f, p.y - 22.0f + bob }, 2.5f, { 255, 220, 90, 255 });
-        // Đèn lồng
+        const Color ink = { 18, 16, 26, 255 };
+        DrawEllipse((int)p.x, (int)p.y + 26, 36.0f, 11.0f, Fade(BLACK, 0.42f));
+        // Quầy hàng gỗ bọc vải đỏ + đống vàng & bình thuốc
+        DrawRectangle((int)p.x + 32, (int)p.y + 2, 52, 28, { 112, 72, 40, 255 });
+        DrawRectangle((int)p.x + 32, (int)p.y + 2, 52, 6, { 164, 112, 64, 255 });
+        DrawRectangleLines((int)p.x + 32, (int)p.y + 2, 52, 28, ink);
+        DrawRectangle((int)p.x + 36, (int)p.y + 8, 44, 14, { 148, 36, 52, 255 });
+        for (int i = 0; i < 4; ++i) DrawRectangle((int)p.x + 38 + i * 7, (int)p.y - 4 - (i % 2) * 3, 5, 6, GOLD);
+        QuadOut({ p.x + 69.0f, p.y - 7.0f }, { p.x + 77.0f, p.y - 7.0f }, { p.x + 79.0f, p.y + 1.0f }, { p.x + 67.0f, p.y + 1.0f }, { 225, 48, 72, 255 }, WHITE, 1.0f);
+        // Túi hành lý sau lưng thương nhân
+        BoxRot({ p.x + 17.0f, p.y + 2.0f + bob }, 14.0f, 22.0f, 10.0f, { 116, 78, 46, 255 }, ink, 1.6f);
+        // Ủng & áo choàng thương nhân nhiều lớp
+        BoxRot({ p.x - 8.0f, p.y + 24.0f }, 9.0f, 8.0f, 0.0f, { 48, 36, 32, 255 }, ink);
+        BoxRot({ p.x + 8.0f, p.y + 24.0f }, 9.0f, 8.0f, 0.0f, { 48, 36, 32, 255 }, ink);
+        QuadOut({ p.x - 16.0f, p.y - 12.0f + bob }, { p.x + 16.0f, p.y - 12.0f + bob },
+                { p.x + 25.0f, p.y + 22.0f + bob }, { p.x - 25.0f, p.y + 22.0f + bob }, { 92, 52, 150, 255 }, ink, 1.8f);
+        QuadOut({ p.x - 12.0f, p.y - 12.0f + bob }, { p.x + 12.0f, p.y - 12.0f + bob },
+                { p.x + 15.0f, p.y + 20.0f + bob }, { p.x - 15.0f, p.y + 20.0f + bob }, { 126, 78, 196, 255 }, ink, 1.4f);
+        DrawLineEx({ p.x, p.y - 10.0f + bob }, { p.x, p.y + 20.0f + bob }, 3.2f, GOLD);
+        BoxRot({ p.x, p.y + 6.0f + bob }, 34.0f, 5.0f, 0.0f, { 88, 56, 34, 255 }, ink, 1.2f);
+        // Mũ trùm thương nhân + mặt tối + mắt sáng vàng
+        Vector2 hc = { p.x, p.y - 24.0f + bob };
+        Tri({ hc.x - 16.0f, hc.y + 10.0f }, { hc.x + 16.0f, hc.y + 10.0f }, { hc.x + 4.0f, hc.y - 20.0f }, { 70, 38, 120, 255 });
+        QuadOut({ hc.x - 12.0f, hc.y - 6.0f }, { hc.x + 12.0f, hc.y - 6.0f },
+                { hc.x + 10.0f, hc.y + 10.0f }, { hc.x - 10.0f, hc.y + 10.0f }, { 20, 12, 36, 255 }, ink, 1.6f);
+        Diamond({ hc.x - 4.5f, hc.y + 2.0f }, 2.6f, 2.2f, { 255, 220, 90, 255 }, ink);
+        Diamond({ hc.x + 4.5f, hc.y + 2.0f }, 2.6f, 2.2f, { 255, 220, 90, 255 }, ink);
+        // Đèn lồng treo trên gậy
         Vector2 lan = { p.x - 44.0f + sinf(t * 2.5f) * 3.0f, p.y - 2.0f };
-        DrawLineEx({ p.x - 30.0f, p.y - 12.0f + bob }, { lan.x, lan.y - 8.0f }, 2.0f, { 90, 70, 50, 255 });
+        DrawLineEx({ p.x - 18.0f, p.y - 6.0f + bob }, { lan.x, lan.y - 10.0f }, 2.4f, { 90, 70, 50, 255 });
         BeginBlendMode(BLEND_ADDITIVE);
         CircleGrad(lan.x, lan.y, 46.0f, Fade({ 255, 190, 80, 255 }, 0.4f), Fade({ 255, 190, 80, 255 }, 0.0f));
         EndBlendMode();
         DrawRectangle((int)lan.x - 5, (int)lan.y - 6, 10, 13, { 255, 214, 110, 255 });
         DrawRectangleLines((int)lan.x - 5, (int)lan.y - 6, 10, 13, { 90, 60, 30, 255 });
         // Biển hiệu nổi
-        OutlinedText("SHOP", (int)p.x - MeasureText("SHOP", 20) / 2, (int)(p.y - 66.0f + bob), 20, GOLD, { 70, 36, 8, 255 });
+        OutlinedText("SHOP", (int)p.x - MeasureText("SHOP", 20) / 2, (int)(p.y - 68.0f + bob), 20, GOLD, { 70, 36, 8, 255 });
         if (Vector2Distance(p, player.pos) < 130.0f) {
             const char* prompt = touchMode ? "" : (IsGamepadAvailable(0) ? "[D-pad Up] Trade" : "[F] Trade");
             OutlinedText(prompt, (int)p.x - MeasureText(prompt, 20) / 2, (int)p.y + 40, 20, WHITE, { 20, 24, 40, 255 });
@@ -4730,18 +5054,27 @@ public:
 
     void DrawPillar(Vector2 p, const BiomeColors& biome) {
         int bi = ((floor - 1) / 3) % 4;
-        Color stone = Shade(biome.wall, 1.15f);
-        DrawEllipse((int)p.x + 3, (int)p.y + 12, 31.0f, 14.0f, Fade(BLACK, 0.38f));
-        DrawCircleV(p, 29.0f, Shade(stone, 0.35f));
-        DrawCircleV(p, 27.0f, Shade(stone, 0.70f));
-        DrawCircleV({ p.x - 2.0f, p.y - 3.0f }, 23.0f, stone);
-        DrawCircleV({ p.x - 3.0f, p.y - 5.0f }, 15.0f, Shade(stone, 1.20f));
-        DrawRing(p, 19.0f, 21.0f, 200.0f, 270.0f, 10, Fade(WHITE, 0.35f));
-        DrawLineEx({ p.x + 4.0f, p.y - 8.0f }, { p.x + 10.0f, p.y + 2.0f }, 2.0f, Fade(BLACK, 0.35f));
-        DrawLineEx({ p.x + 10.0f, p.y + 2.0f }, { p.x + 6.0f, p.y + 12.0f }, 2.0f, Fade(BLACK, 0.35f));
-        if (bi == 1) DrawCircleV({ p.x + 13.0f, p.y + 10.0f }, 7.0f, Fade({ 90, 170, 80, 255 }, 0.55f));
-        if (bi == 2) DrawLineEx({ p.x - 9.0f, p.y + 6.0f }, { p.x + 2.0f, p.y + 15.0f }, 2.5f, { 255, 130, 40, 255 });
-        if (bi == 3) DrawCircleSector({ p.x - 3.0f, p.y - 5.0f }, 14.0f, 180.0f, 360.0f, 14, Fade({ 235, 248, 255, 255 }, 0.6f));
+        Color stone = Shade(biome.wall, 1.18f);
+        Color ink = Shade(stone, 0.32f);
+        DrawEllipse((int)p.x + 3, (int)p.y + 15, 32.0f, 13.0f, Fade(BLACK, 0.42f));
+        // Chân cột đá vuông vát cạnh + thân bát giác + đỉnh cột chạm khắc 3D
+        BoxRot({ p.x, p.y + 4.0f }, 52.0f, 44.0f, 0.0f, Shade(stone, 0.58f), ink, 1.8f);
+        DrawPoly({ p.x, p.y - 2.0f }, 8, 24.5f, 22.5f, Shade(stone, 0.80f));
+        DrawPolyLinesEx({ p.x, p.y - 2.0f }, 8, 24.5f, 22.5f, 1.8f, ink);
+        BoxRot({ p.x, p.y - 10.0f }, 42.0f, 36.0f, 0.0f, stone, ink, 1.8f);
+        BoxRot({ p.x, p.y - 11.0f }, 26.0f, 22.0f, 0.0f, Shade(stone, 1.24f), Shade(stone, 0.65f), 1.4f);
+        DrawLineEx({ p.x - 20.0f, p.y - 28.0f }, { p.x + 20.0f, p.y - 28.0f }, 2.0f, Fade(WHITE, 0.25f));
+        DrawLineEx({ p.x + 5.0f, p.y - 14.0f }, { p.x + 12.0f, p.y - 3.0f }, 2.0f, Fade(BLACK, 0.35f));
+        DrawLineEx({ p.x + 12.0f, p.y - 3.0f }, { p.x + 7.0f, p.y + 9.0f }, 2.0f, Fade(BLACK, 0.35f));
+        if (bi == 1) { // rêu phủ góc cột
+            Tri({ p.x + 6.0f, p.y + 8.0f }, { p.x + 22.0f, p.y + 6.0f }, { p.x + 17.0f, p.y + 20.0f }, Fade({ 85, 175, 78, 255 }, 0.72f));
+        }
+        if (bi == 2) { // mạch dung nham nứt
+            DrawLineEx({ p.x - 10.0f, p.y + 5.0f }, { p.x + 3.0f, p.y + 16.0f }, 2.5f, { 255, 130, 40, 255 });
+        }
+        if (bi == 3) { // mảnh băng trên đỉnh cột
+            Tri({ p.x - 14.0f, p.y - 18.0f }, { p.x - 2.0f, p.y - 26.0f }, { p.x + 10.0f, p.y - 16.0f }, Fade({ 220, 244, 255, 255 }, 0.75f));
+        }
     }
 
     void DrawTorch(Vector2 t) {
@@ -5235,16 +5568,31 @@ public:
             }
         }
 
-        // Loots
+        // Loots: tinh thể XP, đồng vàng bát giác, bình máu ruby
         for (const auto& l : loots) {
-            DrawCircle((int)l.pos.x, (int)l.pos.y, 8, l.type == 0 ? SKYBLUE : (l.type == 1 ? GOLD : RED));
-            DrawCircleLines((int)l.pos.x, (int)l.pos.y, 8, WHITE);
+            float bob = sinf((float)GetTime() * 4.5f + l.pos.x * 0.1f) * 2.5f;
+            Vector2 lp = { l.pos.x, l.pos.y + bob };
+            if (l.type == 0) {
+                Diamond(lp, 6.2f, 9.0f, SKYBLUE, WHITE);
+            } else if (l.type == 1) {
+                DrawPoly(lp, 8, 8.2f, 22.5f, GOLD);
+                DrawPolyLinesEx(lp, 8, 8.2f, 22.5f, 1.5f, { 120, 80, 10, 255 });
+                DrawRectangle((int)lp.x - 1, (int)lp.y - 4, 2, 8, { 255, 245, 170, 255 });
+            } else {
+                QuadOut({ lp.x - 5.5f, lp.y - 3.0f }, { lp.x + 5.5f, lp.y - 3.0f }, { lp.x + 6.5f, lp.y + 7.0f }, { lp.x - 6.5f, lp.y + 7.0f }, { 225, 45, 70, 255 }, WHITE, 1.2f);
+                DrawRectangle((int)lp.x - 2, (int)lp.y - 7, 4, 4, { 205, 215, 230, 255 });
+                DrawRectangle((int)lp.x - 3, (int)lp.y - 9, 6, 2, GOLD);
+            }
         }
 
-        // Ghost Trails
+        // Ghost Trails: bóng dáng nhân vật khi lướt
         for (const auto& g : ghosts) {
             float a = (g.timer / g.maxTimer) * 0.45f;
-            DrawCircle((int)g.pos.x, (int)g.pos.y, 18, Fade(kClasses[player.heroClass].color, a));
+            Color gc = Fade(kClasses[player.heroClass].color, a);
+            float gf = g.facingLeft ? -1.0f : 1.0f;
+            Tri({ g.pos.x - gf * 4.0f, g.pos.y - 8.0f }, { g.pos.x - gf * 22.0f, g.pos.y - 2.0f }, { g.pos.x - gf * 18.0f, g.pos.y + 14.0f }, Fade(gc, a * 0.7f));
+            Quad({ g.pos.x - 9.0f, g.pos.y - 6.0f }, { g.pos.x + 9.0f, g.pos.y - 6.0f }, { g.pos.x + 7.0f, g.pos.y + 11.0f }, { g.pos.x - 7.0f, g.pos.y + 11.0f }, gc);
+            Quad({ g.pos.x - 7.5f, g.pos.y - 20.0f }, { g.pos.x + 7.5f, g.pos.y - 20.0f }, { g.pos.x + 6.5f, g.pos.y - 7.0f }, { g.pos.x - 6.5f, g.pos.y - 7.0f }, gc);
         }
 
         // Slashes: vệt cung kiếm & kỹ năng
@@ -5306,29 +5654,39 @@ public:
             DrawRectangle((int)(e.pos.x - barW / 2), (int)(e.pos.y - e.radius - 12), (int)(barW * pct), 5, RED);
         }
 
-        // Projectiles
+        // Projectiles: mũi tên, phi tiêu, sao chổi lửa & tinh thể phép định hướng
         for (const auto& p : projectiles) {
-            if (p.kind == 1) { // Mũi tên có đuôi lông
-                Vector2 dir = Vector2Length(p.vel) > 0.1f ? Vector2Normalize(p.vel) : Vector2{ 1, 0 };
+            Vector2 dir = Vector2Length(p.vel) > 0.1f ? Vector2Normalize(p.vel) : Vector2{ 1, 0 };
+            Vector2 perp = { -dir.y, dir.x };
+            if (p.kind == 1) { // Mũi tên có đuôi lông & mũi nhọn tam giác
                 Vector2 tail = Vector2Subtract(p.pos, Vector2Scale(dir, 18.0f));
                 DrawLineEx(tail, p.pos, 4.5f, Fade(p.color, 0.35f));
                 DrawLineEx(tail, p.pos, 2.5f, p.color);
-                DrawCircleV(p.pos, 3.0f, WHITE);
-            } else if (p.kind == 3) { // Phi tiêu xoay
+                Tri(Vector2Add(p.pos, Vector2Scale(dir, 7.0f)), Vector2Add(p.pos, Vector2Scale(perp, 3.8f)), Vector2Subtract(p.pos, Vector2Scale(perp, 3.8f)), WHITE);
+                DrawLineEx(tail, Vector2Add(tail, Vector2Add(Vector2Scale(dir, -4.0f), Vector2Scale(perp, 4.0f))), 1.5f, p.color);
+                DrawLineEx(tail, Vector2Add(tail, Vector2Add(Vector2Scale(dir, -4.0f), Vector2Scale(perp, -4.0f))), 1.5f, p.color);
+            } else if (p.kind == 3) { // Phi tiêu 4 cánh xoay
                 float spin = (float)GetTime() * 18.0f;
                 for (int k = 0; k < 4; ++k) {
                     float a = spin + k * (PI / 2.0f);
-                    DrawLineEx(p.pos, { p.pos.x + cosf(a) * 9.0f, p.pos.y + sinf(a) * 9.0f }, 2.5f, p.color);
+                    float a2 = a + 0.45f;
+                    Tri(p.pos, { p.pos.x + cosf(a) * 10.0f, p.pos.y + sinf(a) * 10.0f }, { p.pos.x + cosf(a2) * 5.0f, p.pos.y + sinf(a2) * 5.0f }, p.color);
                 }
-                DrawCircleV(p.pos, 3.0f, WHITE);
-            } else if (p.kind == 4) { // Cầu lửa rực cháy
-                DrawCircleV(p.pos, p.radius * 2.4f, Fade(ORANGE, 0.28f));
-                DrawCircleV(p.pos, p.radius * 1.3f, p.color);
-                DrawCircleV(p.pos, p.radius * 0.7f, YELLOW);
-            } else {
-                DrawCircleV(p.pos, p.radius * 2.0f, Fade(p.color, 0.25f));
-                DrawCircleV(p.pos, p.radius, p.color);
-                DrawCircleLines((int)p.pos.x, (int)p.pos.y, p.radius, WHITE);
+                Diamond(p.pos, 3.2f, 3.2f, WHITE, p.color);
+            } else if (p.kind == 4) { // Cầu lửa sao chổi rực cháy
+                Vector2 tail = Vector2Subtract(p.pos, Vector2Scale(dir, p.radius * 2.8f));
+                Tri(tail, Vector2Add(p.pos, Vector2Scale(perp, p.radius * 1.1f)), Vector2Subtract(p.pos, Vector2Scale(perp, p.radius * 1.1f)), Fade(ORANGE, 0.55f));
+                Tri(Vector2Subtract(p.pos, Vector2Scale(dir, p.radius * 1.7f)), Vector2Add(p.pos, Vector2Scale(perp, p.radius * 0.65f)), Vector2Subtract(p.pos, Vector2Scale(perp, p.radius * 0.65f)), p.color);
+                Quad(Vector2Add(p.pos, Vector2Scale(dir, p.radius * 1.4f)), Vector2Add(p.pos, Vector2Scale(perp, p.radius * 0.9f)),
+                     Vector2Subtract(p.pos, Vector2Scale(dir, p.radius * 0.8f)), Vector2Subtract(p.pos, Vector2Scale(perp, p.radius * 0.9f)), YELLOW);
+                Diamond(p.pos, p.radius * 0.6f, p.radius * 0.6f, WHITE, ORANGE);
+            } else { // Tinh thể năng lượng định hướng
+                Vector2 tail = Vector2Subtract(p.pos, Vector2Scale(dir, p.radius * 2.4f));
+                Tri(tail, Vector2Add(p.pos, Vector2Scale(perp, p.radius * 0.9f)), Vector2Subtract(p.pos, Vector2Scale(perp, p.radius * 0.9f)), Fade(p.color, 0.42f));
+                Vector2 head = Vector2Add(p.pos, Vector2Scale(dir, p.radius * 1.35f));
+                QuadOut(head, Vector2Add(p.pos, Vector2Scale(perp, p.radius * 0.85f)),
+                        Vector2Subtract(p.pos, Vector2Scale(dir, p.radius * 0.95f)), Vector2Subtract(p.pos, Vector2Scale(perp, p.radius * 0.85f)),
+                        p.color, WHITE, 1.2f);
             }
         }
 
