@@ -190,6 +190,116 @@ static const ClassDef kClasses[4] = {
     }
 };
 
+// ── Nhánh Chuyển Chức (Lv.5 Subclass Awakening: mỗi class rẽ 2 nhánh phụ) ──
+struct SubclassDef {
+    int baseClass;
+    int branch; // 1 hoặc 2
+    const char* name;
+    const char* role;
+    Color color;
+    Color accent;
+    int signatureWeapon;
+    const char* weaponTitle;
+    float bonusHp;
+    float bonusDmg;
+    float bonusArmor;
+    float bonusSpeed;
+    float bonusAtkRate;
+    float bonusCrit;
+    float bonusLifesteal;
+    const char* passiveName;
+    const char* passiveDesc;
+    const char* qName;
+    const char* qDesc;
+    const char* eName;
+    const char* eDesc;
+    const char* rName;
+    const char* rDesc;
+};
+
+static const SubclassDef kSubclasses[4][2] = {
+    { // KNIGHT
+        {
+            CLASS_KNIGHT, 1, "Holy Paladin", "Thanh Ky Si - Khien & Bua Than",
+            { 255, 215, 90, 255 }, { 120, 230, 255, 255 }, WP_HAMMER, "Sunforged Hammer",
+            35.0f, 4.0f, 3.0f, 0.0f, 0.20f, 0.05f, 0.05f,
+            "Divine Sanctuary", "-20% dmg taken; every 4th hit smites 115px AoE & heals 6 HP",
+            "Crusader Grand Slam", "Lunge, slam 2.4x DMG, Stun 1.5s & spawn 2.5s healing zone",
+            "Aegis of Dawn", "2.2x Holy Nova + 4.5s Barrier (+4 ARM, +25% SPD, block 1 hit)",
+            "Judgment of Solaris", "4.2x Light Swords + 4.5s Sanctuary (1.1x ticks & heal)"
+        },
+        {
+            CLASS_KNIGHT, 2, "Dread Berserker", "Cuong Chien - Dai Riu Huyet Ma",
+            { 235, 65, 65, 255 }, { 255, 165, 50, 255 }, WP_AXE, "Bloodreaver Axe",
+            20.0f, 10.0f, 0.0f, 25.0f, 0.45f, 0.08f, 0.12f,
+            "Blood Frenzy", "Attacks fire Blood Waves; missing HP grants up to +40% ATK SPD",
+            "Savage Cleave Leap", "Leap 110px, slam 2.5x crimson AoE, Burn & heal 10% Max HP",
+            "Bloodboil Roar", "2.0x Blood Nova + Slow, +25 Rage & 4s Frenzy (+30% ATK/SPD)",
+            "Cataclysmic Guillotine", "4.2x Crimson Quake + 4s Blood Vortex pulling & shredding foes"
+        }
+    },
+    { // ASSASSIN
+        {
+            CLASS_ASSASSIN, 1, "Phantom Reaper", "Tu Than - Luoi Hai Doat Menh",
+            { 195, 90, 255, 255 }, { 100, 245, 210, 255 }, WP_SCYTHE, "Nightfall Scythe",
+            25.0f, 8.0f, 1.5f, 15.0f, 0.25f, 0.08f, 0.10f,
+            "Soul Harvest", "Crits deal 2.6x DMG; kills launch homing Soul Wisps & heal 4 HP",
+            "Death Spiral", "Hurl 6 piercing spectral scythes (1.35x DMG, Poison & Chill)",
+            "Reaper's Blink", "Blink 225px, 2.6x guaranteed-crit Soul Reap + Soul Shield",
+            "Wraith Hurricane", "4.0s Scythe Storm (1.05x slashes/0.18s & heal 2 HP per hit)"
+        },
+        {
+            CLASS_ASSASSIN, 2, "Ninja Trickster", "Nhan Gia - Song Dao Sam Chop",
+            { 255, 75, 150, 255 }, { 110, 235, 255, 255 }, WP_DAGGER, "Stormfang Daggers",
+            15.0f, 6.0f, 0.5f, 35.0f, 0.65f, 0.12f, 0.05f,
+            "Shadow Clonejutsu", "Attacks throw lightning shurikens; Dash drops explosive decoy",
+            "Tempest Shurikens", "Throw 8 lightning shurikens (1.25x DMG, pierce 2 & mini-stun)",
+            "Lightning Mirage", "Blink 230px, drop 2.2x explosive clone & 2.4x crit slash",
+            "Thousand Blades", "3.8s hyper-storm (+45% SPD, rapid slashes + 4-way shurikens)"
+        }
+    },
+    { // MAGE
+        {
+            CLASS_MAGE, 1, "Spellblade (Kiem Su)", "Kiem Su - Phap Su Kiem Phep",
+            { 85, 230, 255, 255 }, { 210, 110, 255, 255 }, WP_SWORD, "Astral Runeblade",
+            32.0f, 8.0f, 2.5f, 25.0f, 0.55f, 0.10f, 0.06f,
+            "Enchanted Runeblade", "Magic Sword swings fire piercing Moonlight Waves; Shield +25% SPD",
+            "Dimensional Slash", "Dash-cut 115px (2.4x DMG) + fire 3 piercing Moonlight Waves",
+            "Phantom Sword Ring", "1.9x Frost-Fire Nova (Stun 1.4s) + 3.2s orbiting Magic Swords",
+            "Excalibur Astral Storm", "3.8x Astral Greatsword impact + 4s Sword Rain & +35% ATK SPD"
+        },
+        {
+            CLASS_MAGE, 2, "Archmage", "Dai Phap Su - Quyen Truong Nguyen To",
+            { 165, 105, 255, 255 }, { 255, 180, 70, 255 }, WP_STAFF, "Archon Grand Staff",
+            18.0f, 11.0f, 1.0f, 10.0f, 0.35f, 0.08f, 0.05f,
+            "Elemental Overload", "Twin explosive staff bolts; skills fire 5 homing missiles +10 Rage",
+            "Twin Meteor Comets", "Launch 2 blazing comets (2.3x AoE each + heavy Burn)",
+            "Absolute Zero Nova", "215px Blizzard blast (1.9x DMG, Freeze 1.8s) + 6 ice shards",
+            "Cosmic Singularity", "4.2s giant Void Black Hole + meteors (1.75x) & +25% HP heal"
+        }
+    },
+    { // RANGER
+        {
+            CLASS_RANGER, 1, "Sniper Deadeye", "Than Tien - Cung Than Bach Phat",
+            { 95, 240, 145, 255 }, { 255, 220, 85, 255 }, WP_BOW, "Windforce Longbow",
+            18.0f, 10.0f, 0.5f, 20.0f, 0.45f, 0.14f, 0.05f,
+            "Hawk's Execution", "Every 2nd shot is a 1.75x piercing Wind Shot; arrows +1 pierce",
+            "Starlight Barrage", "Fire a 9-arrow piercing fan (1.2x DMG each + Burn)",
+            "Cluster Snare Vault", "Drop 2.8x stun-mine, vault back 140px & +35% ATK SPD 2.5s",
+            "Solaris Arrow Tempest", "4.0s storm of sun-arrows (1.35x + Burn) & +45% ATK SPD"
+        },
+        {
+            CLASS_RANGER, 2, "Valkyrie Lancer", "Chien Than - Thuong Sam Set",
+            { 90, 215, 235, 255 }, { 255, 215, 90, 255 }, WP_SPEAR, "Thunderbolt Lance",
+            30.0f, 8.0f, 2.5f, 25.0f, 0.35f, 0.08f, 0.08f,
+            "Storm Javelin", "Spear thrusts also hurl a piercing Lightning Javelin (1.1x DMG)",
+            "Thunder Charge", "Lunge 120px with Spear (2.3x DMG + Stun) & hurl 3 Javelins",
+            "Tempest Vault", "Drop 2.5x Shock Trap, leap back & gain Storm Shield + Haste",
+            "Gungnir Skyfall", "Rain Lightning Spears for 3.8s (1.35x AoE) + +35% ATK SPD"
+        }
+    }
+};
+
 struct Relic {
     RelicType type;
     std::string name;
@@ -199,6 +309,7 @@ struct Relic {
 
 struct Player {
     int heroClass = CLASS_KNIGHT;
+    int subClass = 0; // 0: class goc, 1: nhanh phu A, 2: nhanh phu B
     Vector2 pos;
     Vector2 vel;
     float maxHp = 120.0f;
@@ -221,6 +332,8 @@ struct Player {
     float maxRage = 100.0f;
     float ultActiveTimer = 0.0f;
     float ultTickTimer = 0.0f;
+    float swordOrbitTimer = 0.0f;
+    float swordOrbitTick = 0.0f;
     float holyBuffTimer = 0.0f;
     float hasteTimer = 0.0f;
     int attackCounter = 0;
@@ -293,7 +406,7 @@ struct Projectile {
     float life;
     float radius;
     Color color;
-    int kind = 0;          // 0: đạn quái, 1: cung tên, 2: cầu phép trượng, 3: phi tiêu, 4: cầu lửa, 5: tên dẫn đường
+    int kind = 0;          // 0: đạn quái, 1: cung tên, 2: cầu phép trượng, 3: phi tiêu, 4: cầu lửa, 5: tên dẫn đường, 6: kiếm khí trăng khuyết
     int pierce = 0;
     int hitMask = -1;
     float splashRadius = 0.0f;
@@ -684,6 +797,7 @@ public:
     struct SaveSlotInfo {
         bool exists = false;
         int heroClass = 0;
+        int subClass = 0;
         int floor = 1;
         int level = 1;
         int hp = 120, maxHp = 120;
@@ -760,6 +874,7 @@ public:
     bool padLtWas = false;
     State settingsReturn = TITLE;
     std::vector<UpgradeType> levelChoices;
+    bool subclassChoosing = false;
     std::string bannerText = "";
     float bannerTimer = 0.0f;
     bool showMiniMap = true;
@@ -781,18 +896,47 @@ public:
     float shrineRefuse = 0.0f;
     float shrinePulse = 0.0f;
 
+    const ClassDef& BaseClass() const { return kClasses[std::max(0, std::min(3, player.heroClass))]; }
+    const SubclassDef* ActiveSubclass() const {
+        if (player.subClass != 1 && player.subClass != 2) return nullptr;
+        int hc = std::max(0, std::min(3, player.heroClass));
+        return &kSubclasses[hc][player.subClass - 1];
+    }
+    const char* HeroTitle() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->name : BaseClass().name; }
+    const char* HeroRole() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->role : BaseClass().role; }
+    Color HeroColor() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->color : BaseClass().color; }
+    Color HeroAccent() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->accent : BaseClass().accent; }
+    const char* PassiveName() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->passiveName : BaseClass().passiveName; }
+    const char* PassiveDesc() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->passiveDesc : BaseClass().passiveDesc; }
+    const char* QName() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->qName : BaseClass().qName; }
+    const char* QDesc() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->qDesc : BaseClass().qDesc; }
+    const char* EName() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->eName : BaseClass().eName; }
+    const char* EDesc() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->eDesc : BaseClass().eDesc; }
+    const char* RName() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->rName : BaseClass().rName; }
+    const char* RDesc() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->rDesc : BaseClass().rDesc; }
+    int PreferredWeaponType() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->signatureWeapon : BaseClass().startWeapon; }
+    float CritMult() const { return player.heroClass == CLASS_ASSASSIN ? (player.subClass == 1 ? 2.6f : 2.4f) : 2.0f; }
+
     float SkillCdrMult() const {
         float mult = std::max(0.45f, 1.0f - 0.12f * player.cdrUpgrades);
-        if (player.heroClass == CLASS_MAGE) mult *= 0.85f;
+        if (player.heroClass == CLASS_MAGE) mult *= (player.subClass == 2 ? 0.78f : 0.85f);
         return mult;
     }
     float Skill1MaxCd() const { return kClasses[std::max(0, std::min(3, player.heroClass))].qCooldown * SkillCdrMult(); }
     float Skill2MaxCd() const { return kClasses[std::max(0, std::min(3, player.heroClass))].eCooldown * SkillCdrMult(); }
-    float EffectiveArmor() const { return player.armor + (player.holyBuffTimer > 0.0f ? 4.0f : 0.0f); }
+    float EffectiveArmor() const { return player.armor + (player.holyBuffTimer > 0.0f ? (player.subClass == 1 ? 6.0f : 4.0f) : 0.0f); }
     float EffectiveAttackRate() const {
         float r = player.attackRate;
-        if (player.holyBuffTimer > 0.0f) r *= 1.25f;
-        if (player.heroClass == CLASS_RANGER && player.hasteTimer > 0.0f) r *= 1.35f;
+        if (player.holyBuffTimer > 0.0f) r *= (player.heroClass == CLASS_KNIGHT && player.subClass == 1 ? 1.30f : 1.25f);
+        if (player.heroClass == CLASS_KNIGHT && player.subClass == 2) {
+            float missingFrac = 1.0f - Clamp(player.hp / std::max(1.0f, player.maxHp), 0.0f, 1.0f);
+            r *= (1.0f + 0.40f * missingFrac);
+        }
+        if (player.heroClass == CLASS_MAGE && player.subClass == 1 && (player.shieldActive || player.ultActiveTimer > 0.0f || player.swordOrbitTimer > 0.0f)) r *= 1.25f;
+        if (player.hasteTimer > 0.0f) {
+            if (player.heroClass == CLASS_RANGER) r *= (player.subClass == 1 ? 1.45f : 1.35f);
+            else if (player.heroClass == CLASS_KNIGHT || player.heroClass == CLASS_MAGE) r *= 1.30f;
+        }
         if (comboCount >= 10) r *= 1.20f; // Frenzy Overdrive
         for (const auto& h : hazards) {
             if (h.kind == 3 && Vector2Distance(player.pos, h.pos) < h.radius) { r *= 1.25f; break; }
@@ -802,8 +946,10 @@ public:
     float EffectiveMoveSpeed() const {
         float s = player.speed;
         if (player.heroClass == CLASS_ASSASSIN) {
-            if (player.ultActiveTimer > 0.0f) s *= 1.35f;
+            if (player.ultActiveTimer > 0.0f) s *= (player.subClass == 2 ? 1.45f : 1.35f);
             else if (player.hasteTimer > 0.0f) s *= 1.25f;
+        } else if (player.hasteTimer > 0.0f && (player.heroClass == CLASS_KNIGHT || player.heroClass == CLASS_RANGER)) {
+            s *= 1.22f;
         }
         if (comboCount >= 10) s *= 1.18f; // Frenzy Overdrive
         if (player.frostSlowTimer > 0.0f) s *= 0.72f;
@@ -885,6 +1031,7 @@ public:
         hasTrialTotem = false;
         trialUsed = false;
         trialActive = false;
+        subclassChoosing = false;
         phoenixUsed = false;
         newRecord = false;
         state = PLAYING;
@@ -1505,6 +1652,19 @@ public:
         UpdateEffects(dt);
 
         if (state == LEVEL_UP) {
+            if (subclassChoosing) {
+                if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                    Vector2 mp = GetMousePosition();
+                    float cw = 450.0f, gap = 36.0f, sx = 1280 / 2.0f - (cw * 2 + gap) / 2.0f;
+                    for (int i = 0; i < 2; ++i) {
+                        Rectangle cr = { sx + i * (cw + gap), 130.0f, cw, 515.0f };
+                        if (CheckCollisionPointRec(mp, cr)) { ChooseSubclass(i + 1); return; }
+                    }
+                }
+                if (IsKeyPressed(KEY_ONE) || IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_LEFT)) ChooseSubclass(1);
+                if (IsKeyPressed(KEY_TWO) || IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_RIGHT)) ChooseSubclass(2);
+                return;
+            }
             // Number keys 1, 2, 3 to choose
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
                 Vector2 mp = GetMousePosition();
@@ -1616,6 +1776,18 @@ public:
             player.dashDir = (Vector2Length(move) > 0.1f) ? move : aimDir;
             PlaySound(snd.sndDash);
             ghosts.push_back({ player.pos, player.facingLeft, 0.22f, 0.22f });
+            if (player.heroClass == CLASS_ASSASSIN && player.subClass == 2) {
+                GroundEffect decoy;
+                decoy.kind = 0;
+                decoy.pos = player.pos;
+                decoy.radius = 115.0f;
+                decoy.maxTimer = 0.50f;
+                decoy.timer = 0.50f;
+                decoy.damage = player.baseDmg * 1.5f;
+                decoy.color = { 110, 235, 255, 255 };
+                groundEffects.push_back(decoy);
+                Burst(player.pos, { 110, 235, 255, 255 }, 10, 160.0f, 0.35f);
+            }
         }
 
         // Basic Weapon Attack
@@ -2020,10 +2192,10 @@ public:
                     if (Vector2Distance(p.pos, e.pos) < p.radius + e.radius) {
                         float cc = std::min(0.85f, player.critChance + p.critBonus);
                         bool isCrit = p.hasPreCrit ? p.preCrit : (Rand01() < cc);
-                        float critMul = (player.heroClass == CLASS_ASSASSIN ? 2.4f : 2.0f);
+                        float critMul = CritMult();
                         float dmg = p.damage * (isCrit ? critMul : 1.0f);
                         Vector2 kb = Vector2Length(p.vel) > 0.1f ? Vector2Normalize(p.vel) : Vector2{ 1, 0 };
-                        DamageEnemy(e, dmg, kb, p.kind == 3 ? 110.0f : 150.0f, isCrit, true);
+                        DamageEnemy(e, dmg, kb, p.kind == 3 ? 110.0f : (p.kind == 6 ? 190.0f : 150.0f), isCrit, true);
                         if (p.applyBurn) {
                             e.burnTimer = std::max(e.burnTimer, 3.0f);
                             e.burnDps = std::max(e.burnDps, player.baseDmg * (0.4f + 0.5f * player.igniteLevel));
@@ -2476,6 +2648,24 @@ public:
         if (player.heroClass == CLASS_ASSASSIN) {
             player.dashTimer = std::max(0.0f, player.dashTimer - player.dashCooldown * 0.5f);
             player.hasteTimer = std::max(player.hasteTimer, 2.0f);
+            if (player.subClass == 1) { // Phantom Reaper: Soul Harvest hồi 4 HP & bắn 1 linh hồn dẫn đường
+                if (player.hp < player.maxHp) {
+                    player.hp = std::min(player.maxHp, player.hp + 4.0f);
+                    SpawnPopup({ player.pos.x, player.pos.y - 24.0f }, "+4", GREEN);
+                }
+                float a = Rand01() * 2.0f * PI;
+                Projectile sw;
+                sw.fromPlayer = true;
+                sw.kind = 5;
+                sw.pos = e.pos;
+                sw.vel = { cosf(a) * 440.0f, sinf(a) * 440.0f };
+                sw.damage = player.baseDmg * 1.15f;
+                sw.life = 2.4f;
+                sw.radius = 7.5f;
+                sw.color = { 195, 95, 255, 255 };
+                projectiles.push_back(sw);
+                Burst(e.pos, { 195, 95, 255, 255 }, 6, 150.0f, 0.35f);
+            }
         }
 
         // Combo gold payout every 5 kills
@@ -2578,7 +2768,7 @@ public:
 
         float effArmor = EffectiveArmor();
         float effDmg = dmg * 100.0f / (100.0f + effArmor * 10.0f);
-        if (player.heroClass == CLASS_KNIGHT) effDmg *= 0.85f;
+        if (player.heroClass == CLASS_KNIGHT) effDmg *= (player.subClass == 1 ? 0.80f : 0.85f);
         if (player.heroClass == CLASS_ASSASSIN && player.ultActiveTimer > 0.0f) effDmg *= 0.50f;
         effDmg = std::max(1.0f, effDmg);
         player.hp = std::max(0.0f, player.hp - effDmg);
@@ -2677,6 +2867,7 @@ public:
 
     void TriggerLevelUp() {
         state = LEVEL_UP;
+        subclassChoosing = (player.level >= 5 && player.subClass == 0);
         PlaySound(snd.sndLevelUp);
         Burst(player.pos, { 255, 235, 115, 255 }, 26, 300.0f, 0.8f);
         Burst(player.pos, { 128, 242, 255, 255 }, 14, 180.0f, 0.7f);
@@ -2687,7 +2878,55 @@ public:
         levelChoices = { all[0], all[1], all[2] };
     }
 
+    void ChooseSubclass(int branch) {
+        int hc = std::max(0, std::min(3, player.heroClass));
+        int b = (branch == 2) ? 2 : 1;
+        player.subClass = b;
+        subclassChoosing = false;
+        const SubclassDef& sc = kSubclasses[hc][b - 1];
+
+        player.maxHp += sc.bonusHp;
+        player.hp = std::min(player.maxHp, player.hp + player.maxHp * 0.35f + sc.bonusHp);
+        player.baseDmg += sc.bonusDmg;
+        player.armor += sc.bonusArmor;
+        player.speed += sc.bonusSpeed;
+        player.attackRate += sc.bonusAtkRate;
+        player.critChance = std::min(0.6f, player.critChance + sc.bonusCrit);
+        player.lifesteal = std::min(0.35f, player.lifesteal + sc.bonusLifesteal);
+        player.specialCooldown = Skill1MaxCd();
+        player.skill2Cooldown = Skill2MaxCd();
+        player.specialTimer = 0.0f;
+        player.skill2Timer = 0.0f;
+        AddRage(30.0f);
+
+        // Rèn lại vũ khí hiện tại sang vũ khí trấn phái của nhánh phụ
+        if (hasEquip[SLOT_WEAPON]) {
+            equipped[SLOT_WEAPON].weaponType = sc.signatureWeapon;
+            equipped[SLOT_WEAPON].name = std::string(equipped[SLOT_WEAPON].RarityName()) + " " + sc.weaponTitle;
+            equipped[SLOT_WEAPON].damage += 4.0f;
+            player.baseDmg += 4.0f;
+        } else {
+            EquipItem w = MakeStarterWeapon(sc.signatureWeapon);
+            w.name = sc.weaponTitle;
+            int sold = 0;
+            TryEquipItem(w, sold);
+        }
+
+        PlaySound(snd.sndLevelUp);
+        PlaySound(snd.sndSpecial);
+        Shake(0.35f, 7.5f);
+        Burst(player.pos, sc.color, 36, 360.0f, 0.85f);
+        Burst(player.pos, sc.accent, 22, 240.0f, 0.70f);
+        ShowBanner(std::string("AWAKENED SUBCLASS: ") + sc.name + "!", 3.5f);
+        state = PLAYING;
+    }
+
     void ChooseUpgrade(UpgradeType up) {
+        if (subclassChoosing) {
+            int autoBranch = (player.heroClass == CLASS_MAGE) ? 1 : ((enemiesSlain % 2) + 1);
+            ChooseSubclass(autoBranch);
+            return;
+        }
         ApplyUpgrade(up);
         PlaySound(snd.sndPotion);
         state = PLAYING;
@@ -3238,7 +3477,7 @@ public:
         }
     }
 
-    static void DrawWeaponModel(Vector2 hand, Vector2 dir, int wt, float t) {
+    static void DrawWeaponModel(Vector2 hand, Vector2 dir, int wt, float t, bool enchanted = false) {
         Vector2 perp = { -dir.y, dir.x };
         const Color ink = { 18, 16, 26, 255 };
         if (wt == WP_BOW) {
@@ -3302,35 +3541,40 @@ public:
             Vector2 tail = Vector2Subtract(hand, Vector2Scale(dir, 14.0f));
             Vector2 tip = Vector2Add(hand, Vector2Scale(dir, 40.0f));
             DrawLineEx(tail, tip, 4.4f, { 126, 86, 52, 255 });
-            Tri(tip, { tip.x - dir.x * 9.0f + perp.x * 5.0f, tip.y - dir.y * 9.0f + perp.y * 5.0f }, { tip.x - dir.x * 9.0f - perp.x * 5.0f, tip.y - dir.y * 9.0f - perp.y * 5.0f }, { 215, 52, 68, 255 });
+            Tri(tip, { tip.x - dir.x * 9.0f + perp.x * 5.0f, tip.y - dir.y * 9.0f + perp.y * 5.0f }, { tip.x - dir.x * 9.0f - perp.x * 5.0f, tip.y - dir.y * 9.0f - perp.y * 5.0f }, enchanted ? SKYBLUE : Color{ 215, 52, 68, 255 });
             Diamond(Vector2Add(tip, Vector2Scale(dir, 7.0f)), 4.0f, 4.0f, { 220, 232, 248, 255 }, ink);
             Tri(Vector2Add(tip, Vector2Scale(dir, 18.0f)),
                 { tip.x + perp.x * 5.5f, tip.y + perp.y * 5.5f },
-                { tip.x - perp.x * 5.5f, tip.y - perp.y * 5.5f }, { 238, 244, 255, 255 });
+                { tip.x - perp.x * 5.5f, tip.y - perp.y * 5.5f }, enchanted ? Color{ 125, 240, 255, 255 } : Color{ 238, 244, 255, 255 });
             DrawLineEx(tip, Vector2Add(tip, Vector2Scale(dir, 18.0f)), 1.6f, WHITE);
         } else {
-            // Sword / Dagger: lưỡi đa giác vát nhọn + sống kiếm + chắn tay vàng
+            // Sword / Dagger / Enchanted Runeblade: lưỡi đa giác vát nhọn + hào quang phép nếu Kiếm Sư
             bool isDagger = (wt == WP_DAGGER);
-            float wlen = isDagger ? 17.0f : 26.0f;
-            float hw = isDagger ? 2.6f : 3.4f;
+            float wlen = isDagger ? 17.0f : (enchanted ? 31.0f : 26.0f);
+            float hw = isDagger ? 2.6f : (enchanted ? 4.0f : 3.4f);
             Vector2 baseBlade = Vector2Add(hand, Vector2Scale(dir, 3.0f));
             Vector2 shoulder = Vector2Add(hand, Vector2Scale(dir, wlen - 6.0f));
             Vector2 tip = Vector2Add(hand, Vector2Scale(dir, wlen + (isDagger ? 5.0f : 8.0f)));
+            Color bladeCol = enchanted ? Color{ 105, 235, 255, 255 } : (isDagger ? Color{ 205, 215, 238, 255 } : Color{ 230, 238, 252, 255 });
+            if (enchanted) {
+                DrawLineEx(baseBlade, tip, 10.0f, Fade({ 90, 225, 255, 255 }, 0.35f));
+            }
             QuadOut(Vector2Add(baseBlade, Vector2Scale(perp, hw)), Vector2Add(shoulder, Vector2Scale(perp, hw * 0.82f)),
                     Vector2Subtract(shoulder, Vector2Scale(perp, hw * 0.82f)), Vector2Subtract(baseBlade, Vector2Scale(perp, hw)),
-                    isDagger ? Color{ 205, 215, 238, 255 } : Color{ 230, 238, 252, 255 }, ink, 1.4f);
+                    bladeCol, enchanted ? Color{ 195, 115, 255, 255 } : ink, 1.4f);
             Tri(Vector2Add(shoulder, Vector2Scale(perp, hw * 0.82f)), Vector2Subtract(shoulder, Vector2Scale(perp, hw * 0.82f)), tip, WHITE);
-            DrawLineEx(baseBlade, tip, 1.4f, isDagger ? Color{ 255, 85, 130, 255 } : WHITE);
-            DrawLineEx({ hand.x + perp.x * (isDagger ? 6.0f : 8.0f), hand.y + perp.y * (isDagger ? 6.0f : 8.0f) },
-                       { hand.x - perp.x * (isDagger ? 6.0f : 8.0f), hand.y - perp.y * (isDagger ? 6.0f : 8.0f) }, 4.2f, GOLD);
+            DrawLineEx(baseBlade, tip, 1.6f, enchanted ? Color{ 220, 150, 255, 255 } : (isDagger ? Color{ 255, 85, 130, 255 } : WHITE));
+            DrawLineEx({ hand.x + perp.x * (isDagger ? 6.0f : 9.0f), hand.y + perp.y * (isDagger ? 6.0f : 9.0f) },
+                       { hand.x - perp.x * (isDagger ? 6.0f : 9.0f), hand.y - perp.y * (isDagger ? 6.0f : 9.0f) }, 4.2f, enchanted ? Color{ 165, 110, 255, 255 } : GOLD);
             DrawLineEx(Vector2Subtract(hand, Vector2Scale(dir, 6.0f)), hand, 3.6f, { 95, 60, 36, 255 });
         }
         float hdeg = atan2f(dir.y, dir.x) * RAD2DEG;
-        BoxRot(hand, 7.5f, 7.5f, hdeg, { 150, 160, 188, 255 }, ink, 1.3f);
+        BoxRot(hand, 7.5f, 7.5f, hdeg, enchanted ? Color{ 110, 230, 255, 255 } : Color{ 150, 160, 188, 255 }, ink, 1.3f);
     }
 
     static void DrawHeroModel(Vector2 p, int heroClass, int wt, Vector2 aimDir, bool facingLeft, float walkTimer, bool moving,
-                              float atkSweep, bool isInvuln, bool shieldActive, float holyBuffTimer, float ultActiveTimer) {
+                              float atkSweep, bool isInvuln, bool shieldActive, float holyBuffTimer, float ultActiveTimer,
+                              int subClass = 0, float swordOrbitTimer = 0.0f) {
         const float t = (float)GetTime();
         const float face = facingLeft ? -1.0f : 1.0f;
         const float back = -face;
@@ -3480,11 +3724,42 @@ public:
         }
 
         // Vũ khí theo hướng ngắm
+        bool enchanted = (subClass > 0 && ((heroClass == CLASS_MAGE && subClass == 1) || (heroClass == CLASS_RANGER && subClass == 2)));
         float a = atan2f(aimDir.y, aimDir.x);
         float sa = a + atkSweep;
         Vector2 dir = { cosf(sa), sinf(sa) };
         Vector2 hand = { body.x + dir.x * 16.0f, body.y + dir.y * 16.0f };
-        DrawWeaponModel(hand, dir, wt, t);
+        DrawWeaponModel(hand, dir, wt, t, enchanted);
+
+        if (subClass == 1 || subClass == 2) {
+            const SubclassDef& sc = kSubclasses[std::max(0, std::min(3, heroClass))][subClass - 1];
+            DrawPolyLinesEx({ body.x, body.y + 12.0f }, 6, 20.0f, t * 40.0f, 1.5f, Fade(sc.color, 0.55f));
+            if (heroClass == CLASS_KNIGHT && subClass == 2) { // Berserker horned helm & blood aura
+                Tri({ head.x - 9.0f, head.y - 6.0f }, { head.x - 16.0f, head.y - 16.0f }, { head.x - 4.0f, head.y - 8.5f }, { 235, 65, 65, 255 });
+                Tri({ head.x + 9.0f, head.y - 6.0f }, { head.x + 16.0f, head.y - 16.0f }, { head.x + 4.0f, head.y - 8.5f }, { 235, 65, 65, 255 });
+            } else if (heroClass == CLASS_ASSASSIN && subClass == 1) { // Phantom Reaper floating soul wisps
+                for (int si = 0; si < 2; ++si) {
+                    float sa = t * 3.4f + si * PI;
+                    Diamond({ body.x + cosf(sa) * 24.0f, body.y - 6.0f + sinf(sa) * 9.0f }, 3.8f, 4.8f, { 195, 90, 255, 255 }, WHITE);
+                }
+            } else if (heroClass == CLASS_MAGE && subClass == 1) { // Spellblade (Kiem Su): vuong mien phep & kiem bay quanh nguoi
+                DrawLineEx({ head.x - 9.0f, head.y - 9.5f }, { head.x + 9.0f, head.y - 9.5f }, 2.4f, { 95, 235, 255, 255 });
+                Diamond({ head.x, head.y - 12.0f }, 3.5f, 4.5f, { 210, 110, 255, 255 }, WHITE);
+                int orbBlades = (swordOrbitTimer > 0.0f) ? 6 : 3;
+                float orbRad = (swordOrbitTimer > 0.0f) ? 46.0f : 28.0f;
+                float spinSpd = (swordOrbitTimer > 0.0f) ? 6.5f : 2.6f;
+                for (int bi = 0; bi < orbBlades; ++bi) {
+                    float ba = t * spinSpd + bi * (2.0f * PI / orbBlades);
+                    Vector2 bp = { body.x + cosf(ba) * orbRad, body.y - 3.0f + sinf(ba) * orbRad * (swordOrbitTimer > 0.0f ? 0.92f : 0.45f) };
+                    Vector2 bdir = { -sinf(ba), cosf(ba) };
+                    DrawLineEx(Vector2Subtract(bp, Vector2Scale(bdir, 8.0f)), Vector2Add(bp, Vector2Scale(bdir, 9.0f)), 3.0f, { 110, 240, 255, 255 });
+                    DrawLineEx(Vector2Subtract(bp, Vector2Scale(bdir, 5.0f)), Vector2Add(bp, Vector2Scale(bdir, 8.0f)), 1.4f, WHITE);
+                }
+            } else if (heroClass == CLASS_RANGER && subClass == 2) { // Valkyrie winged crown
+                Tri({ head.x - 9.0f, head.y - 7.0f }, { head.x - 19.0f, head.y - 15.0f }, { head.x - 8.0f, head.y - 1.0f }, { 255, 220, 100, 255 });
+                Tri({ head.x + 9.0f, head.y - 7.0f }, { head.x + 19.0f, head.y - 15.0f }, { head.x + 8.0f, head.y - 1.0f }, { 255, 220, 100, 255 });
+            }
+        }
 
         if (shieldActive) {
             DrawPolyLinesEx({ body.x, body.y - 4.0f }, 8, 28.0f, t * 20.0f, 2.0f, Fade(GOLD, 0.85f));
@@ -3498,13 +3773,13 @@ public:
     void DrawPlayerSprite() {
         const bool moving = player.walkTimer > 0.01f && (IsKeyDown(KEY_W) || IsKeyDown(KEY_A) || IsKeyDown(KEY_S) || IsKeyDown(KEY_D)
                               || IsKeyDown(KEY_UP) || IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_RIGHT) || (ctl.active && Vector2Length(ctl.move) > 0.1f));
-        int wt = hasEquip[SLOT_WEAPON] ? equipped[SLOT_WEAPON].weaponType : kClasses[player.heroClass].startWeapon;
+        int wt = hasEquip[SLOT_WEAPON] ? equipped[SLOT_WEAPON].weaponType : PreferredWeaponType();
         float effRate = EffectiveAttackRate();
         float sinceAtk = (1.0f / std::max(0.1f, effRate)) - player.attackTimer;
         float off = 0.5f;
         if (wt == WP_BOW || wt == WP_STAFF) off = 0.0f;
         else if (player.attackTimer > 0.0f && sinceAtk < 0.16f) off = Lerp(-1.25f, 1.25f, sinceAtk / 0.16f);
-        DrawHeroModel(player.pos, player.heroClass, wt, aimDirDraw, player.facingLeft, player.walkTimer, moving, off, player.isInvuln, player.shieldActive, player.holyBuffTimer, player.ultActiveTimer);
+        DrawHeroModel(player.pos, player.heroClass, wt, aimDirDraw, player.facingLeft, player.walkTimer, moving, off, player.isInvuln, player.shieldActive, player.holyBuffTimer, player.ultActiveTimer, player.subClass, player.swordOrbitTimer);
     }
 
     // Độ khó theo tầng: tăng đều, rồi dốc hơn từ tầng 9 để theo kịp sức mạnh của người chơi (cân bằng bằng bot mô phỏng)
@@ -3901,9 +4176,25 @@ public:
         }
     }
 
-    // Đòn đánh cơ bản theo 8 loại vũ khí + nội tại từng hệ nhân vật
+    // Helper phóng kiếm khí trăng khuyết (Kiếm Sư / Cuồng Chiến)
+    void FireSwordWave(Vector2 origin, Vector2 dir, float dmg, float spd, int pierce, Color col, float rad = 13.0f, bool applyBurn = false) {
+        Projectile sw;
+        sw.fromPlayer = true;
+        sw.kind = 6;
+        sw.pos = Vector2Add(origin, Vector2Scale(dir, 22.0f));
+        sw.vel = Vector2Scale(dir, spd);
+        sw.damage = dmg;
+        sw.life = 1.25f;
+        sw.radius = rad;
+        sw.pierce = pierce;
+        sw.applyBurn = applyBurn;
+        sw.color = col;
+        projectiles.push_back(sw);
+    }
+
+    // Đòn đánh cơ bản theo 8 loại vũ khí + nội tại từng hệ nhân vật & nhánh phụ
     void MeleeAttack(Vector2 aimDir) {
-        int wt = hasEquip[SLOT_WEAPON] ? equipped[SLOT_WEAPON].weaponType : kClasses[player.heroClass].startWeapon;
+        int wt = hasEquip[SLOT_WEAPON] ? equipped[SLOT_WEAPON].weaponType : PreferredWeaponType();
         wt = std::max(0, std::min(7, wt));
         static const float wReach[8]  = { 45.0f, 38.0f, 40.0f, 0.0f, 46.0f, 26.0f, 20.0f, 20.0f };
         static const float wRadius[8] = { 75.0f, 64.0f, 98.0f, 0.0f, 85.0f, 92.0f, 0.0f,  0.0f  };
@@ -3914,67 +4205,136 @@ public:
         float effRate = EffectiveAttackRate();
         player.attackTimer = 1.0f / std::max(0.2f, effRate * wRate[wt]);
         player.attackCounter++;
+        float critMul = CritMult();
 
-        // Nội tại Hiệp Sĩ: đòn đánh thứ 5 hồi 4 HP
-        if (player.heroClass == CLASS_KNIGHT && (player.attackCounter % 5 == 0) && player.hp < player.maxHp) {
-            player.hp = std::min(player.maxHp, player.hp + 4.0f);
-            SpawnPopup({ player.pos.x, player.pos.y - 24.0f }, "+4", GREEN);
-            Burst(player.pos, GREEN, 6, 110.0f, 0.35f);
+        // Nội tại Hiệp Sĩ / Paladin: hồi máu & trừng phạt sấm thánh
+        if (player.heroClass == CLASS_KNIGHT) {
+            int cycle = (player.subClass == 1) ? 4 : 5;
+            float healAmt = (player.subClass == 1) ? 6.0f : 4.0f;
+            if ((player.subClass != 2) && (player.attackCounter % cycle == 0)) {
+                if (player.hp < player.maxHp) {
+                    player.hp = std::min(player.maxHp, player.hp + healAmt);
+                    SpawnPopup({ player.pos.x, player.pos.y - 24.0f }, "+" + std::to_string((int)healAmt), GREEN);
+                    Burst(player.pos, GREEN, 6, 110.0f, 0.35f);
+                }
+                if (player.subClass == 1) {
+                    Vector2 smitePos = Vector2Add(player.pos, Vector2Scale(aimDir, 42.0f));
+                    NovaVisual sn; sn.pos = smitePos; sn.maxRadius = 115.0f; sn.timer = 0.25f; sn.maxTimer = 0.25f; sn.color = GOLD;
+                    novas.push_back(sn);
+                    Burst(smitePos, GOLD, 14, 220.0f, 0.4f);
+                    for (auto& en : enemies) {
+                        if (en.hp > 0 && Vector2Distance(smitePos, en.pos) <= 115.0f + en.radius * 0.4f) {
+                            Vector2 kb = Vector2Normalize(Vector2Subtract(en.pos, player.pos));
+                            DamageEnemy(en, player.baseDmg * 0.65f, kb, 140.0f, false, false);
+                            if (en.hp > 0) { en.burnTimer = std::max(en.burnTimer, 2.5f); en.burnDps = std::max(en.burnDps, player.baseDmg * 0.4f); }
+                        }
+                    }
+                }
+            }
         }
 
-        // Nội tại Xạ Thủ: đòn thứ 3 bắn Tên Gió xuyên thấu (+50% DMG, +10% Crit)
-        bool eagleMark = (player.heroClass == CLASS_RANGER && (player.attackCounter % 3 == 0));
+        // Nội tại Xạ Thủ / Sniper Deadeye: Tên Gió xuyên thấu
+        bool eagleMark = (player.heroClass == CLASS_RANGER && (player.attackCounter % (player.subClass == 1 ? 2 : 3) == 0));
 
         SlashVisual sv;
         sv.pos = Vector2Add(player.pos, Vector2Scale(aimDir, 35.0f));
         sv.angle = atan2f(aimDir.y, aimDir.x) * RAD2DEG;
         sv.kind = wt;
-        sv.color = eagleMark ? Color{ 85, 255, 165, 255 } : WHITE;
+        sv.color = (player.heroClass == CLASS_MAGE && player.subClass == 1) ? Color{ 85, 235, 255, 255 }
+                 : (player.heroClass == CLASS_KNIGHT && player.subClass == 2) ? Color{ 255, 85, 75, 255 }
+                 : (eagleMark ? Color{ 85, 255, 165, 255 } : WHITE);
         slashes.push_back(sv);
 
         // Vũ khí tầm xa: Cung (6) và Trượng (7)
         if (wt == WP_BOW || wt == WP_STAFF) {
             PlaySound(snd.sndShoot);
-            Projectile p;
-            p.fromPlayer = true;
-            p.pos = Vector2Add(player.pos, Vector2Scale(aimDir, 22.0f));
-            float spd = (wt == WP_BOW) ? (eagleMark ? 740.0f : 620.0f) : 480.0f;
-            p.vel = Vector2Scale(aimDir, spd);
-            p.damage = player.baseDmg * wDmg[wt] * (eagleMark ? 1.50f : 1.0f);
-            p.life = 1.8f;
-            p.kind = (wt == WP_BOW) ? 1 : 2;
-            p.critBonus = eagleMark ? 0.10f : 0.0f;
-            if (wt == WP_BOW) {
-                bool isCrit = (Rand01() < std::min(0.85f, player.critChance + p.critBonus));
-                p.hasPreCrit = true;
-                p.preCrit = isCrit;
-                p.pierce = eagleMark ? 99 : (isCrit ? 1 : 0);
-                p.radius = eagleMark ? 9.0f : 6.5f;
-                p.color = eagleMark ? Color{ 85, 255, 165, 255 } : (isCrit ? GOLD : Color{ 225, 245, 145, 255 });
-            } else {
-                p.pierce = eagleMark ? 99 : 0;
-                p.splashRadius = 52.0f;
-                p.splashRatio = 0.50f;
-                p.radius = 8.5f;
-                p.color = eagleMark ? Color{ 85, 255, 165, 255 } : Color{ 110, 215, 255, 255 };
+            int count = (wt == WP_STAFF && player.heroClass == CLASS_MAGE && player.subClass == 2) ? 2 : 1;
+            Vector2 perp = { -aimDir.y, aimDir.x };
+            for (int c = 0; c < count; ++c) {
+                float off = (count == 2) ? (c == 0 ? -9.0f : 9.0f) : 0.0f;
+                Projectile p;
+                p.fromPlayer = true;
+                p.pos = Vector2Add(Vector2Add(player.pos, Vector2Scale(aimDir, 22.0f)), Vector2Scale(perp, off));
+                float spd = (wt == WP_BOW) ? (eagleMark ? 780.0f : (player.subClass == 1 ? 700.0f : 620.0f)) : (player.subClass == 2 ? 540.0f : 480.0f);
+                p.vel = Vector2Scale(aimDir, spd);
+                float emMul = eagleMark ? (player.subClass == 1 ? 1.75f : 1.50f) : 1.0f;
+                p.damage = player.baseDmg * wDmg[wt] * emMul * (count == 2 ? 0.72f : 1.0f);
+                p.life = 1.8f;
+                p.kind = (wt == WP_BOW) ? 1 : 2;
+                p.critBonus = eagleMark ? (player.subClass == 1 ? 0.15f : 0.10f) : 0.0f;
+                if (wt == WP_BOW) {
+                    bool isCrit = (Rand01() < std::min(0.85f, player.critChance + p.critBonus));
+                    p.hasPreCrit = true;
+                    p.preCrit = isCrit;
+                    p.pierce = eagleMark ? 99 : ((isCrit ? 1 : 0) + (player.heroClass == CLASS_RANGER && player.subClass == 1 ? 1 : 0));
+                    p.radius = eagleMark ? 9.0f : 6.5f;
+                    p.color = eagleMark ? Color{ 85, 255, 165, 255 } : (isCrit ? GOLD : Color{ 225, 245, 145, 255 });
+                } else {
+                    p.pierce = eagleMark ? 99 : 0;
+                    p.splashRadius = (count == 2) ? 62.0f : 52.0f;
+                    p.splashRatio = 0.50f;
+                    p.applyBurn = (count == 2);
+                    p.radius = 8.5f;
+                    p.color = eagleMark ? Color{ 85, 255, 165, 255 } : (count == 2 ? Color{ 195, 120, 255, 255 } : Color{ 110, 215, 255, 255 });
+                }
+                projectiles.push_back(p);
+                Burst(p.pos, p.color, eagleMark ? 8 : 3, 120.0f, 0.25f);
             }
-            projectiles.push_back(p);
-            Burst(p.pos, p.color, eagleMark ? 8 : 3, 120.0f, 0.25f);
             return;
         }
 
         PlaySound(snd.sndSlash);
+        // Hiệu ứng phóng kiếm khí / phi tiêu / lao sấm theo class phụ ở đòn đánh thường
+        if (player.heroClass == CLASS_MAGE && player.subClass == 1) { // Spellblade (Kiem Su): Moonlight Sword Wave
+            if (player.attackCounter % 3 == 0) {
+                float ba = atan2f(aimDir.y, aimDir.x);
+                for (int w = -1; w <= 1; w += 2) {
+                    float a = ba + w * 0.16f;
+                    FireSwordWave(player.pos, { cosf(a), sinf(a) }, player.baseDmg * 1.10f, 600.0f, 3, { 125, 235, 255, 255 }, 14.0f, false);
+                }
+            } else {
+                FireSwordWave(player.pos, aimDir, player.baseDmg * 1.15f, 580.0f, 3, { 95, 235, 255, 255 }, 13.5f, false);
+            }
+        } else if (player.heroClass == CLASS_KNIGHT && player.subClass == 2) { // Dread Berserker: Blood Wave
+            FireSwordWave(player.pos, aimDir, player.baseDmg * 0.80f, 520.0f, 2, { 255, 75, 85, 255 }, 12.0f, true);
+            AddRage(2.5f);
+        } else if (player.heroClass == CLASS_ASSASSIN && player.subClass == 2) { // Ninja Trickster: Lightning Shuriken
+            Projectile sh;
+            sh.fromPlayer = true;
+            sh.kind = 3;
+            sh.pos = Vector2Add(player.pos, Vector2Scale(aimDir, 18.0f));
+            sh.vel = Vector2Scale(aimDir, 600.0f);
+            sh.damage = player.baseDmg * 0.70f;
+            sh.life = 1.2f;
+            sh.radius = 7.5f;
+            sh.pierce = 1;
+            sh.color = { 110, 235, 255, 255 };
+            projectiles.push_back(sh);
+        } else if (player.heroClass == CLASS_RANGER && player.subClass == 2) { // Valkyrie Lancer: Lightning Javelin
+            Projectile jv;
+            jv.fromPlayer = true;
+            jv.kind = 1;
+            jv.pos = Vector2Add(player.pos, Vector2Scale(aimDir, 22.0f));
+            jv.vel = Vector2Scale(aimDir, 680.0f);
+            jv.damage = player.baseDmg * 1.10f;
+            jv.life = 1.4f;
+            jv.radius = 8.0f;
+            jv.pierce = 3;
+            jv.color = { 110, 240, 255, 255 };
+            projectiles.push_back(jv);
+        }
+
         if (eagleMark) {
-            // Xạ thủ dùng vũ khí cận chiến vẫn phóng được luồng gió đòn thứ 3
+            // Xạ thủ dùng vũ khí cận chiến vẫn phóng được luồng gió đòn thứ 2/3
             Projectile wp;
             wp.fromPlayer = true;
             wp.pos = Vector2Add(player.pos, Vector2Scale(aimDir, 20.0f));
             wp.vel = Vector2Scale(aimDir, 680.0f);
-            wp.damage = player.baseDmg * 1.50f;
+            wp.damage = player.baseDmg * (player.subClass == 1 ? 1.75f : 1.50f);
             wp.life = 1.5f;
             wp.kind = 1;
             wp.pierce = 99;
-            wp.critBonus = 0.10f;
+            wp.critBonus = (player.subClass == 1 ? 0.15f : 0.10f);
             wp.radius = 9.0f;
             wp.color = { 85, 255, 165, 255 };
             projectiles.push_back(wp);
@@ -4010,10 +4370,9 @@ public:
             }
             if (inRange) {
                 hitAny = true;
-                float cc = std::min(0.85f, player.critChance + (eagleMark ? 0.10f : 0.0f));
+                float cc = std::min(0.85f, player.critChance + (eagleMark ? (player.subClass == 1 ? 0.15f : 0.10f) : 0.0f));
                 bool isCrit = (Rand01() < cc);
-                float critMul = (player.heroClass == CLASS_ASSASSIN ? 2.4f : 2.0f);
-                float dmg = player.baseDmg * wDmg[wt] * (eagleMark ? 1.50f : 1.0f) * (isCrit ? critMul : 1.0f);
+                float dmg = player.baseDmg * wDmg[wt] * (eagleMark ? (player.subClass == 1 ? 1.75f : 1.50f) : 1.0f) * (isCrit ? critMul : 1.0f);
                 maxHitDmg = std::max(maxHitDmg, dmg);
                 Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
                 float kbForce = (isCrit ? 240.0f : 160.0f) * wKb[wt];
@@ -4040,22 +4399,24 @@ public:
         }
     }
 
-    // ── Nội tại Pháp Sư: mỗi lần dùng kỹ năng bắn 3 tia ma thuật dẫn đường + 6 Nộ ──
+    // ── Nội tại Pháp Sư / Đại Pháp Sư: mỗi lần dùng kỹ năng bắn 3 (hoặc 5) tia ma thuật dẫn đường ──
     void TriggerArcaneResonance(Vector2 aimDir) {
         if (player.heroClass != CLASS_MAGE) return;
-        AddRage(6.0f);
+        int n = (player.subClass == 2) ? 2 : 1;
+        AddRage(player.subClass == 2 ? 10.0f : 6.0f);
+        if (player.subClass == 1) player.shieldActive = true;
         float baseAng = atan2f(aimDir.y, aimDir.x);
-        for (int i = -1; i <= 1; ++i) {
-            float a = baseAng + i * 0.55f;
+        for (int i = -n; i <= n; ++i) {
+            float a = baseAng + i * 0.42f;
             Projectile p;
             p.fromPlayer = true;
             p.kind = 5;
             p.pos = Vector2Add(player.pos, { cosf(a) * 18.0f, sinf(a) * 18.0f });
             p.vel = { cosf(a) * 440.0f, sinf(a) * 440.0f };
-            p.damage = player.baseDmg * 0.55f;
+            p.damage = player.baseDmg * (player.subClass == 2 ? 0.65f : 0.55f);
             p.life = 2.2f;
             p.radius = 6.5f;
-            p.color = { 120, 230, 255, 255 };
+            p.color = (player.subClass == 2) ? Color{ 210, 125, 255, 255 } : Color{ 120, 230, 255, 255 };
             projectiles.push_back(p);
         }
     }
@@ -4064,12 +4425,16 @@ public:
     void CastSkill1(Vector2 aimDir) {
         player.specialCooldown = Skill1MaxCd();
         player.specialTimer = player.specialCooldown;
-        float critMul = (player.heroClass == CLASS_ASSASSIN ? 2.4f : 2.0f);
+        float critMul = CritMult();
+        const float bw = roomW / 2.0f - 30.0f, bh = roomH / 2.0f - 30.0f;
 
         if (player.heroClass == CLASS_KNIGHT) {
-            // Xung Kích Khiên: lướt tới 75px, húc choáng 1.2s
-            Vector2 dest = Vector2Add(player.pos, Vector2Scale(aimDir, 75.0f));
-            float bw = roomW / 2.0f - 30.0f, bh = roomH / 2.0f - 30.0f;
+            // Knight / Paladin / Berserker: Xung Kích Khiên / Đại Nhảy Huyết Chiến
+            float dist = (player.subClass == 2) ? 110.0f : 75.0f;
+            float rad = (player.subClass == 2) ? 155.0f : 140.0f;
+            float mul = (player.subClass == 2) ? 2.5f : (player.subClass == 1 ? 2.4f : 1.9f);
+            Color cCol = (player.subClass == 2) ? Color{ 235, 65, 65, 255 } : GOLD;
+            Vector2 dest = Vector2Add(player.pos, Vector2Scale(aimDir, dist));
             dest.x = Clamp(dest.x, -bw, bw);
             dest.y = Clamp(dest.y, -bh, bh);
             ResolvePillars(dest, 15.0f);
@@ -4080,97 +4445,197 @@ public:
             PlaySound(snd.sndSpecial);
             Shake(0.24f, 6.5f);
             Vector2 slamCenter = Vector2Add(player.pos, Vector2Scale(aimDir, 38.0f));
-            Burst(slamCenter, GOLD, 24, 320.0f, 0.55f);
+            Burst(slamCenter, cCol, 26, 320.0f, 0.55f);
             SlashVisual sv;
             sv.pos = slamCenter;
             sv.angle = atan2f(aimDir.y, aimDir.x) * RAD2DEG;
             sv.kind = 10;
             sv.timer = 0.22f;
             sv.maxTimer = 0.22f;
-            sv.color = GOLD;
+            sv.color = cCol;
             slashes.push_back(sv);
 
-            NovaVisual nv;
-            nv.pos = slamCenter;
-            nv.maxRadius = 140.0f;
-            nv.timer = 0.28f;
-            nv.maxTimer = 0.28f;
-            nv.color = GOLD;
+            NovaVisual nv; nv.pos = slamCenter; nv.maxRadius = rad; nv.timer = 0.28f; nv.maxTimer = 0.28f; nv.color = cCol;
             novas.push_back(nv);
 
             for (auto& e : enemies) {
                 if (e.hp <= 0) continue;
-                if (Vector2Distance(slamCenter, e.pos) <= 140.0f + e.radius * 0.5f) {
+                if (Vector2Distance(slamCenter, e.pos) <= rad + e.radius * 0.5f) {
                     bool isCrit = (Rand01() < player.critChance);
-                    float dmg = player.baseDmg * 1.9f * (isCrit ? critMul : 1.0f);
+                    float dmg = player.baseDmg * mul * (isCrit ? critMul : 1.0f);
                     Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
                     DamageEnemy(e, dmg, kb, 300.0f, isCrit, true);
-                    if (e.hp > 0) e.stunTimer = std::max(e.stunTimer, 1.2f);
+                    if (e.hp > 0) {
+                        if (player.subClass != 2) e.stunTimer = std::max(e.stunTimer, player.subClass == 1 ? 1.5f : 1.2f);
+                        if (player.subClass == 2) { e.burnTimer = std::max(e.burnTimer, 3.0f); e.burnDps = std::max(e.burnDps, player.baseDmg * 0.65f); }
+                    }
                 }
             }
-            TriggerBarrelsInRadius(slamCenter, 140.0f, player.baseDmg * 1.9f);
+            TriggerBarrelsInRadius(slamCenter, rad, player.baseDmg * mul);
+            if (player.subClass == 1) {
+                GroundEffect hz; hz.kind = 1; hz.pos = slamCenter; hz.radius = 140.0f; hz.maxTimer = 2.5f; hz.timer = 2.5f; hz.tickTimer = 0.4f;
+                hz.damage = player.baseDmg * 0.6f; hz.color = GOLD;
+                groundEffects.push_back(hz);
+            } else if (player.subClass == 2 && player.hp < player.maxHp) {
+                float heal = std::max(4.0f, player.maxHp * 0.10f);
+                player.hp = std::min(player.maxHp, player.hp + heal);
+                SpawnPopup({ player.pos.x, player.pos.y - 26.0f }, "+" + std::to_string((int)heal), GREEN);
+            }
         } else if (player.heroClass == CLASS_ASSASSIN) {
-            // Phi Tiêu Bóng Tối: phóng 5 phi tiêu xuyên 1 mục tiêu, làm chậm & trúng độc
+            // Assassin / Phantom Reaper (6 Death Scythes) / Ninja Trickster (8 Lightning Shurikens)
             PlaySound(snd.sndSlash);
             Shake(0.14f, 3.5f);
             float baseAng = atan2f(aimDir.y, aimDir.x);
-            for (int i = -2; i <= 2; ++i) {
-                float a = baseAng + i * 0.19f;
+            int half = (player.subClass == 2) ? 4 : 2;
+            int total = (player.subClass == 1) ? 6 : (player.subClass == 2 ? 8 : 5);
+            Color sc = (player.subClass == 1) ? Color{ 195, 90, 255, 255 } : (player.subClass == 2 ? Color{ 110, 235, 255, 255 } : Color{ 235, 70, 140, 255 });
+            for (int idx = 0; idx < total; ++idx) {
+                float offset = (idx - (total - 1) * 0.5f) * (player.subClass == 2 ? 0.14f : 0.19f);
+                float a = baseAng + offset;
                 Vector2 d = { cosf(a), sinf(a) };
                 Projectile p;
                 p.fromPlayer = true;
                 p.kind = 3;
                 p.pos = Vector2Add(player.pos, Vector2Scale(d, 18.0f));
-                p.vel = Vector2Scale(d, 560.0f);
-                p.damage = player.baseDmg * 1.1f;
+                p.vel = Vector2Scale(d, player.subClass == 2 ? 640.0f : 560.0f);
+                p.damage = player.baseDmg * (player.subClass == 1 ? 1.35f : (player.subClass == 2 ? 1.25f : 1.1f));
                 p.life = 1.4f;
-                p.radius = 8.0f;
-                p.pierce = 1;
+                p.radius = (player.subClass == 1) ? 10.5f : 8.0f;
+                p.pierce = (player.subClass == 1) ? 3 : (player.subClass == 2 ? 2 : 1);
                 p.applySlow = true;
-                p.applyPoison = true;
-                p.color = { 235, 70, 140, 255 };
+                p.applyPoison = (player.subClass != 2);
+                p.color = sc;
                 projectiles.push_back(p);
             }
-            Burst(player.pos, { 225, 65, 130, 255 }, 12, 220.0f, 0.35f);
+            (void)half;
+            Burst(player.pos, sc, 14, 220.0f, 0.35f);
         } else if (player.heroClass == CLASS_MAGE) {
-            // Cầu Lửa Hủy Diệt: nổ 135px AoE 2.3x + thiêu đốt
-            PlaySound(snd.sndShoot);
-            Shake(0.14f, 4.0f);
-            Projectile p;
-            p.fromPlayer = true;
-            p.kind = 4;
-            p.pos = Vector2Add(player.pos, Vector2Scale(aimDir, 22.0f));
-            p.vel = Vector2Scale(aimDir, 470.0f);
-            p.damage = player.baseDmg * 2.3f;
-            p.life = 1.6f;
-            p.radius = 12.0f;
-            p.splashRadius = 135.0f;
-            p.splashRatio = 1.0f;
-            p.applyBurn = true;
-            p.color = { 255, 130, 45, 255 };
-            projectiles.push_back(p);
-            Burst(p.pos, ORANGE, 10, 160.0f, 0.35f);
-            TriggerArcaneResonance(aimDir);
-        } else {
-            // Liên Xạ Tiễn: bắn quạt 7 mũi tên vàng
-            PlaySound(snd.sndShoot);
-            Shake(0.14f, 3.5f);
-            float baseAng = atan2f(aimDir.y, aimDir.x);
-            for (int i = -3; i <= 3; ++i) {
-                float a = baseAng + i * 0.14f;
-                Vector2 d = { cosf(a), sinf(a) };
+            if (player.subClass == 1) {
+                // Spellblade (Kiếm Sư) [Q]: Dimensional Slash - lướt chém 115px + phóng 3 kiếm khí ánh trăng + Shield
+                Vector2 origin = player.pos;
+                Vector2 dest = Vector2Add(origin, Vector2Scale(aimDir, 115.0f));
+                dest.x = Clamp(dest.x, -bw, bw);
+                dest.y = Clamp(dest.y, -bh, bh);
+                ResolvePillars(dest, 15.0f);
+                ghosts.push_back({ origin, player.facingLeft, 0.25f, 0.25f });
+                ghosts.push_back({ Vector2Lerp(origin, dest, 0.5f), player.facingLeft, 0.25f, 0.25f });
+                player.pos = dest;
+                player.invulnTimer = std::max(player.invulnTimer, 0.35f);
+                player.shieldActive = true;
+
+                PlaySound(snd.sndSpecial);
+                Shake(0.24f, 6.0f);
+                Burst(dest, { 85, 230, 255, 255 }, 24, 320.0f, 0.5f);
+                SlashVisual sv; sv.pos = dest; sv.angle = atan2f(aimDir.y, aimDir.x) * RAD2DEG; sv.kind = 11; sv.timer = 0.22f; sv.maxTimer = 0.22f; sv.color = { 85, 230, 255, 255 };
+                slashes.push_back(sv);
+                NovaVisual nv; nv.pos = dest; nv.maxRadius = 155.0f; nv.timer = 0.26f; nv.maxTimer = 0.26f; nv.color = { 85, 230, 255, 255 };
+                novas.push_back(nv);
+
+                for (auto& e : enemies) {
+                    if (e.hp <= 0) continue;
+                    if (Vector2Distance(dest, e.pos) <= 155.0f + e.radius * 0.4f) {
+                        bool isCrit = (Rand01() < player.critChance);
+                        float dmg = player.baseDmg * 2.4f * (isCrit ? critMul : 1.0f);
+                        Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, origin));
+                        DamageEnemy(e, dmg, kb, 220.0f, isCrit, true);
+                    }
+                }
+                TriggerBarrelsInRadius(dest, 155.0f, player.baseDmg * 2.4f);
+                float baseAng = atan2f(aimDir.y, aimDir.x);
+                for (int w = -1; w <= 1; ++w) {
+                    float a = baseAng + w * 0.24f;
+                    FireSwordWave(dest, { cosf(a), sinf(a) }, player.baseDmg * 1.45f, 620.0f, 3, { 95, 235, 255, 255 }, 14.5f, false);
+                }
+                TriggerArcaneResonance(aimDir);
+            } else if (player.subClass == 2) {
+                // Archmage [Q]: Twin Meteor Comets (2 cầu lửa lớn)
+                PlaySound(snd.sndShoot);
+                Shake(0.18f, 5.0f);
+                float baseAng = atan2f(aimDir.y, aimDir.x);
+                for (int c = -1; c <= 1; c += 2) {
+                    float a = baseAng + c * 0.11f;
+                    Vector2 d = { cosf(a), sinf(a) };
+                    Projectile p; p.fromPlayer = true; p.kind = 4;
+                    p.pos = Vector2Add(player.pos, Vector2Scale(d, 22.0f));
+                    p.vel = Vector2Scale(d, 500.0f);
+                    p.damage = player.baseDmg * 2.3f;
+                    p.life = 1.6f; p.radius = 13.0f; p.splashRadius = 150.0f; p.splashRatio = 1.0f; p.applyBurn = true;
+                    p.color = { 255, 130, 45, 255 };
+                    projectiles.push_back(p);
+                }
+                TriggerArcaneResonance(aimDir);
+            } else {
+                // Base Arcane Mage: Cầu Lửa Hủy Diệt
+                PlaySound(snd.sndShoot);
+                Shake(0.14f, 4.0f);
                 Projectile p;
-                p.fromPlayer = true;
-                p.kind = 1;
-                p.pos = Vector2Add(player.pos, Vector2Scale(d, 20.0f));
-                p.vel = Vector2Scale(d, 630.0f);
-                p.damage = player.baseDmg * 1.0f;
-                p.life = 1.6f;
-                p.radius = 7.0f;
-                p.color = GOLD;
+                p.fromPlayer = true; p.kind = 4;
+                p.pos = Vector2Add(player.pos, Vector2Scale(aimDir, 22.0f));
+                p.vel = Vector2Scale(aimDir, 470.0f);
+                p.damage = player.baseDmg * 2.3f;
+                p.life = 1.6f; p.radius = 12.0f; p.splashRadius = 135.0f; p.splashRatio = 1.0f; p.applyBurn = true;
+                p.color = { 255, 130, 45, 255 };
                 projectiles.push_back(p);
+                Burst(p.pos, ORANGE, 10, 160.0f, 0.35f);
+                TriggerArcaneResonance(aimDir);
             }
-            Burst(Vector2Add(player.pos, Vector2Scale(aimDir, 20.0f)), GOLD, 12, 200.0f, 0.35f);
+        } else {
+            if (player.subClass == 2) {
+                // Valkyrie Lancer [Q]: Thunder Charge 120px (2.3x + Stun 1.0s) + 3 Lightning Javelins
+                Vector2 dest = Vector2Add(player.pos, Vector2Scale(aimDir, 120.0f));
+                dest.x = Clamp(dest.x, -bw, bw);
+                dest.y = Clamp(dest.y, -bh, bh);
+                ResolvePillars(dest, 15.0f);
+                ghosts.push_back({ player.pos, player.facingLeft, 0.25f, 0.25f });
+                player.pos = dest;
+                player.invulnTimer = std::max(player.invulnTimer, 0.32f);
+                PlaySound(snd.sndSpecial);
+                Shake(0.22f, 5.5f);
+                Burst(dest, { 90, 235, 255, 255 }, 22, 300.0f, 0.5f);
+                SlashVisual sv; sv.pos = Vector2Add(dest, Vector2Scale(aimDir, 35.0f)); sv.angle = atan2f(aimDir.y, aimDir.x) * RAD2DEG; sv.kind = WP_SPEAR; sv.color = { 90, 235, 255, 255 };
+                slashes.push_back(sv);
+                NovaVisual nv; nv.pos = dest; nv.maxRadius = 145.0f; nv.timer = 0.26f; nv.maxTimer = 0.26f; nv.color = { 90, 235, 255, 255 };
+                novas.push_back(nv);
+                for (auto& e : enemies) {
+                    if (e.hp <= 0) continue;
+                    if (Vector2Distance(dest, e.pos) <= 145.0f + e.radius * 0.4f) {
+                        bool isCrit = (Rand01() < player.critChance);
+                        float dmg = player.baseDmg * 2.3f * (isCrit ? critMul : 1.0f);
+                        Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
+                        DamageEnemy(e, dmg, kb, 250.0f, isCrit, true);
+                        if (e.hp > 0) e.stunTimer = std::max(e.stunTimer, 1.0f);
+                    }
+                }
+                TriggerBarrelsInRadius(dest, 145.0f, player.baseDmg * 2.3f);
+                float baseAng = atan2f(aimDir.y, aimDir.x);
+                for (int i = -1; i <= 1; ++i) {
+                    float a = baseAng + i * 0.20f;
+                    Vector2 d = { cosf(a), sinf(a) };
+                    Projectile jv; jv.fromPlayer = true; jv.kind = 1; jv.pos = Vector2Add(dest, Vector2Scale(d, 20.0f));
+                    jv.vel = Vector2Scale(d, 720.0f); jv.damage = player.baseDmg * 1.45f; jv.life = 1.5f; jv.radius = 8.5f; jv.pierce = 3;
+                    jv.color = { 100, 240, 255, 255 };
+                    projectiles.push_back(jv);
+                }
+            } else {
+                // Ranger / Sniper Deadeye [Q]: Liên Xạ Tiễn (7 mũi tên / 9 mũi tên xuyên đốt)
+                PlaySound(snd.sndShoot);
+                Shake(0.14f, 3.5f);
+                float baseAng = atan2f(aimDir.y, aimDir.x);
+                int half = (player.subClass == 1) ? 4 : 3;
+                for (int i = -half; i <= half; ++i) {
+                    float a = baseAng + i * (player.subClass == 1 ? 0.11f : 0.14f);
+                    Vector2 d = { cosf(a), sinf(a) };
+                    Projectile p; p.fromPlayer = true; p.kind = 1;
+                    p.pos = Vector2Add(player.pos, Vector2Scale(d, 20.0f));
+                    p.vel = Vector2Scale(d, player.subClass == 1 ? 700.0f : 630.0f);
+                    p.damage = player.baseDmg * (player.subClass == 1 ? 1.2f : 1.0f);
+                    p.life = 1.6f; p.radius = 7.0f; p.pierce = (player.subClass == 1) ? 2 : 0;
+                    p.applyBurn = (player.subClass == 1);
+                    p.color = GOLD;
+                    projectiles.push_back(p);
+                }
+                Burst(Vector2Add(player.pos, Vector2Scale(aimDir, 20.0f)), GOLD, 12, 200.0f, 0.35f);
+            }
         }
     }
 
@@ -4178,145 +4643,181 @@ public:
     void CastSkill2(Vector2 aimDir, Vector2 moveDir) {
         player.skill2Cooldown = Skill2MaxCd();
         player.skill2Timer = player.skill2Cooldown;
-        float critMul = (player.heroClass == CLASS_ASSASSIN ? 2.4f : 2.0f);
+        float critMul = CritMult();
+        const float bw = roomW / 2.0f - 30.0f, bh = roomH / 2.0f - 30.0f;
 
         if (player.heroClass == CLASS_KNIGHT) {
-            // Thánh Quang Xung: nổ 190px 1.8x + buff 3.5s (+4 Armor, +25% Atk Speed, khiên chặn 1 đòn)
             PlaySound(snd.sndSpecial);
             Shake(0.25f, 6.0f);
-            Burst(player.pos, GOLD, 34, 380.0f, 0.6f);
-            player.holyBuffTimer = 3.5f;
-            player.shieldActive = true;
-            SpawnPopup({ player.pos.x, player.pos.y - 34.0f }, "HOLY BARRIER!", GOLD);
-
-            NovaVisual nv;
-            nv.pos = player.pos;
-            nv.maxRadius = 190.0f;
-            nv.timer = 0.35f;
-            nv.maxTimer = 0.35f;
-            nv.color = { 255, 220, 95, 255 };
+            bool isZerk = (player.subClass == 2);
+            Color nCol = isZerk ? Color{ 235, 65, 65, 255 } : GOLD;
+            float rad = isZerk ? 195.0f : (player.subClass == 1 ? 210.0f : 190.0f);
+            float mul = isZerk ? 2.0f : (player.subClass == 1 ? 2.2f : 1.8f);
+            Burst(player.pos, nCol, 34, 380.0f, 0.6f);
+            if (isZerk) {
+                player.hasteTimer = 4.0f;
+                AddRage(25.0f);
+                SpawnPopup({ player.pos.x, player.pos.y - 34.0f }, "BLOOD FRENZY!", ORANGE);
+            } else {
+                player.holyBuffTimer = (player.subClass == 1) ? 4.5f : 3.5f;
+                player.shieldActive = true;
+                SpawnPopup({ player.pos.x, player.pos.y - 34.0f }, "HOLY BARRIER!", GOLD);
+            }
+            NovaVisual nv; nv.pos = player.pos; nv.maxRadius = rad; nv.timer = 0.35f; nv.maxTimer = 0.35f; nv.color = nCol;
             novas.push_back(nv);
 
             for (auto& e : enemies) {
                 if (e.hp <= 0) continue;
-                if (Vector2Distance(player.pos, e.pos) <= nv.maxRadius) {
+                if (Vector2Distance(player.pos, e.pos) <= rad) {
                     bool isCrit = (Rand01() < player.critChance);
-                    float dmg = player.baseDmg * 1.8f * (isCrit ? critMul : 1.0f);
+                    float dmg = player.baseDmg * mul * (isCrit ? critMul : 1.0f);
                     Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
                     DamageEnemy(e, dmg, kb, 280.0f, isCrit, true);
+                    if (isZerk && e.hp > 0) { e.slowTimer = std::max(e.slowTimer, 3.0f); e.slowFactor = std::min(e.slowFactor, 0.55f); }
                 }
             }
-            TriggerBarrelsInRadius(player.pos, 190.0f, player.baseDmg * 1.8f);
+            TriggerBarrelsInRadius(player.pos, rad, player.baseDmg * mul);
         } else if (player.heroClass == CLASS_ASSASSIN) {
-            // Ám Tập: bom khói tại chỗ cũ, dịch chuyển 210px & chém tất chí mạng 2.2x
             Vector2 origin = player.pos;
-            NovaVisual smoke;
-            smoke.pos = origin;
-            smoke.maxRadius = 130.0f;
-            smoke.timer = 0.35f;
-            smoke.maxTimer = 0.35f;
-            smoke.color = { 130, 100, 175, 255 };
-            novas.push_back(smoke);
-            Burst(origin, { 120, 90, 160, 255 }, 20, 200.0f, 0.55f);
-            for (auto& e : enemies) {
-                if (e.hp > 0 && Vector2Distance(origin, e.pos) <= 130.0f) {
-                    e.slowTimer = std::max(e.slowTimer, 3.0f);
-                    e.slowFactor = std::min(e.slowFactor, 0.55f);
+            if (player.subClass == 2) {
+                // Ninja Trickster: thả phân thân nổ 2.2x AoE tại vị trí cũ
+                GroundEffect decoy; decoy.kind = 0; decoy.pos = origin; decoy.radius = 150.0f; decoy.maxTimer = 0.45f; decoy.timer = 0.45f;
+                decoy.damage = player.baseDmg * 2.2f; decoy.color = { 110, 235, 255, 255 };
+                groundEffects.push_back(decoy);
+            } else {
+                NovaVisual smoke; smoke.pos = origin; smoke.maxRadius = 130.0f; smoke.timer = 0.35f; smoke.maxTimer = 0.35f; smoke.color = { 130, 100, 175, 255 };
+                novas.push_back(smoke);
+                Burst(origin, { 120, 90, 160, 255 }, 20, 200.0f, 0.55f);
+                for (auto& e : enemies) {
+                    if (e.hp > 0 && Vector2Distance(origin, e.pos) <= 130.0f) {
+                        e.slowTimer = std::max(e.slowTimer, 3.0f); e.slowFactor = std::min(e.slowFactor, 0.55f);
+                    }
                 }
             }
 
-            Vector2 dest = Vector2Add(origin, Vector2Scale(aimDir, 210.0f));
-            float bw = roomW / 2.0f - 30.0f, bh = roomH / 2.0f - 30.0f;
+            float bDist = (player.subClass > 0) ? 230.0f : 210.0f;
+            Vector2 dest = Vector2Add(origin, Vector2Scale(aimDir, bDist));
             dest.x = Clamp(dest.x, -bw, bw);
             dest.y = Clamp(dest.y, -bh, bh);
             ResolvePillars(dest, 15.0f);
-            for (int k = 1; k <= 3; ++k) {
-                ghosts.push_back({ Vector2Lerp(origin, dest, k * 0.25f), player.facingLeft, 0.28f, 0.28f });
-            }
+            for (int k = 1; k <= 3; ++k) ghosts.push_back({ Vector2Lerp(origin, dest, k * 0.25f), player.facingLeft, 0.28f, 0.28f });
             player.pos = dest;
             player.invulnTimer = std::max(player.invulnTimer, 0.50f);
+            if (player.subClass == 1) player.shieldActive = true; // Reaper Soul Shield
 
+            Color sCol = (player.subClass == 1) ? Color{ 195, 90, 255, 255 } : (player.subClass == 2 ? Color{ 110, 235, 255, 255 } : Color{ 255, 75, 145, 255 });
+            float sRad = (player.subClass == 1) ? 155.0f : 125.0f;
+            float sMul = (player.subClass == 1) ? 2.6f : (player.subClass == 2 ? 2.4f : 2.2f);
             PlaySound(snd.sndSpecial);
             Shake(0.22f, 6.0f);
-            Burst(dest, { 255, 70, 140, 255 }, 28, 320.0f, 0.5f);
-            SlashVisual sv;
-            sv.pos = dest;
-            sv.angle = atan2f(aimDir.y, aimDir.x) * RAD2DEG;
-            sv.kind = 11;
-            sv.timer = 0.22f;
-            sv.maxTimer = 0.22f;
-            sv.color = { 255, 75, 145, 255 };
+            Burst(dest, sCol, 28, 320.0f, 0.5f);
+            SlashVisual sv; sv.pos = dest; sv.angle = atan2f(aimDir.y, aimDir.x) * RAD2DEG; sv.kind = 11; sv.timer = 0.22f; sv.maxTimer = 0.22f; sv.color = sCol;
             slashes.push_back(sv);
-
-            NovaVisual slashRing;
-            slashRing.pos = dest;
-            slashRing.maxRadius = 125.0f;
-            slashRing.timer = 0.26f;
-            slashRing.maxTimer = 0.26f;
-            slashRing.color = { 255, 75, 145, 255 };
+            NovaVisual slashRing; slashRing.pos = dest; slashRing.maxRadius = sRad; slashRing.timer = 0.26f; slashRing.maxTimer = 0.26f; slashRing.color = sCol;
             novas.push_back(slashRing);
 
             for (auto& e : enemies) {
                 if (e.hp <= 0) continue;
-                if (Vector2Distance(dest, e.pos) <= 125.0f + e.radius * 0.4f) {
-                    float dmg = player.baseDmg * 2.2f * critMul; // Chắc chắn chí mạng!
+                if (Vector2Distance(dest, e.pos) <= sRad + e.radius * 0.4f) {
+                    float dmg = player.baseDmg * sMul * critMul; // Chắc chắn chí mạng!
                     Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, dest));
                     DamageEnemy(e, dmg, kb, 220.0f, true, true);
                 }
             }
-            TriggerBarrelsInRadius(dest, 125.0f, player.baseDmg * 2.2f);
+            TriggerBarrelsInRadius(dest, sRad, player.baseDmg * sMul);
         } else if (player.heroClass == CLASS_MAGE) {
-            // Vòng Băng Giá: nổ băng 185px, đóng băng/choáng 1.3s + làm chậm 3s
-            PlaySound(snd.sndFreeze);
-            Shake(0.22f, 5.5f);
-            Burst(player.pos, { 130, 235, 255, 255 }, 32, 360.0f, 0.6f);
-            NovaVisual nv;
-            nv.pos = player.pos;
-            nv.maxRadius = 185.0f;
-            nv.timer = 0.35f;
-            nv.maxTimer = 0.35f;
-            nv.color = { 115, 230, 255, 255 };
-            novas.push_back(nv);
-
-            for (auto& e : enemies) {
-                if (e.hp <= 0) continue;
-                if (Vector2Distance(player.pos, e.pos) <= nv.maxRadius) {
-                    bool isCrit = (Rand01() < player.critChance);
-                    float dmg = player.baseDmg * 1.5f * (isCrit ? critMul : 1.0f);
-                    Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
-                    DamageEnemy(e, dmg, kb, 200.0f, isCrit, true);
-                    if (e.hp > 0) {
-                        e.stunTimer = std::max(e.stunTimer, 1.3f);
-                        e.chillTimer = std::max(e.chillTimer, 3.0f);
+            if (player.subClass == 1) {
+                // Spellblade (Kiếm Sư) [E]: Phantom Sword Ring - nổ 190px + choáng 1.4s + 3.2s Kiếm Hồn xoay quanh + Shield
+                PlaySound(snd.sndFreeze);
+                Shake(0.22f, 5.5f);
+                Burst(player.pos, { 85, 230, 255, 255 }, 32, 360.0f, 0.6f);
+                NovaVisual nv; nv.pos = player.pos; nv.maxRadius = 190.0f; nv.timer = 0.35f; nv.maxTimer = 0.35f; nv.color = { 120, 235, 255, 255 };
+                novas.push_back(nv);
+                player.swordOrbitTimer = 3.2f;
+                player.swordOrbitTick = 0.0f;
+                player.shieldActive = true;
+                SpawnPopup({ player.pos.x, player.pos.y - 34.0f }, "PHANTOM BLADES!", { 85, 230, 255, 255 });
+                for (auto& e : enemies) {
+                    if (e.hp <= 0) continue;
+                    if (Vector2Distance(player.pos, e.pos) <= 190.0f) {
+                        bool isCrit = (Rand01() < player.critChance);
+                        float dmg = player.baseDmg * 1.9f * (isCrit ? critMul : 1.0f);
+                        Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
+                        DamageEnemy(e, dmg, kb, 200.0f, isCrit, true);
+                        if (e.hp > 0) {
+                            e.stunTimer = std::max(e.stunTimer, 1.4f);
+                            e.chillTimer = std::max(e.chillTimer, 3.0f);
+                            e.burnTimer = std::max(e.burnTimer, 2.5f);
+                            e.burnDps = std::max(e.burnDps, player.baseDmg * 0.45f);
+                        }
                     }
                 }
+                TriggerBarrelsInRadius(player.pos, 190.0f, player.baseDmg * 1.9f);
+                TriggerArcaneResonance(aimDir);
+            } else {
+                // Arcane Mage / Archmage: Frost Nova / Absolute Zero Nova
+                bool isArch = (player.subClass == 2);
+                float rad = isArch ? 215.0f : 185.0f;
+                float mul = isArch ? 1.9f : 1.5f;
+                PlaySound(snd.sndFreeze);
+                Shake(0.22f, 5.5f);
+                Burst(player.pos, { 130, 235, 255, 255 }, 32, 360.0f, 0.6f);
+                NovaVisual nv; nv.pos = player.pos; nv.maxRadius = rad; nv.timer = 0.35f; nv.maxTimer = 0.35f; nv.color = { 115, 230, 255, 255 };
+                novas.push_back(nv);
+
+                for (auto& e : enemies) {
+                    if (e.hp <= 0) continue;
+                    if (Vector2Distance(player.pos, e.pos) <= rad) {
+                        bool isCrit = (Rand01() < player.critChance);
+                        float dmg = player.baseDmg * mul * (isCrit ? critMul : 1.0f);
+                        Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
+                        DamageEnemy(e, dmg, kb, 200.0f, isCrit, true);
+                        if (e.hp > 0) {
+                            e.stunTimer = std::max(e.stunTimer, isArch ? 1.8f : 1.3f);
+                            e.chillTimer = std::max(e.chillTimer, 3.5f);
+                        }
+                    }
+                }
+                if (isArch) { // 6 radial ice bolts
+                    for (int k = 0; k < 6; ++k) {
+                        float a = k * (PI / 3.0f);
+                        Projectile ib; ib.fromPlayer = true; ib.kind = 2;
+                        ib.pos = Vector2Add(player.pos, { cosf(a) * 18.0f, sinf(a) * 18.0f });
+                        ib.vel = { cosf(a) * 460.0f, sinf(a) * 460.0f };
+                        ib.damage = player.baseDmg * 1.15f; ib.life = 1.4f; ib.radius = 8.5f; ib.splashRadius = 55.0f;
+                        ib.applySlow = true; ib.color = { 130, 235, 255, 255 };
+                        projectiles.push_back(ib);
+                    }
+                }
+                TriggerBarrelsInRadius(player.pos, rad, player.baseDmg * mul);
+                TriggerArcaneResonance(aimDir);
             }
-            TriggerBarrelsInRadius(player.pos, 185.0f, player.baseDmg * 1.5f);
-            TriggerArcaneResonance(aimDir);
         } else {
-            // Bẫy Nổ & Nhào Lộn: đặt bẫy tại chỗ và lộn ngược 120px
+            // Ranger / Sniper Deadeye / Valkyrie Lancer [E]
             GroundEffect trap;
             trap.kind = 0;
             trap.pos = player.pos;
-            trap.radius = 140.0f;
+            trap.radius = (player.subClass > 0) ? 165.0f : 140.0f;
             trap.maxTimer = 0.75f;
             trap.timer = 0.75f;
-            trap.damage = player.baseDmg * 2.4f;
-            trap.color = { 90, 240, 145, 255 };
+            trap.damage = player.baseDmg * (player.subClass == 1 ? 2.8f : (player.subClass == 2 ? 2.5f : 2.4f));
+            trap.color = (player.subClass == 2) ? Color{ 90, 225, 255, 255 } : Color{ 90, 240, 145, 255 };
             groundEffects.push_back(trap);
 
             Vector2 backDir = Vector2Length(moveDir) > 0.1f ? Vector2Negate(moveDir) : Vector2Negate(aimDir);
             if (Vector2Length(aimDir) > 0.1f) backDir = Vector2Negate(aimDir);
-            Vector2 dest = Vector2Add(player.pos, Vector2Scale(backDir, 120.0f));
-            float bw = roomW / 2.0f - 30.0f, bh = roomH / 2.0f - 30.0f;
+            float vDist = (player.subClass == 1) ? 140.0f : 120.0f;
+            Vector2 dest = Vector2Add(player.pos, Vector2Scale(backDir, vDist));
             dest.x = Clamp(dest.x, -bw, bw);
             dest.y = Clamp(dest.y, -bh, bh);
             ResolvePillars(dest, 15.0f);
             ghosts.push_back({ player.pos, player.facingLeft, 0.25f, 0.25f });
             player.pos = dest;
             player.invulnTimer = std::max(player.invulnTimer, 0.40f);
+            if (player.subClass == 1) player.hasteTimer = std::max(player.hasteTimer, 2.5f);
+            else if (player.subClass == 2) { player.shieldActive = true; player.hasteTimer = std::max(player.hasteTimer, 3.5f); }
             PlaySound(snd.sndDash);
-            Burst(trap.pos, { 110, 235, 145, 255 }, 14, 180.0f, 0.4f);
+            Burst(trap.pos, trap.color, 14, 180.0f, 0.4f);
         }
     }
 
@@ -4327,113 +4828,205 @@ public:
         PlaySound(snd.sndLevelUp);
         Shake(0.45f, 9.0f);
         hitStop = 0.06f;
+        float critMul = CritMult();
 
         if (player.heroClass == CLASS_KNIGHT) {
-            // Phán Quyết Thiên Đường: đại kiếm ánh sáng 250px, 3.5x DMG + choáng 1.5s + thánh vực 4s
-            ShowBanner("HEAVEN'S JUDGMENT!", 2.2f);
-            Burst(player.pos, GOLD, 48, 440.0f, 0.85f);
-            NovaVisual nv;
-            nv.pos = player.pos;
-            nv.maxRadius = 250.0f;
-            nv.timer = 0.45f;
-            nv.maxTimer = 0.45f;
-            nv.color = GOLD;
-            novas.push_back(nv);
-
-            for (auto& e : enemies) {
-                if (e.hp <= 0) continue;
-                if (Vector2Distance(player.pos, e.pos) <= 250.0f) {
-                    bool isCrit = (Rand01() < player.critChance);
-                    float dmg = player.baseDmg * 3.5f * (isCrit ? 2.0f : 1.0f);
-                    Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
-                    DamageEnemy(e, dmg, kb, 260.0f, isCrit, false);
-                    if (e.hp > 0) e.stunTimer = std::max(e.stunTimer, 1.5f);
+            if (player.subClass == 2) {
+                // Dread Berserker [R]: Cataclysmic Guillotine + 4s Blood Vortex
+                ShowBanner("CATACLYSMIC GUILLOTINE!", 2.4f);
+                player.hasteTimer = std::max(player.hasteTimer, 4.0f);
+                Burst(player.pos, { 235, 65, 65, 255 }, 48, 440.0f, 0.85f);
+                NovaVisual nv; nv.pos = player.pos; nv.maxRadius = 270.0f; nv.timer = 0.45f; nv.maxTimer = 0.45f; nv.color = { 235, 65, 65, 255 };
+                novas.push_back(nv);
+                for (auto& e : enemies) {
+                    if (e.hp <= 0) continue;
+                    if (Vector2Distance(player.pos, e.pos) <= 270.0f) {
+                        bool isCrit = (Rand01() < player.critChance);
+                        float dmg = player.baseDmg * 4.2f * (isCrit ? critMul : 1.0f);
+                        Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
+                        DamageEnemy(e, dmg, kb, 260.0f, isCrit, false);
+                        if (e.hp > 0) e.stunTimer = std::max(e.stunTimer, 1.2f);
+                    }
                 }
+                TriggerBarrelsInRadius(player.pos, 270.0f, player.baseDmg * 4.2f);
+                GroundEffect bv; bv.kind = 2; bv.pos = player.pos; bv.radius = 250.0f; bv.maxTimer = 4.0f; bv.timer = 4.0f; bv.tickTimer = 0.15f;
+                bv.damage = player.baseDmg * 1.45f; bv.color = { 235, 55, 65, 255 };
+                groundEffects.push_back(bv);
+            } else {
+                // Vanguard Knight / Holy Paladin [R]: Judgment of Solaris
+                bool isPal = (player.subClass == 1);
+                float rad = isPal ? 280.0f : 250.0f;
+                float mul = isPal ? 4.2f : 3.5f;
+                ShowBanner(isPal ? "JUDGMENT OF SOLARIS!" : "HEAVEN'S JUDGMENT!", 2.2f);
+                Burst(player.pos, GOLD, 48, 440.0f, 0.85f);
+                NovaVisual nv; nv.pos = player.pos; nv.maxRadius = rad; nv.timer = 0.45f; nv.maxTimer = 0.45f; nv.color = GOLD;
+                novas.push_back(nv);
+                for (auto& e : enemies) {
+                    if (e.hp <= 0) continue;
+                    if (Vector2Distance(player.pos, e.pos) <= rad) {
+                        bool isCrit = (Rand01() < player.critChance);
+                        float dmg = player.baseDmg * mul * (isCrit ? critMul : 1.0f);
+                        Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
+                        DamageEnemy(e, dmg, kb, 260.0f, isCrit, false);
+                        if (e.hp > 0) e.stunTimer = std::max(e.stunTimer, isPal ? 2.0f : 1.5f);
+                    }
+                }
+                TriggerBarrelsInRadius(player.pos, rad, player.baseDmg * mul);
+                GroundEffect zone; zone.kind = 1; zone.pos = player.pos; zone.radius = rad;
+                zone.maxTimer = isPal ? 4.5f : 4.0f; zone.timer = zone.maxTimer; zone.tickTimer = 0.40f;
+                zone.damage = player.baseDmg * (isPal ? 1.1f : 0.85f); zone.color = GOLD;
+                groundEffects.push_back(zone);
             }
-            TriggerBarrelsInRadius(player.pos, 250.0f, player.baseDmg * 3.5f);
-            GroundEffect zone;
-            zone.kind = 1;
-            zone.pos = player.pos;
-            zone.radius = 250.0f;
-            zone.maxTimer = 4.0f;
-            zone.timer = 4.0f;
-            zone.tickTimer = 0.40f;
-            zone.damage = player.baseDmg * 0.85f;
-            zone.color = GOLD;
-            groundEffects.push_back(zone);
         } else if (player.heroClass == CLASS_ASSASSIN) {
-            // Vũ Điệu Tử Thần: 3.5s bão kiếm xung quanh người chơi
-            ShowBanner("BLADE STORM!", 2.2f);
-            player.ultActiveTimer = 3.5f;
+            ShowBanner(player.subClass == 1 ? "WRAITH HURRICANE!" : (player.subClass == 2 ? "THOUSAND BLADES!" : "BLADE STORM!"), 2.2f);
+            player.ultActiveTimer = (player.subClass == 1) ? 4.0f : (player.subClass == 2 ? 3.8f : 3.5f);
             player.ultTickTimer = 0.0f;
-            player.invulnTimer = std::max(player.invulnTimer, 0.45f);
-            Burst(player.pos, { 255, 65, 130, 255 }, 42, 400.0f, 0.7f);
+            player.invulnTimer = std::max(player.invulnTimer, 0.50f);
+            Color uc = (player.subClass == 1) ? Color{ 195, 90, 255, 255 } : (player.subClass == 2 ? Color{ 110, 235, 255, 255 } : Color{ 255, 65, 130, 255 });
+            Burst(player.pos, uc, 42, 400.0f, 0.7f);
         } else if (player.heroClass == CLASS_MAGE) {
-            // Thiên Thạch Hư Không: hố đen hút quái & mưa 12 thiên thạch
-            ShowBanner("VOID CATACLYSM!", 2.2f);
-            Vector2 center = Vector2Add(player.pos, Vector2Scale(aimDir, 150.0f));
-            center.x = Clamp(center.x, -(roomW / 2.0f - 120.0f), roomW / 2.0f - 120.0f);
-            center.y = Clamp(center.y, -(roomH / 2.0f - 100.0f), roomH / 2.0f - 100.0f);
-            GroundEffect vortex;
-            vortex.kind = 2;
-            vortex.pos = center;
-            vortex.radius = 240.0f;
-            vortex.maxTimer = 3.8f;
-            vortex.timer = 3.8f;
-            vortex.tickTimer = 0.15f;
-            vortex.damage = player.baseDmg * 1.5f;
-            vortex.color = { 175, 90, 255, 255 };
-            groundEffects.push_back(vortex);
-            Burst(center, { 175, 90, 255, 255 }, 38, 360.0f, 0.8f);
-            TriggerArcaneResonance(aimDir);
+            if (player.subClass == 1) {
+                // Spellblade (Kiếm Sư) [R]: Excalibur Astral Storm
+                ShowBanner("EXCALIBUR ASTRAL STORM!", 2.4f);
+                Burst(player.pos, { 85, 230, 255, 255 }, 48, 440.0f, 0.85f);
+                NovaVisual nv; nv.pos = player.pos; nv.maxRadius = 260.0f; nv.timer = 0.45f; nv.maxTimer = 0.45f; nv.color = { 85, 230, 255, 255 };
+                novas.push_back(nv);
+                player.swordOrbitTimer = 4.0f;
+                player.swordOrbitTick = 0.0f;
+                player.hasteTimer = std::max(player.hasteTimer, 4.0f);
+                player.shieldActive = true;
+                for (auto& e : enemies) {
+                    if (e.hp <= 0) continue;
+                    if (Vector2Distance(player.pos, e.pos) <= 260.0f) {
+                        bool isCrit = (Rand01() < player.critChance);
+                        float dmg = player.baseDmg * 3.8f * (isCrit ? critMul : 1.0f);
+                        Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
+                        DamageEnemy(e, dmg, kb, 260.0f, isCrit, false);
+                        if (e.hp > 0) e.stunTimer = std::max(e.stunTimer, 1.5f);
+                    }
+                }
+                TriggerBarrelsInRadius(player.pos, 260.0f, player.baseDmg * 3.8f);
+                Vector2 center = Vector2Add(player.pos, Vector2Scale(aimDir, 110.0f));
+                center.x = Clamp(center.x, -(roomW / 2.0f - 120.0f), roomW / 2.0f - 120.0f);
+                center.y = Clamp(center.y, -(roomH / 2.0f - 100.0f), roomH / 2.0f - 100.0f);
+                GroundEffect srain; srain.kind = 3; srain.pos = center; srain.radius = 260.0f; srain.maxTimer = 4.0f; srain.timer = 4.0f;
+                srain.tickTimer = 0.10f; srain.damage = player.baseDmg * 1.35f; srain.color = { 105, 230, 255, 255 };
+                groundEffects.push_back(srain);
+                TriggerArcaneResonance(aimDir);
+            } else {
+                // Arcane Mage / Archmage [R]: Void Cataclysm / Cosmic Singularity
+                bool isArch = (player.subClass == 2);
+                ShowBanner(isArch ? "COSMIC SINGULARITY!" : "VOID CATACLYSM!", 2.2f);
+                if (isArch && player.hp < player.maxHp) {
+                    float heal = player.maxHp * 0.25f;
+                    player.hp = std::min(player.maxHp, player.hp + heal);
+                    SpawnPopup({ player.pos.x, player.pos.y - 26.0f }, "+" + std::to_string((int)heal), GREEN);
+                }
+                Vector2 center = Vector2Add(player.pos, Vector2Scale(aimDir, 150.0f));
+                center.x = Clamp(center.x, -(roomW / 2.0f - 120.0f), roomW / 2.0f - 120.0f);
+                center.y = Clamp(center.y, -(roomH / 2.0f - 100.0f), roomH / 2.0f - 100.0f);
+                GroundEffect vortex; vortex.kind = 2; vortex.pos = center;
+                vortex.radius = isArch ? 270.0f : 240.0f;
+                vortex.maxTimer = isArch ? 4.2f : 3.8f; vortex.timer = vortex.maxTimer; vortex.tickTimer = 0.15f;
+                vortex.damage = player.baseDmg * (isArch ? 1.75f : 1.5f);
+                vortex.color = { 175, 90, 255, 255 };
+                groundEffects.push_back(vortex);
+                Burst(center, { 175, 90, 255, 255 }, 38, 360.0f, 0.8f);
+                TriggerArcaneResonance(aimDir);
+            }
         } else {
-            // Mưa Tên Phượng Hoàng: 16 mũi tên lửa rơi + tăng 35% tốc đánh
-            ShowBanner("PHOENIX ARROW RAIN!", 2.2f);
-            player.hasteTimer = 3.6f;
+            // Emerald Ranger / Sniper Deadeye / Valkyrie Lancer [R]
+            bool isVal = (player.subClass == 2);
+            ShowBanner(isVal ? "GUNGNIR SKYFALL!" : (player.subClass == 1 ? "SOLARIS ARROW TEMPEST!" : "PHOENIX ARROW RAIN!"), 2.2f);
+            player.hasteTimer = (player.subClass > 0) ? 4.0f : 3.6f;
+            if (isVal) { player.holyBuffTimer = 4.0f; player.shieldActive = true; }
             Vector2 center = Vector2Add(player.pos, Vector2Scale(aimDir, 130.0f));
             center.x = Clamp(center.x, -(roomW / 2.0f - 120.0f), roomW / 2.0f - 120.0f);
             center.y = Clamp(center.y, -(roomH / 2.0f - 100.0f), roomH / 2.0f - 100.0f);
-            GroundEffect rain;
-            rain.kind = 3;
-            rain.pos = center;
-            rain.radius = 250.0f;
-            rain.maxTimer = 3.6f;
-            rain.timer = 3.6f;
-            rain.tickTimer = 0.10f;
-            rain.damage = player.baseDmg * 1.15f;
-            rain.color = { 255, 160, 55, 255 };
+            GroundEffect rain; rain.kind = 3; rain.pos = center;
+            rain.radius = (player.subClass > 0) ? 275.0f : 250.0f;
+            rain.maxTimer = (player.subClass == 1) ? 4.0f : (isVal ? 3.8f : 3.6f);
+            rain.timer = rain.maxTimer; rain.tickTimer = 0.10f;
+            rain.damage = player.baseDmg * (player.subClass > 0 ? 1.35f : 1.15f);
+            rain.color = isVal ? Color{ 100, 235, 255, 255 } : Color{ 255, 160, 55, 255 };
             groundEffects.push_back(rain);
-            Burst(player.pos, { 255, 175, 65, 255 }, 32, 340.0f, 0.65f);
+            Burst(player.pos, rain.color, 32, 340.0f, 0.65f);
         }
     }
 
     void UpdateActiveSkills(float dt) {
-        // Bão kiếm Sát Thủ
+        float critMul = CritMult();
+        // Kiếm Hồn xoay quanh Spellblade (Kiếm Sư)
+        if (player.swordOrbitTimer > 0.0f) {
+            player.swordOrbitTimer -= dt;
+            player.swordOrbitTick -= dt;
+            if (player.swordOrbitTick <= 0.0f) {
+                player.swordOrbitTick = 0.22f;
+                PlaySound(snd.sndSlash);
+                SlashVisual sv;
+                sv.pos = player.pos;
+                sv.angle = fmodf((float)GetTime() * 820.0f, 360.0f);
+                sv.kind = 12;
+                sv.timer = 0.18f;
+                sv.maxTimer = 0.18f;
+                sv.color = { 85, 230, 255, 255 };
+                slashes.push_back(sv);
+                for (auto& e : enemies) {
+                    if (e.hp <= 0) continue;
+                    if (Vector2Distance(player.pos, e.pos) <= 170.0f + e.radius * 0.4f) {
+                        bool isCrit = (Rand01() < player.critChance);
+                        float dmg = player.baseDmg * 0.75f * (isCrit ? critMul : 1.0f);
+                        Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
+                        DamageEnemy(e, dmg, kb, 120.0f, isCrit, false);
+                    }
+                }
+                TriggerBarrelsInRadius(player.pos, 170.0f, player.baseDmg * 0.75f);
+            }
+        }
+
+        // Bão kiếm Sát Thủ / Tử Thần / Nhẫn Giả
         if (player.ultActiveTimer > 0.0f) {
             player.ultActiveTimer -= dt;
             if (player.heroClass == CLASS_ASSASSIN) {
                 player.ultTickTimer -= dt;
                 if (player.ultTickTimer <= 0.0f) {
-                    player.ultTickTimer = 0.20f;
+                    player.ultTickTimer = (player.subClass == 2) ? 0.16f : ((player.subClass == 1) ? 0.18f : 0.20f);
                     PlaySound(snd.sndSlash);
+                    Color uc = (player.subClass == 1) ? Color{ 195, 90, 255, 255 } : (player.subClass == 2 ? Color{ 110, 235, 255, 255 } : Color{ 255, 70, 145, 255 });
+                    float uRad = (player.subClass == 1) ? 210.0f : 185.0f;
+                    float uMul = (player.subClass == 1) ? 1.05f : 0.85f;
                     SlashVisual sv;
                     sv.pos = player.pos;
                     sv.angle = fmodf((float)GetTime() * 900.0f, 360.0f);
                     sv.kind = 12;
                     sv.timer = 0.16f;
                     sv.maxTimer = 0.16f;
-                    sv.color = { 255, 70, 145, 255 };
+                    sv.color = uc;
                     slashes.push_back(sv);
                     for (auto& e : enemies) {
                         if (e.hp <= 0) continue;
-                        if (Vector2Distance(player.pos, e.pos) <= 185.0f + e.radius * 0.4f) {
+                        if (Vector2Distance(player.pos, e.pos) <= uRad + e.radius * 0.4f) {
                             bool isCrit = (Rand01() < player.critChance);
-                            float dmg = player.baseDmg * 0.85f * (isCrit ? 2.4f : 1.0f);
+                            float dmg = player.baseDmg * uMul * (isCrit ? critMul : 1.0f);
                             Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
                             DamageEnemy(e, dmg, kb, 110.0f, isCrit, false);
+                            if (player.subClass == 1 && player.hp < player.maxHp) {
+                                player.hp = std::min(player.maxHp, player.hp + 2.0f);
+                            }
                         }
                     }
-                    TriggerBarrelsInRadius(player.pos, 185.0f, player.baseDmg * 0.85f);
+                    if (player.subClass == 2) { // Trickster: 4-way shurikens
+                        float baseA = (float)GetTime() * 3.5f;
+                        for (int k = 0; k < 4; ++k) {
+                            float a = baseA + k * (PI / 2.0f);
+                            Projectile p; p.fromPlayer = true; p.kind = 3;
+                            p.pos = Vector2Add(player.pos, { cosf(a) * 18.0f, sinf(a) * 18.0f });
+                            p.vel = { cosf(a) * 560.0f, sinf(a) * 560.0f };
+                            p.damage = player.baseDmg * 0.55f; p.life = 1.0f; p.radius = 7.0f; p.pierce = 1; p.color = uc;
+                            projectiles.push_back(p);
+                        }
+                    }
+                    TriggerBarrelsInRadius(player.pos, uRad, player.baseDmg * uMul);
                 }
             }
         }
@@ -4444,7 +5037,7 @@ public:
             GroundEffect& ge = groundEffects[i];
             ge.timer -= dt;
 
-            if (ge.kind == 0) { // Bẫy nổ Ranger
+            if (ge.kind == 0) { // Bẫy nổ Ranger / Trickster
                 bool triggered = (ge.timer <= 0.0f);
                 if (!triggered && ge.timer <= ge.maxTimer - 0.15f) {
                     for (const auto& e : enemies) {
@@ -4459,19 +5052,20 @@ public:
                     nv.maxRadius = ge.radius;
                     nv.timer = 0.32f;
                     nv.maxTimer = 0.32f;
-                    nv.color = { 255, 175, 65, 255 };
+                    nv.color = ge.color;
                     novas.push_back(nv);
-                    Burst(ge.pos, { 255, 175, 65, 255 }, 30, 340.0f, 0.55f);
+                    Burst(ge.pos, ge.color, 30, 340.0f, 0.55f);
                     for (auto& e : enemies) {
                         if (e.hp <= 0) continue;
                         if (Vector2Distance(ge.pos, e.pos) <= ge.radius + e.radius * 0.4f) {
                             bool isCrit = (Rand01() < player.critChance);
-                            float dmg = ge.damage * (isCrit ? 2.0f : 1.0f);
+                            float dmg = ge.damage * (isCrit ? critMul : 1.0f);
                             Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, ge.pos));
                             DamageEnemy(e, dmg, kb, 260.0f, isCrit, true);
                             if (e.hp > 0) {
                                 e.slowTimer = std::max(e.slowTimer, 3.0f);
                                 e.slowFactor = std::min(e.slowFactor, 0.55f);
+                                if (player.heroClass == CLASS_RANGER && player.subClass == 1) e.stunTimer = std::max(e.stunTimer, 0.9f);
                             }
                         }
                     }
@@ -4485,7 +5079,7 @@ public:
                     ge.tickTimer = 0.40f;
                     Burst(ge.pos, GOLD, 8, 220.0f, 0.4f);
                     if (player.hp < player.maxHp) {
-                        float heal = std::max(1.0f, player.maxHp * 0.016f);
+                        float heal = std::max(1.0f, player.maxHp * (player.subClass == 1 ? 0.024f : 0.016f));
                         player.hp = std::min(player.maxHp, player.hp + heal);
                         SpawnPopup({ player.pos.x, player.pos.y - 26.0f }, "+" + std::to_string((int)roundf(heal)), GREEN);
                     }
@@ -4493,13 +5087,13 @@ public:
                         if (e.hp <= 0) continue;
                         if (Vector2Distance(ge.pos, e.pos) <= ge.radius) {
                             bool isCrit = (Rand01() < player.critChance);
-                            float dmg = ge.damage * (isCrit ? 2.0f : 1.0f);
+                            float dmg = ge.damage * (isCrit ? critMul : 1.0f);
                             Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, ge.pos));
                             DamageEnemy(e, dmg, kb, 80.0f, isCrit, false);
                         }
                     }
                 }
-            } else if (ge.kind == 2) { // Hố đen Mage
+            } else if (ge.kind == 2) { // Hố đen Mage / Blood Vortex Berserker
                 for (auto& e : enemies) {
                     if (e.hp <= 0) continue;
                     float d = Vector2Distance(ge.pos, e.pos);
@@ -4510,7 +5104,7 @@ public:
                 }
                 ge.tickTimer -= dt;
                 if (ge.tickTimer <= 0.0f) {
-                    ge.tickTimer = 0.30f;
+                    ge.tickTimer = (player.heroClass == CLASS_MAGE && player.subClass == 2) ? 0.24f : 0.30f;
                     Vector2 target = ge.pos;
                     std::vector<Vector2> cands;
                     for (const auto& e : enemies) if (e.hp > 0 && Vector2Distance(ge.pos, e.pos) <= ge.radius * 0.85f) cands.push_back(e.pos);
@@ -4528,13 +5122,13 @@ public:
                     met.maxTimer = 0.35f;
                     met.timer = 0.35f;
                     met.damage = ge.damage;
-                    met.color = { 185, 95, 255, 255 };
+                    met.color = ge.color;
                     spawned.push_back(met);
                 }
-            } else if (ge.kind == 3) { // Mưa Tên Phượng Hoàng Ranger
+            } else if (ge.kind == 3) { // Mưa Tên / Mưa Kiếm / Thương Sấm
                 ge.tickTimer -= dt;
                 if (ge.tickTimer <= 0.0f) {
-                    ge.tickTimer = 0.22f;
+                    ge.tickTimer = (player.heroClass == CLASS_RANGER && player.subClass == 1) ? 0.18f : 0.22f;
                     Vector2 target = ge.pos;
                     std::vector<Vector2> cands;
                     for (const auto& e : enemies) if (e.hp > 0 && Vector2Distance(ge.pos, e.pos) <= ge.radius * 0.9f) cands.push_back(e.pos);
@@ -4548,14 +5142,14 @@ public:
                     GroundEffect arr;
                     arr.kind = 5;
                     arr.pos = target;
-                    arr.radius = 75.0f;
+                    arr.radius = 78.0f;
                     arr.maxTimer = 0.25f;
                     arr.timer = 0.25f;
                     arr.damage = ge.damage;
-                    arr.color = { 255, 165, 55, 255 };
+                    arr.color = ge.color;
                     spawned.push_back(arr);
                 }
-            } else if (ge.kind == 4 || ge.kind == 5) { // Thiên thạch / Mũi tên lửa rơi
+            } else if (ge.kind == 4 || ge.kind == 5) { // Thiên thạch / Kiếm ánh sáng / Mũi tên rơi
                 if (ge.timer <= 0.0f) {
                     bool isMet = (ge.kind == 4);
                     PlaySound(isMet ? snd.sndSpecial : snd.sndHit);
@@ -4572,7 +5166,7 @@ public:
                         if (e.hp <= 0) continue;
                         if (Vector2Distance(ge.pos, e.pos) <= ge.radius + e.radius * 0.4f) {
                             bool isCrit = (Rand01() < player.critChance);
-                            float dmg = ge.damage * (isCrit ? 2.0f : 1.0f);
+                            float dmg = ge.damage * (isCrit ? critMul : 1.0f);
                             Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, ge.pos));
                             DamageEnemy(e, dmg, kb, 140.0f, isCrit, false);
                             if (!isMet && e.hp > 0) {
@@ -4749,7 +5343,7 @@ public:
             ShowBanner("Healed " + std::to_string((int)s.heal) + " HP!", 2.0f);
         } else {
             int soldOld = 0;
-            if (TryEquipItem(s.item, soldOld)) ShowBanner("EQUIPPED: " + s.item.name, 2.5f);
+            if (TryEquipItem(s.item, soldOld)) ShowBanner("EQUIPPED: " + equipped[s.item.slot].name, 2.5f);
             else { player.gold += s.item.SellValue(); ShowBanner("Bought & sold " + s.item.name, 2.0f); }
         }
         PlaySound(snd.sndCoin);
@@ -5216,16 +5810,22 @@ public:
     // Mặc nếu mạnh hơn món đang đeo (món cũ được bán lấy vàng). Trả về false nếu không mặc.
     bool TryEquipItem(const EquipItem& it, int& soldGold) {
         soldGold = 0;
-        int s = it.slot;
+        EquipItem item = it;
+        const SubclassDef* sc = ActiveSubclass();
+        if (item.slot == SLOT_WEAPON && sc != nullptr) {
+            item.weaponType = sc->signatureWeapon;
+            item.name = std::string(item.RarityName()) + " " + sc->weaponTitle;
+        }
+        int s = item.slot;
         if (hasEquip[s]) {
-            if (it.Score() <= equipped[s].Score()) return false;
+            if (item.Score() <= equipped[s].Score()) return false;
             ApplyItem(equipped[s], -1.0f);
             soldGold = equipped[s].SellValue();
             player.gold += soldGold;
         }
-        equipped[s] = it;
+        equipped[s] = item;
         hasEquip[s] = true;
-        ApplyItem(it, 1.0f);
+        ApplyItem(item, 1.0f);
         return true;
     }
 
@@ -5247,7 +5847,7 @@ public:
                 int sold = 0;
                 Color rc = d.item.RarityColor();
                 if (TryEquipItem(d.item, sold)) {
-                    ShowBanner("EQUIPPED: " + d.item.name + (sold > 0 ? "  (old gear sold +" + std::to_string(sold) + "g)" : ""), 3.0f);
+                    ShowBanner("EQUIPPED: " + equipped[d.item.slot].name + (sold > 0 ? "  (old gear sold +" + std::to_string(sold) + "g)" : ""), 3.0f);
                     PlaySound(snd.sndLevelUp);
                     Burst(player.pos, rc, 24, 260.0f, 0.7f);
                 } else {
@@ -5371,13 +5971,12 @@ public:
     }
 
     void DrawInventory() {
-        const ClassDef& cd = kClasses[std::max(0, std::min(3, player.heroClass))];
         DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.84f));
         int px = 70, py = 46, pw = 1140, ph = 632;
         DrawRectangle(px, py, pw, ph, { 14, 18, 30, 248 });
         DrawRectangleLines(px, py, pw, ph, GOLD);
-        std::string title = std::string("EQUIPMENT & SKILLS  -  ") + cd.name;
-        DrawText(title.c_str(), 1280 / 2 - MeasureText(title.c_str(), 30) / 2, py + 14, 30, cd.color);
+        std::string title = std::string("EQUIPMENT & SKILLS  -  ") + HeroTitle();
+        DrawText(title.c_str(), 1280 / 2 - MeasureText(title.c_str(), 30) / 2, py + 14, 30, HeroColor());
 
         static const char* slotNames[4] = { "WEAPON", "ARMOR", "BOOTS", "RING" };
         int cw = 260, gap = 14, cx0 = px + (pw - (cw * 4 + gap * 3)) / 2, cy = py + 58, ch = 228;
@@ -5421,17 +6020,17 @@ public:
         std::string extra = "Rage: " + std::to_string((int)player.rage) + "/100   Ember Lv" + std::to_string(player.igniteLevel) + "   Frost Lv" + std::to_string(player.frostLevel);
         DrawText(extra.c_str(), px + pw - 36 - MeasureText(extra.c_str(), 15), sy + 2, 15, { 150, 165, 200, 255 });
 
-        // Bộ 4 kỹ năng của Class
+        // Bộ 4 kỹ năng của Class / Nhánh phụ
         int ky = sy + 106;
-        DrawText("SKILLS", px + 36, ky, 18, cd.accent);
+        DrawText("SKILLS", px + 36, ky, 18, HeroAccent());
         const char* tags[4] = { "[PASSIVE]", "[Q]", "[E]", "[R] RAGE" };
-        const char* sNames[4] = { cd.passiveName, cd.qName, cd.eName, cd.rName };
-        const char* sDescs[4] = { cd.passiveDesc, cd.qDesc, cd.eDesc, cd.rDesc };
+        const char* sNames[4] = { PassiveName(), QName(), EName(), RName() };
+        const char* sDescs[4] = { PassiveDesc(), QDesc(), EDesc(), RDesc() };
         for (int s = 0; s < 4; ++s) {
             int rowY = ky + 24 + s * 22;
-            DrawText(tags[s], px + 36, rowY, 15, s == 3 ? ORANGE : (s == 0 ? cd.color : SKYBLUE));
+            DrawText(tags[s], px + 36, rowY, 15, s == 3 ? ORANGE : (s == 0 ? HeroColor() : SKYBLUE));
             DrawText(sNames[s], px + 132, rowY, 15, WHITE);
-            DrawText(sDescs[s], px + 305, rowY, 14, { 190, 205, 230, 255 });
+            DrawText(sDescs[s], px + 315, rowY, 14, { 190, 205, 230, 255 });
         }
 
         if (!player.relics.empty()) {
@@ -5815,15 +6414,18 @@ public:
             float aimA = sel ? sinf(t * 1.8f) * 0.45f : 0.25f;
             DrawHeroModel(prevPos, i, cd.startWeapon, { cosf(aimA), sinf(aimA) }, false, t * (sel ? 6.0f : 0.0f), sel, sel ? sinf(t * 5.0f) * 0.3f : 0.35f, false, false, 0.0f, 0.0f);
 
-            // Chỉ số cơ bản
-            int stY = cy + 152;
-            DrawRectangle(cx + 10, stY, cardW - 20, 56, { 12, 15, 26, 220 });
-            DrawText(TextFormat("HP: %d   DMG: %d   ARM: %.1f", (int)cd.baseHp, (int)cd.baseDmg, cd.baseArmor), cx + 18, stY + 8, 13, RAYWHITE);
-            DrawText(TextFormat("SPD: %d   ATK: %.1f/s   CRIT: %d%%", (int)cd.baseSpeed, cd.baseAtkRate, (int)roundf(cd.baseCrit * 100)), cx + 18, stY + 24, 13, SKYBLUE);
-            DrawText(TextFormat("Weapon: %s", wpNames[cd.startWeapon]), cx + 18, stY + 40, 13, GOLD);
+            // Chỉ số cơ bản + nhánh Chuyển Chức Lv.5
+            int stY = cy + 146;
+            DrawRectangle(cx + 10, stY, cardW - 20, 68, { 12, 15, 26, 220 });
+            DrawText(TextFormat("HP: %d   DMG: %d   ARM: %.1f", (int)cd.baseHp, (int)cd.baseDmg, cd.baseArmor), cx + 18, stY + 6, 13, RAYWHITE);
+            DrawText(TextFormat("SPD: %d   ATK: %.1f/s   CRIT: %d%%", (int)cd.baseSpeed, cd.baseAtkRate, (int)roundf(cd.baseCrit * 100)), cx + 18, stY + 21, 13, SKYBLUE);
+            DrawText(TextFormat("Weapon: %s", wpNames[cd.startWeapon]), cx + 18, stY + 36, 13, GOLD);
+            std::string brTxt = std::string("Lv.5: ") + kSubclasses[i][0].name + " / " + kSubclasses[i][1].name;
+            if ((int)brTxt.size() > 38) brTxt = std::string("Lv.5: ") + kSubclasses[i][0].name + " | ...";
+            DrawText(brTxt.c_str(), cx + 18, stY + 51, 11, cd.accent);
 
             // 4 kỹ năng: 1 Passive, 2 thường (Q, E), 1 Nộ (R)
-            int sy = stY + 66;
+            int sy = stY + 74;
             const char* tags[4] = { "PASSIVE", "SKILL [Q]", "SKILL [E]", "ULTIMATE [R]" };
             const char* sn[4] = { cd.passiveName, cd.qName, cd.eName, cd.rName };
             const char* sd[4] = { cd.passiveDesc, cd.qDesc, cd.eDesc, cd.rDesc };
@@ -5872,6 +6474,7 @@ public:
                     std::string val = line.substr(eq + 1);
                     if (k == "exists") existsFlag = atoi(val.c_str());
                     else if (k == "player_heroClass") info.heroClass = std::max(0, std::min(3, atoi(val.c_str())));
+                    else if (k == "player_subClass") info.subClass = std::max(0, std::min(2, atoi(val.c_str())));
                     else if (k == "floor") info.floor = std::max(1, atoi(val.c_str()));
                     else if (k == "player_level") info.level = std::max(1, atoi(val.c_str()));
                     else if (k == "player_hp") info.hp = atoi(val.c_str());
@@ -5925,6 +6528,7 @@ public:
           << "roomCleared=" << roomCleared << "\n"
           << "selectedClass=" << selectedClass << "\n"
           << "player_heroClass=" << player.heroClass << "\n"
+          << "player_subClass=" << player.subClass << "\n"
           << "player_hp=" << player.hp << "\n"
           << "player_maxHp=" << player.maxHp << "\n"
           << "player_speed=" << player.speed << "\n"
@@ -6018,6 +6622,7 @@ public:
             else if (k == "roomCleared") roomCleared = iv;
             else if (k == "selectedClass") loadedSelClass = std::max(0, std::min(3, iv));
             else if (k == "player_heroClass") loadedP.heroClass = std::max(0, std::min(3, iv));
+            else if (k == "player_subClass") loadedP.subClass = std::max(0, std::min(2, iv));
             else if (k == "player_hp") loadedP.hp = fv;
             else if (k == "player_maxHp") loadedP.maxHp = std::max(1.0f, fv);
             else if (k == "player_speed") loadedP.speed = std::max(80.0f, fv);
@@ -6090,6 +6695,7 @@ public:
         bossesKilled = loadedBosses;
         phoenixUsed = loadedPhoenix;
         selectedClass = player.heroClass;
+        subclassChoosing = false;
         comboCount = 0;
         comboTimer = 0.0f;
         damagePulse = 0.0f;
@@ -6187,8 +6793,11 @@ public:
             int cx = x0 + i * (cardW + gap);
             bool sel = (saveSlotSel == i);
             Rectangle r = { (float)cx, (float)cy, (float)cardW, (float)cardH };
-            const ClassDef& cd = kClasses[std::max(0, std::min(3, info.heroClass))];
-            Color accent = info.exists ? cd.color : Color{ 95, 110, 140, 255 };
+            int hc = std::max(0, std::min(3, info.heroClass));
+            const ClassDef& cd = kClasses[hc];
+            const SubclassDef* sc = (info.subClass == 1 || info.subClass == 2) ? &kSubclasses[hc][info.subClass - 1] : nullptr;
+            const char* slotClsName = sc ? sc->name : cd.name;
+            Color accent = info.exists ? (sc ? sc->color : cd.color) : Color{ 95, 110, 140, 255 };
 
             DrawRectangleRec(r, sel ? Color{ 26, 34, 56, 252 } : Color{ 16, 20, 34, 240 });
             DrawRectangle(cx, cy, cardW, 42, Fade(accent, sel ? 0.35f : 0.18f));
@@ -6200,10 +6809,10 @@ public:
             if (info.exists) {
                 Vector2 prev = { cx + cardW / 2.0f, (float)cy + 122.0f };
                 DrawCircleV(prev, 44.0f, Fade(accent, sel ? 0.18f : 0.09f));
-                DrawHeroModel(prev, info.heroClass, info.weaponType, { 0.9f, sinf(t * 2.0f + i) * 0.2f }, false, t * (sel ? 5.0f : 0.0f), sel, 0.35f, false, false, 0.0f, 0.0f);
+                DrawHeroModel(prev, info.heroClass, info.weaponType, { 0.9f, sinf(t * 2.0f + i) * 0.2f }, false, t * (sel ? 5.0f : 0.0f), sel, 0.35f, false, false, 0.0f, 0.0f, info.subClass, 0.0f);
 
                 int iy = cy + 190;
-                DrawText(cd.name, cx + cardW / 2 - MeasureText(cd.name, 20) / 2, iy, 20, cd.color);
+                DrawText(slotClsName, cx + cardW / 2 - MeasureText(slotClsName, 19) / 2, iy, 19, accent);
                 DrawRectangle(cx + 16, iy + 32, cardW - 32, 138, { 12, 16, 28, 225 });
                 DrawRectangleLines(cx + 16, iy + 32, cardW - 32, 138, Fade(accent, 0.35f));
                 DrawText(TextFormat("Floor %d   -   Level %d", info.floor, info.level), cx + 26, iy + 42, 17, GOLD);
@@ -6345,8 +6954,8 @@ public:
         if (showHelp) { DrawHelpPanel(); return; }
         const char* t1 = "PAUSED";
         OutlinedText(t1, 1280 / 2 - MeasureText(t1, 56) / 2, 108, 56, WHITE, { 20, 24, 40, 255 });
-        std::string info = std::string(kClasses[player.heroClass].name) + "   Floor " + std::to_string(floor) + "   Level " + std::to_string(player.level) + "   Slain " + std::to_string(enemiesSlain);
-        DrawText(info.c_str(), 1280 / 2 - MeasureText(info.c_str(), 20) / 2, 170, 20, SKYBLUE);
+        std::string info = std::string(HeroTitle()) + "   Floor " + std::to_string(floor) + "   Level " + std::to_string(player.level) + "   Slain " + std::to_string(enemiesSlain);
+        DrawText(info.c_str(), 1280 / 2 - MeasureText(info.c_str(), 20) / 2, 170, 20, HeroColor());
     }
 
     // ── Drawing ──
@@ -6568,31 +7177,31 @@ public:
                     DrawRectangle((int)tip.x - 42, (int)(tip.y - 165), 84, 14, Fade(GOLD, 0.90f * k));
                     Tri({ tip.x - 12, tip.y - 10 }, { tip.x + 12, tip.y - 10 }, { tip.x, tip.y + 16 }, Fade(WHITE, k));
                 }
-            } else if (ge.kind == 2) { // Hố đen Mage
+            } else if (ge.kind == 2) { // Hố đen Mage / Blood Vortex Berserker
                 float alpha = std::min(1.0f, ge.timer);
-                DrawCircleV(ge.pos, ge.radius, Fade({ 110, 45, 200, 255 }, 0.12f * alpha));
-                DrawRing(ge.pos, ge.radius - 5.0f, ge.radius, -tm * 80.0f, -tm * 80.0f + 310.0f, 36, Fade({ 180, 95, 255, 255 }, 0.75f * alpha));
-                DrawRing(ge.pos, 45.0f, 54.0f, tm * 160.0f, tm * 160.0f + 260.0f, 20, Fade({ 120, 225, 255, 255 }, 0.8f * alpha));
+                DrawCircleV(ge.pos, ge.radius, Fade(ge.color, 0.12f * alpha));
+                DrawRing(ge.pos, ge.radius - 5.0f, ge.radius, -tm * 80.0f, -tm * 80.0f + 310.0f, 36, Fade(ge.color, 0.78f * alpha));
+                DrawRing(ge.pos, 45.0f, 54.0f, tm * 160.0f, tm * 160.0f + 260.0f, 20, Fade(WHITE, 0.75f * alpha));
                 DrawCircleV(ge.pos, 26.0f, Fade({ 15, 8, 30, 255 }, 0.9f * alpha));
-            } else if (ge.kind == 3) { // Vùng Mưa Tên Ranger
+            } else if (ge.kind == 3) { // Vùng Mưa Tên / Mưa Kiếm / Thương Sấm
                 float alpha = std::min(1.0f, ge.timer);
-                DrawCircleV(ge.pos, ge.radius, Fade({ 255, 145, 45, 255 }, 0.08f * alpha));
-                DrawCircleLines((int)ge.pos.x, (int)ge.pos.y, ge.radius, Fade({ 255, 175, 65, 255 }, 0.65f * alpha));
+                DrawCircleV(ge.pos, ge.radius, Fade(ge.color, 0.09f * alpha));
+                DrawCircleLines((int)ge.pos.x, (int)ge.pos.y, ge.radius, Fade(ge.color, 0.70f * alpha));
             } else if (ge.kind == 4) { // Thiên thạch rơi
                 float rem = std::max(0.0f, ge.timer / ge.maxTimer);
                 DrawCircleV(ge.pos, ge.radius, Fade(ge.color, 0.12f));
                 DrawCircleLines((int)ge.pos.x, (int)ge.pos.y, ge.radius * (1.0f - rem * 0.5f), Fade(ge.color, 0.85f));
                 Vector2 skyPos = { ge.pos.x + rem * 110.0f, ge.pos.y - rem * 240.0f };
-                DrawLineEx(skyPos, { skyPos.x + 28.0f, skyPos.y - 58.0f }, 10.0f, Fade(ORANGE, 0.7f));
-                DrawCircleV(skyPos, 15.0f, { 185, 95, 255, 255 });
+                DrawLineEx(skyPos, { skyPos.x + 28.0f, skyPos.y - 58.0f }, 10.0f, Fade(ge.color, 0.7f));
+                DrawCircleV(skyPos, 15.0f, ge.color);
                 DrawCircleV(skyPos, 8.0f, WHITE);
-            } else if (ge.kind == 5) { // Mũi tên Phượng Hoàng rơi
+            } else if (ge.kind == 5) { // Mũi tên / Kiếm / Thương từ trời rơi
                 float rem = std::max(0.0f, ge.timer / ge.maxTimer);
-                DrawCircleV(ge.pos, ge.radius, Fade(ORANGE, 0.10f));
-                DrawCircleLines((int)ge.pos.x, (int)ge.pos.y, ge.radius * (1.0f - rem * 0.5f), Fade(GOLD, 0.8f));
+                DrawCircleV(ge.pos, ge.radius, Fade(ge.color, 0.10f));
+                DrawCircleLines((int)ge.pos.x, (int)ge.pos.y, ge.radius * (1.0f - rem * 0.5f), Fade(ge.color, 0.85f));
                 Vector2 skyPos = { ge.pos.x - rem * 45.0f, ge.pos.y - rem * 210.0f };
-                DrawLineEx(skyPos, { skyPos.x - 14.0f, skyPos.y - 42.0f }, 5.0f, { 255, 130, 40, 255 });
-                DrawLineEx(skyPos, { skyPos.x - 10.0f, skyPos.y - 30.0f }, 2.5f, YELLOW);
+                DrawLineEx(skyPos, { skyPos.x - 14.0f, skyPos.y - 42.0f }, 5.5f, ge.color);
+                DrawLineEx(skyPos, { skyPos.x - 10.0f, skyPos.y - 30.0f }, 2.5f, WHITE);
             }
         }
 
@@ -6616,7 +7225,7 @@ public:
         // Ghost Trails: bóng dáng nhân vật khi lướt
         for (const auto& g : ghosts) {
             float a = (g.timer / g.maxTimer) * 0.45f;
-            Color gc = Fade(kClasses[player.heroClass].color, a);
+            Color gc = Fade(HeroColor(), a);
             float gf = g.facingLeft ? -1.0f : 1.0f;
             Tri({ g.pos.x - gf * 4.0f, g.pos.y - 8.0f }, { g.pos.x - gf * 22.0f, g.pos.y - 2.0f }, { g.pos.x - gf * 18.0f, g.pos.y + 14.0f }, Fade(gc, a * 0.7f));
             Quad({ g.pos.x - 9.0f, g.pos.y - 6.0f }, { g.pos.x + 9.0f, g.pos.y - 6.0f }, { g.pos.x + 7.0f, g.pos.y + 11.0f }, { g.pos.x - 7.0f, g.pos.y + 11.0f }, gc);
@@ -6651,9 +7260,9 @@ public:
             } else if (sl.kind == 11) { // Shadow Step Cross Slash
                 DrawRing(sl.pos, 45.0f, 118.0f, sl.angle - 95.0f, sl.angle + 95.0f, 26, Fade({ 255, 75, 145, 255 }, 0.85f * k));
                 DrawRing(sl.pos, 60.0f, 95.0f, sl.angle + 85.0f, sl.angle + 275.0f, 26, Fade({ 180, 75, 255, 255 }, 0.75f * k));
-            } else if (sl.kind == 12) { // Blade Storm
-                DrawRing(sl.pos, 110.0f, 178.0f, sl.angle, sl.angle + 135.0f, 22, Fade({ 255, 65, 130, 255 }, 0.75f * k));
-                DrawRing(sl.pos, 110.0f, 178.0f, sl.angle + 180.0f, sl.angle + 315.0f, 22, Fade({ 190, 80, 255, 255 }, 0.75f * k));
+            } else if (sl.kind == 12) { // Blade Storm / Phantom Blades
+                DrawRing(sl.pos, 110.0f, 178.0f, sl.angle, sl.angle + 135.0f, 22, Fade(sl.color, 0.75f * k));
+                DrawRing(sl.pos, 110.0f, 178.0f, sl.angle + 180.0f, sl.angle + 315.0f, 22, Fade(WHITE, 0.65f * k));
             } else {
                 DrawRing(centre, 36.0f, 52.0f, sl.angle - 60.0f, sl.angle + 60.0f, 24, Fade(sl.color, 0.85f * k));
                 DrawRing(centre, 30.0f, 38.0f, sl.angle - 45.0f, sl.angle + 45.0f, 20, Fade({ 120, 220, 255, 255 }, 0.7f * k));
@@ -6714,6 +7323,12 @@ public:
                 Quad(Vector2Add(p.pos, Vector2Scale(dir, p.radius * 1.4f)), Vector2Add(p.pos, Vector2Scale(perp, p.radius * 0.9f)),
                      Vector2Subtract(p.pos, Vector2Scale(dir, p.radius * 0.8f)), Vector2Subtract(p.pos, Vector2Scale(perp, p.radius * 0.9f)), YELLOW);
                 Diamond(p.pos, p.radius * 0.6f, p.radius * 0.6f, WHITE, ORANGE);
+            } else if (p.kind == 6) { // Kiếm khí trăng khuyết (Spellblade / Berserker)
+                float ang = atan2f(dir.y, dir.x) * RAD2DEG;
+                Vector2 arcC = Vector2Subtract(p.pos, Vector2Scale(dir, 14.0f));
+                DrawRing(arcC, p.radius + 5.0f, p.radius + 15.0f, ang - 65.0f, ang + 65.0f, 16, Fade(p.color, 0.85f));
+                DrawRing(arcC, p.radius + 11.0f, p.radius + 16.0f, ang - 52.0f, ang + 52.0f, 16, WHITE);
+                Diamond(Vector2Add(p.pos, Vector2Scale(dir, 3.0f)), 4.2f, 4.2f, WHITE, p.color);
             } else { // Tinh thể năng lượng định hướng
                 Vector2 tail = Vector2Subtract(p.pos, Vector2Scale(dir, p.radius * 2.4f));
                 Tri(tail, Vector2Add(p.pos, Vector2Scale(perp, p.radius * 0.9f)), Vector2Subtract(p.pos, Vector2Scale(perp, p.radius * 0.9f)), Fade(p.color, 0.42f));
@@ -6761,11 +7376,12 @@ public:
         }
 
         // ── 2D Screen Space UI ──
-        const ClassDef& cd = kClasses[std::max(0, std::min(3, player.heroClass))];
-        // Top-Left: Class Badge, HP (with damage lag), XP, Rage, Gold
+        Color hCol = HeroColor();
+        const char* hTitle = HeroTitle();
+        // Top-Left: Class / Subclass Badge, HP (with damage lag), XP, Rage, Gold
         DrawRectangle(20, 14, 320, 22, { 18, 22, 34, 225 });
-        DrawRectangleLines(20, 14, 320, 22, Fade(cd.color, 0.75f));
-        DrawText(cd.name, 28, 17, 15, cd.color);
+        DrawRectangleLines(20, 14, 320, 22, Fade(hCol, 0.75f));
+        DrawText(hTitle, 28, 17, 15, hCol);
         std::string clsRight = "LVL " + std::to_string(player.level);
         DrawText(clsRight.c_str(), 332 - MeasureText(clsRight.c_str(), 15), 17, 15, GOLD);
 
@@ -6892,7 +7508,7 @@ public:
             const int dockY = 720 - 80;
             struct SlotUI { const char* key; int iconKind; Color col; float cd; float maxCd; bool isUlt; bool ready; };
             SlotUI slots[5] = {
-                { "PSV", 0, cd.color, 0.0f, 1.0f, false, true },
+                { "PSV", 0, hCol, 0.0f, 1.0f, false, true },
                 { "RMB", -1, YELLOW, player.dashTimer, player.dashCooldown, false, player.dashTimer <= 0.0f },
                 { "Q", 1, SKYBLUE, player.specialTimer, std::max(0.1f, player.specialCooldown), false, player.specialTimer <= 0.0f },
                 { "E", 2, { 110, 235, 175, 255 }, player.skill2Timer, std::max(0.1f, player.skill2Cooldown), false, player.skill2Timer <= 0.0f },
@@ -6931,29 +7547,83 @@ public:
             DrawText(bannerText.c_str(), 1280 / 2 - bw / 2 + 30, 150, 26, GOLD);
         }
 
-        // ── Level Up Modal ──
+        // ── Level Up Modal (hoặc Màn Chuyển Chức Nhánh Phụ ở Level 5) ──
         if (state == LEVEL_UP) {
-            DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.8f));
-            DrawText("LEVEL UP! CHOOSE AN UPGRADE", 1280 / 2 - 250, 150, 34, GOLD);
+            DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.84f));
+            if (subclassChoosing) {
+                float tm = (float)GetTime();
+                int hc = std::max(0, std::min(3, player.heroClass));
+                const char* hdr = "LEVEL 5 AWAKENING! CHOOSE YOUR SUBCLASS";
+                OutlinedText(hdr, 1280 / 2 - MeasureText(hdr, 34) / 2, 42, 34, GOLD, { 80, 42, 10, 255 });
+                std::string sub = std::string(kClasses[hc].name) + " Evolution — Permanent Class Branch & Signature Weapon";
+                DrawText(sub.c_str(), 1280 / 2 - MeasureText(sub.c_str(), 18) / 2, 84, 18, SKYBLUE);
 
-            float cardW = 240;
-            float startX = 1280 / 2 - (cardW * 3 + 40) / 2;
+                const float cw = 450.0f, gap = 36.0f, ch = 515.0f;
+                const float sx = 1280 / 2.0f - (cw * 2 + gap) / 2.0f, cy = 130.0f;
+                Vector2 mp = GetMousePosition();
+                for (int i = 0; i < 2; ++i) {
+                    const SubclassDef& sc = kSubclasses[hc][i];
+                    Rectangle r = { sx + i * (cw + gap), cy, cw, ch };
+                    bool hov = CheckCollisionPointRec(mp, r);
+                    DrawRectangleRec(r, hov ? Color{ 28, 36, 62, 252 } : Color{ 18, 24, 42, 246 });
+                    DrawRectangle((int)r.x, (int)r.y, (int)cw, 48, Fade(sc.color, hov ? 0.35f : 0.22f));
+                    DrawRectangleLinesEx(r, hov ? 3.0f : 2.0f, hov ? GOLD : sc.color);
 
-            for (size_t i = 0; i < levelChoices.size(); ++i) {
-                float cx = startX + i * (cardW + 20);
-                float cy = 240;
-                DrawRectangle((int)cx, (int)cy, (int)cardW, 280, { 25, 32, 45, 245 });
-                DrawRectangleLines((int)cx, (int)cy, (int)cardW, 280, SKYBLUE);
+                    DrawText(TextFormat("[%d] %s", i + 1, sc.name), (int)r.x + 18, (int)r.y + 8, 22, sc.color);
+                    DrawText(sc.role, (int)r.x + 18, (int)r.y + 32, 13, { 215, 225, 245, 255 });
 
-                std::string title = UpgradeTitle(levelChoices[i]);
-                std::string desc = UpgradeDesc(levelChoices[i]);
+                    // Xem trước nhân vật với vũ khí trấn phái mới
+                    Vector2 pv = { r.x + cw - 72.0f, r.y + 102.0f };
+                    DrawCircleV(pv, 42.0f, Fade(sc.color, 0.16f));
+                    DrawHeroModel(pv, hc, sc.signatureWeapon, { 0.85f, sinf(tm * 2.2f + i) * 0.3f }, false, tm * 6.0f, true, sinf(tm * 5.0f) * 0.3f, false, true, 0.0f, 0.0f, i + 1, 0.0f);
 
-                DrawText(title.c_str(), (int)cx + 20, (int)cy + 30, 22, GOLD);
-                DrawText(desc.c_str(), (int)cx + 20, (int)cy + 85, 17, RAYWHITE);
+                    DrawText(TextFormat("Signature Weapon: %s", sc.weaponTitle), (int)r.x + 18, (int)r.y + 62, 16, GOLD);
+                    DrawText(TextFormat("+%d HP  +%d DMG  +%.1f ARM  +%.2f ATK/s", (int)sc.bonusHp, (int)sc.bonusDmg, sc.bonusArmor, sc.bonusAtkRate), (int)r.x + 18, (int)r.y + 84, 14, RAYWHITE);
+                    DrawText(TextFormat("+%d SPD  +%d%% CRIT  +%d%% Lifesteal", (int)sc.bonusSpeed, (int)roundf(sc.bonusCrit * 100), (int)roundf(sc.bonusLifesteal * 100)), (int)r.x + 18, (int)r.y + 104, 14, SKYBLUE);
+                    DrawText("+35% HP Recovery & +30 Rage immediately", (int)r.x + 18, (int)r.y + 124, 13, { 120, 235, 160, 255 });
 
-                std::string btn = touchMode ? std::string("TAP TO CHOOSE") : "PRESS [" + std::to_string(i + 1) + "]";
-                DrawRectangle((int)cx + 30, (int)cy + 210, 180, 42, DARKBLUE);
-                DrawText(btn.c_str(), (int)cx + 120 - MeasureText(btn.c_str(), 18) / 2, (int)cy + 222, 18, WHITE);
+                    const char* tags[4] = { "PASSIVE", "SKILL [Q]", "SKILL [E]", "ULTIMATE [R]" };
+                    const char* sn[4] = { sc.passiveName, sc.qName, sc.eName, sc.rName };
+                    const char* sd[4] = { sc.passiveDesc, sc.qDesc, sc.eDesc, sc.rDesc };
+                    Color cols[4] = { sc.color, SKYBLUE, { 110, 235, 175, 255 }, ORANGE };
+                    int ky = (int)r.y + 150;
+                    for (int k = 0; k < 4; ++k) {
+                        int by = ky + k * 74;
+                        DrawRectangle((int)r.x + 14, by, (int)cw - 28, 68, { 12, 16, 28, 225 });
+                        DrawRectangleLines((int)r.x + 14, by, (int)cw - 28, 68, Fade(cols[k], 0.45f));
+                        DrawText(tags[k], (int)r.x + 24, by + 6, 12, cols[k]);
+                        DrawText(sn[k], (int)r.x + 120, by + 5, 15, WHITE);
+                        DrawWrappedText(sd[k], (int)r.x + 24, by + 26, (int)cw - 48, 13, 15, { 195, 210, 235, 255 });
+                    }
+
+                    Rectangle btn = { r.x + 24.0f, r.y + ch - 52.0f, cw - 48.0f, 38.0f };
+                    DrawRectangleRec(btn, hov ? Shade(sc.color, 0.55f) : Color{ 32, 76, 118, 255 });
+                    DrawRectangleLinesEx(btn, 2.0f, hov ? GOLD : sc.color);
+                    std::string bTxt = touchMode ? std::string("TAP TO AWAKEN ") + sc.name : TextFormat("PRESS [%d] OR CLICK TO AWAKEN", i + 1);
+                    DrawText(bTxt.c_str(), (int)(btn.x + btn.width / 2) - MeasureText(bTxt.c_str(), 16) / 2, (int)btn.y + 11, 16, WHITE);
+                }
+            } else {
+                DrawText("LEVEL UP! CHOOSE AN UPGRADE", 1280 / 2 - 250, 150, 34, GOLD);
+
+                float cardW = 240;
+                float startX = 1280 / 2 - (cardW * 3 + 40) / 2;
+
+                for (size_t i = 0; i < levelChoices.size(); ++i) {
+                    float cx = startX + i * (cardW + 20);
+                    float cy = 240;
+                    DrawRectangle((int)cx, (int)cy, (int)cardW, 280, { 25, 32, 45, 245 });
+                    DrawRectangleLines((int)cx, (int)cy, (int)cardW, 280, SKYBLUE);
+
+                    std::string title = UpgradeTitle(levelChoices[i]);
+                    std::string desc = UpgradeDesc(levelChoices[i]);
+
+                    DrawText(title.c_str(), (int)cx + 20, (int)cy + 30, 22, GOLD);
+                    DrawText(desc.c_str(), (int)cx + 20, (int)cy + 85, 17, RAYWHITE);
+
+                    std::string btn = touchMode ? std::string("TAP TO CHOOSE") : "PRESS [" + std::to_string(i + 1) + "]";
+                    DrawRectangle((int)cx + 30, (int)cy + 210, 180, 42, DARKBLUE);
+                    DrawText(btn.c_str(), (int)cx + 120 - MeasureText(btn.c_str(), 18) / 2, (int)cy + 222, 18, WHITE);
+                }
             }
         }
 
@@ -6962,14 +7632,14 @@ public:
             DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.88f));
             DrawText("YOU HAVE FALLEN", 1280 / 2 - 180, 160, 44, RED);
 
-            std::string st0 = std::string("Class: ") + kClasses[player.heroClass].name;
+            std::string st0 = std::string("Class: ") + HeroTitle();
             std::string st1 = "Floor Reached: " + std::to_string(floor);
             std::string st2 = "Final Level: " + std::to_string(player.level);
             std::string st3 = "Enemies Slain: " + std::to_string(enemiesSlain);
             std::string st4 = "Gold Accumulated: " + std::to_string(player.gold);
             std::string st5 = "Best Record: Floor " + std::to_string(bestFloor) + (newRecord ? "  (NEW RECORD!)" : "");
 
-            DrawText(st0.c_str(), 1280 / 2 - 140, 226, 22, kClasses[player.heroClass].color);
+            DrawText(st0.c_str(), 1280 / 2 - 140, 226, 22, hCol);
             DrawText(st1.c_str(), 1280 / 2 - 140, 260, 22, RAYWHITE);
             DrawText(st2.c_str(), 1280 / 2 - 140, 295, 22, RAYWHITE);
             DrawText(st3.c_str(), 1280 / 2 - 140, 330, 22, RAYWHITE);
