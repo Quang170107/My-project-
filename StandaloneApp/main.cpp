@@ -539,6 +539,15 @@ static void CircleGrad(float x, float y, float r, Color inner, Color outer) {
 #endif
 }
 
+static std::string FmtPct(float frac) {
+    float pct = frac * 100.0f;
+    float r1 = roundf(pct * 10.0f) / 10.0f;
+    char buf[32];
+    if (fabsf(r1 - roundf(r1)) > 0.04f) snprintf(buf, sizeof(buf), "%.1f%%", r1);
+    else snprintf(buf, sizeof(buf), "%d%%", (int)roundf(r1));
+    return std::string(buf);
+}
+
 // ── Trang bị (4 ô: vũ khí, giáp, giày, nhẫn) ─────────────────────────────
 enum EquipSlot { SLOT_WEAPON, SLOT_ARMOR, SLOT_BOOTS, SLOT_RING };
 
@@ -584,7 +593,7 @@ struct EquipItem {
         if (armor > 0) v.push_back("+" + fmt(armor) + " Armor");
         if (moveSpeed > 0) v.push_back("+" + fmt(moveSpeed) + " Move Speed");
         if (attackRate > 0) v.push_back("+" + fmt(attackRate) + " Attacks/s");
-        if (lifesteal > 0) v.push_back("+" + std::to_string((int)roundf(lifesteal * 100)) + "% Lifesteal");
+        if (lifesteal > 0) v.push_back("+" + FmtPct(lifesteal) + " Lifesteal");
         if (crit > 0) v.push_back("+" + std::to_string((int)roundf(crit * 100)) + "% Crit");
         return v;
     }
@@ -613,7 +622,7 @@ static EquipItem MakeStarterWeapon(int weaponType) {
     return it;
 }
 
-static EquipItem GenerateItem(int floor, int forcedWeaponType = -1) {
+static EquipItem GenerateItem(int floor, int forcedWeaponType = -1, float lsScale = 1.0f) {
     static const char* weaponNames[8] = { "Sword", "Dagger", "Axe", "Spear", "Hammer", "Scythe", "Bow", "Staff" };
     static const char* names[4][4] = {
         { "Sword", "Dagger", "Axe", "Spear" }, { "Plate", "Mail", "Vest", "Cuirass" },
@@ -642,7 +651,7 @@ static EquipItem GenerateItem(int floor, int forcedWeaponType = -1) {
             it.maxHp = roundf(6.0f * m);
             break;
         default:
-            it.lifesteal = std::min(0.15f, roundf(0.02f * m * 100.0f) / 100.0f);
+            it.lifesteal = std::min(0.15f * lsScale, roundf(0.02f * m * lsScale * 1000.0f) / 1000.0f);
             it.attackRate = std::min(2.0f, R1(0.25f * m));
             break;
     }
@@ -933,6 +942,15 @@ public:
         if (player.heroClass == CLASS_MAGE) mult *= (player.subClass == 2 ? 0.78f : 0.85f);
         return mult;
     }
+    float LifestealStep() const {
+        return settings.difficulty == 0 ? 0.08f : (settings.difficulty == 1 ? 0.02f : 0.005f);
+    }
+    float LifestealCap() const {
+        return settings.difficulty == 0 ? 0.30f : (settings.difficulty == 1 ? 0.10f : 0.03f);
+    }
+    float LifestealScale() const {
+        return settings.difficulty == 0 ? 1.0f : (settings.difficulty == 1 ? 0.25f : 0.0625f);
+    }
     float Skill1MaxCd() const { return kClasses[std::max(0, std::min(3, player.heroClass))].qCooldown * SkillCdrMult(); }
     float Skill2MaxCd() const { return kClasses[std::max(0, std::min(3, player.heroClass))].eCooldown * SkillCdrMult(); }
     float EffectiveArmor() const { return player.armor + (player.holyBuffTimer > 0.0f ? (player.subClass == 1 ? 6.0f : 4.0f) : 0.0f); }
@@ -1150,7 +1168,7 @@ public:
             case UP_SPEED: return "+15% Move Speed\nOutrun dangers";
             case UP_ATTACK_RATE: return "+30% Attack Speed\nRapid strikes";
             case UP_DASH: return "-0.2s Dash Cooldown\nGreater mobility";
-            case UP_LIFESTEAL: return "+8% Lifesteal\nHeal on hit";
+            case UP_LIFESTEAL: return "+" + FmtPct(LifestealStep()) + " Lifesteal\nHeal on hit";
             case UP_ARMOR: return "+2 Flat Armor\nReduce damage";
             case UP_CRIT: return "+8% Crit Chance\nCrits deal x2 dmg";
             case UP_NOVA: return "-12% Skill Cooldowns\nCast Q & E faster";
@@ -2220,7 +2238,8 @@ public:
                             e.poisonDmg = std::max(e.poisonDmg, dmg * 0.22f);
                         }
                         if (player.lifesteal > 0.0f && player.hp < player.maxHp) {
-                            float hl = std::max(1.0f, dmg * std::min(0.35f, player.lifesteal));
+                            float rawHl = dmg * std::min(LifestealCap() + 0.05f, player.lifesteal);
+                            float hl = (settings.difficulty == 0) ? std::max(1.0f, rawHl) : rawHl;
                             player.hp = std::min(player.maxHp, player.hp + hl);
                         }
                         if (p.splashRadius > 0.0f) {
@@ -2903,7 +2922,7 @@ public:
         player.speed += sc.bonusSpeed;
         player.attackRate += sc.bonusAtkRate;
         player.critChance = std::min(0.6f, player.critChance + sc.bonusCrit);
-        player.lifesteal = std::min(0.35f, player.lifesteal + sc.bonusLifesteal);
+        player.lifesteal = std::min(LifestealCap() + 0.05f * LifestealScale(), player.lifesteal + sc.bonusLifesteal * LifestealScale());
         player.specialCooldown = Skill1MaxCd();
         player.skill2Cooldown = Skill2MaxCd();
         player.specialTimer = 0.0f;
@@ -2950,7 +2969,7 @@ public:
         else if (up == UP_SPEED) { player.speed += 30; }
         else if (up == UP_ATTACK_RATE) { player.attackRate += 0.8f; }
         else if (up == UP_DASH) { player.dashCooldown = std::max(0.4f, player.dashCooldown - 0.2f); }
-        else if (up == UP_LIFESTEAL) { player.lifesteal = std::min(0.3f, player.lifesteal + 0.08f); }
+        else if (up == UP_LIFESTEAL) { player.lifesteal = std::min(LifestealCap(), player.lifesteal + LifestealStep()); }
         else if (up == UP_ARMOR) { player.armor += 2.0f; }
         else if (up == UP_CRIT) { player.critChance = std::min(0.6f, player.critChance + 0.08f); }
         else if (up == UP_NOVA) {
@@ -4414,11 +4433,12 @@ public:
         }
         TriggerBarrelsInRadius(wt == WP_SPEAR ? Vector2Lerp(player.pos, spearEnd, 0.55f) : hitCenter, wt == WP_SPEAR ? 82.0f : hitRadius + 10.0f, player.baseDmg * wDmg[wt]);
         if (hitAny) {
-            float ls = std::min(0.35f, player.lifesteal + (wt == WP_SCYTHE ? 0.05f : 0.0f));
+            float ls = std::min(LifestealCap() + 0.05f, player.lifesteal + (wt == WP_SCYTHE ? 0.05f * LifestealScale() : 0.0f));
             if (ls > 0.0f && player.hp < player.maxHp) {
-                float heal = std::max(1.0f, maxHitDmg * ls);
+                float rawHl = maxHitDmg * ls;
+                float heal = (settings.difficulty == 0) ? std::max(1.0f, rawHl) : rawHl;
                 player.hp = std::min(player.maxHp, player.hp + heal);
-                SpawnPopup({ player.pos.x, player.pos.y - 26.0f }, "+" + std::to_string((int)heal), GREEN);
+                if (heal >= 1.0f) SpawnPopup({ player.pos.x, player.pos.y - 26.0f }, "+" + std::to_string((int)heal), GREEN);
             }
             PlaySound(snd.sndHit);
             Shake(wt == WP_HAMMER ? 0.17f : 0.12f, wt == WP_HAMMER ? 5.0f : 3.5f);
@@ -5225,10 +5245,10 @@ public:
                 break;
             case LAY_BLOCKS:
                 for (int i = 0; i < 3; ++i) {
-                    Vector2 c = (i == 0) ? Vector2{ -330, -110 } : (i == 1 ? Vector2{ 330, -110 } : Vector2{ 0, 50 });
-                    pillars.push_back({ c.x - 30.0f, c.y });
-                    pillars.push_back({ c.x + 30.0f, c.y });
-                    pillars.push_back({ c.x, c.y + 56.0f });
+                    Vector2 c = (i == 0) ? Vector2{ -330, -110 } : (i == 1 ? Vector2{ 330, -110 } : Vector2{ 0, 40 });
+                    pillars.push_back({ c.x - 58.0f, c.y });
+                    pillars.push_back({ c.x + 58.0f, c.y });
+                    pillars.push_back({ c.x, c.y + 92.0f });
                 }
                 break;
             case LAY_BASTION:
@@ -5284,8 +5304,8 @@ public:
                 if (c.vault) { // kho báu: chắc chắn có trang bị hiếm trở lên (và một relic nếu còn)
                     GiveRandomRelic();
                     ItemDrop d;
-                    d.item = GenerateItem(floor + 1, ClassWeaponType(player.heroClass));
-                    for (int tries = 0; tries < 30 && d.item.rarity < 1; ++tries) d.item = GenerateItem(floor + 1, ClassWeaponType(player.heroClass));
+                    d.item = GenerateItem(floor + 1, ClassWeaponType(player.heroClass), LifestealScale());
+                    for (int tries = 0; tries < 30 && d.item.rarity < 1; ++tries) d.item = GenerateItem(floor + 1, ClassWeaponType(player.heroClass), LifestealScale());
                     d.pos = { c.pos.x, c.pos.y + 50.0f };
                     d.life = 90.0f;
                     d.phase = Rand01() * 6.0f;
@@ -5332,7 +5352,7 @@ public:
     void StockShop() {
         for (int i = 0; i < 4; ++i) {
             shopSlots[i] = ShopSlot();
-            shopSlots[i].item = GenerateItem(floor, ClassWeaponType(player.heroClass));
+            shopSlots[i].item = GenerateItem(floor, ClassWeaponType(player.heroClass), LifestealScale());
             shopSlots[i].price = std::max(1, (int)roundf(ItemPrice(shopSlots[i].item) * (1.0f - 0.05f * meta[6])));
         }
         shopSlots[4] = ShopSlot();
@@ -5855,7 +5875,7 @@ public:
     void SpawnItemDrop(Vector2 pos) {
         ItemDrop d;
         d.pos = Vector2Add(pos, { (Rand01() - 0.5f) * 30.0f, (Rand01() - 0.5f) * 30.0f });
-        d.item = GenerateItem(floor, ClassWeaponType(player.heroClass));
+        d.item = GenerateItem(floor, ClassWeaponType(player.heroClass), LifestealScale());
         d.life = 90.0f;
         d.phase = Rand01() * 6.0f;
         itemDrops.push_back(d);
@@ -6037,7 +6057,7 @@ public:
         snprintf(buf, sizeof(buf), "%.0f", EffectiveMoveSpeed()); stat(1, 0, "Move Speed", buf);
         snprintf(buf, sizeof(buf), "%.2f /s", EffectiveAttackRate()); stat(1, 1, "Attack Speed", buf);
         snprintf(buf, sizeof(buf), "%d%%", (int)roundf(std::min(0.6f, player.critChance) * 100)); stat(1, 2, "Crit Chance", buf);
-        snprintf(buf, sizeof(buf), "%d%%", (int)roundf(std::min(0.3f, player.lifesteal) * 100)); stat(2, 0, "Lifesteal", buf);
+        stat(2, 0, "Lifesteal", FmtPct(std::min(LifestealCap() + 0.05f, player.lifesteal)));
         snprintf(buf, sizeof(buf), "%.1fs", player.dashCooldown); stat(2, 1, "Dash Cooldown", buf);
         snprintf(buf, sizeof(buf), "%.1fs / %.1fs", Skill1MaxCd(), Skill2MaxCd()); stat(2, 2, "Q / E Cooldown", buf);
         std::string extra = "Rage: " + std::to_string((int)player.rage) + "/100   Ember Lv" + std::to_string(player.igniteLevel) + "   Frost Lv" + std::to_string(player.frostLevel);
@@ -7605,7 +7625,8 @@ public:
 
                     DrawText(TextFormat("Signature Weapon: %s", sc.weaponTitle), (int)r.x + 18, (int)r.y + 62, 16, GOLD);
                     DrawText(TextFormat("+%d HP  +%d DMG  +%.1f ARM  +%.2f ATK/s", (int)sc.bonusHp, (int)sc.bonusDmg, sc.bonusArmor, sc.bonusAtkRate), (int)r.x + 18, (int)r.y + 84, 14, RAYWHITE);
-                    DrawText(TextFormat("+%d SPD  +%d%% CRIT  +%d%% Lifesteal", (int)sc.bonusSpeed, (int)roundf(sc.bonusCrit * 100), (int)roundf(sc.bonusLifesteal * 100)), (int)r.x + 18, (int)r.y + 104, 14, SKYBLUE);
+                    std::string lsStr = FmtPct(sc.bonusLifesteal * LifestealScale());
+                    DrawText(TextFormat("+%d SPD  +%d%% CRIT  +%s Lifesteal", (int)sc.bonusSpeed, (int)roundf(sc.bonusCrit * 100), lsStr.c_str()), (int)r.x + 18, (int)r.y + 104, 14, SKYBLUE);
                     DrawText("+35% HP Recovery & +30 Rage immediately", (int)r.x + 18, (int)r.y + 124, 13, { 120, 235, 160, 255 });
 
                     const char* tags[4] = { "PASSIVE", "SKILL [Q]", "SKILL [E]", "ULTIMATE [R]" };
