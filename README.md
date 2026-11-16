@@ -312,3 +312,8 @@ Plug in a controller and it just works; keyboard and mouse keep working whenever
 | Title / game over | A starts or restarts, X on game over opens the Sanctuary |
 
 **Vibration** (Settings -> "Vibration (shake + controller)") now also rumbles an Xbox/XInput controller on Windows: every screen shake (hits, Nova, explosions, boss slams) is mapped to the strong and weak motors, and it stops when you pause. It uses `xinput1_4.dll` loaded at run time, so there is nothing extra to install. Settings, Sanctuary and the Settings screen still need the keyboard or mouse.
+
+### Android version
+
+The standalone game now also runs on Android phones and tablets: touch controls (floating joystick, slash / dash / Nova buttons with auto-aim), tappable menus, the Back button, and an APK built automatically by GitHub Actions. See [`android/README.md`](android/README.md) for how to download and install it. On PC the title, pause and game over screens also got clickable buttons.
+- The rebuilt `GeometricDungeon.exe` also has the new clickable buttons on the title, pause and game over screens, and tappable level-up cards.

@@ -313,6 +313,8 @@ static Color LerpColor(Color a, Color b, float t) {
              (unsigned char)(a.b + (b.b - a.b) * t), (unsigned char)(a.a + (b.a - a.a) * t) };
 }
 
+static bool EscPressed() { return IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_BACK); } // Back của Android coi như Esc
+
 static float Rand01() { return (float)rand() / (float)RAND_MAX; }
 
 // ── Trang bị (4 ô: vũ khí, giáp, giày, nhẫn) ─────────────────────────────
@@ -463,7 +465,11 @@ struct Settings {
     bool showFps = false;
     bool vibration = true; // rung màn hình
     bool lighting = true;
+#ifdef __ANDROID__
+    int particles = 1;    // 0 thấp, 1 vừa, 2 cao (mặc định vừa trên điện thoại)
+#else
     int particles = 2;    // 0 thấp, 1 vừa, 2 cao
+#endif
     bool vignette = true;
     int volume = 10;      // 0..10
     int difficulty = 1;   // 0 dễ, 1 thường, 2 khó
@@ -543,6 +549,15 @@ public:
     };
     ControlOverride ctl;
     float rumbleTimer = 0.0f;
+    // Cảm ứng
+    bool touchMode = false;
+    std::vector<std::pair<int, Vector2>> touches;
+    int joyId = -1;
+    Vector2 joyOrigin = { 150, 590 }, joyPos = { 150, 590 };
+    bool touchDashWas = false, touchNovaWas = false, touchUiWas = false;
+    float presentDx = 0.0f, presentDy = 0.0f, presentScale = 1.0f;
+    bool useFakeTouches = false;           // dùng cho kiểm thử
+    std::vector<Vector2> fakeTouches;
     Vector2 padAim = { 1, 0 };
     bool padLtWas = false;
     State settingsReturn = TITLE;
@@ -573,6 +588,9 @@ public:
         camera.zoom = 1.0f;
         camera.offset = { 1280 / 2.0f, 720 / 2.0f };
         InitMotes();
+#ifdef __ANDROID__
+        touchMode = true;
+#endif
         lightmap = LoadRenderTexture(1280, 720);
         screenRT = LoadRenderTexture(1280, 720);
         SetTextureFilter(screenRT.texture, TEXTURE_FILTER_BILINEAR);
@@ -1000,6 +1018,7 @@ public:
         if (bannerTimer > 0) bannerTimer -= dt;
         if (screenShakeTimer > 0) screenShakeTimer -= dt;
         PollGamepad();
+        PollTouchControls();
         if (rumbleTimer > 0) {
             rumbleTimer -= dt;
             if (rumbleTimer <= 0) RumbleRaw(0.0f, 0.0f);
@@ -1011,20 +1030,22 @@ public:
         if (state == TITLE) {
             UpdateEffects(dt);
             bannerTimer = 3.0f; // giữ thông báo tầng 1 cho đến khi bắt đầu chơi
+            { int ua = HitButton(); if (ua) { HandleUiAction(ua); return; } }
             if (IsKeyPressed(KEY_O) || IsKeyPressed(KEY_F2)) { settingsReturn = TITLE; setSel = 0; state = SETTINGS; return; }
             if (IsKeyPressed(KEY_S)) { OpenSanctuary(TITLE); return; }
             if (IsKeyPressed(KEY_F1) || IsKeyPressed(KEY_H)) showHelp = !showHelp;
-            else if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_DOWN) || PadPressed(GAMEPAD_BUTTON_MIDDLE_RIGHT)) {
+            else if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_DOWN) || PadPressed(GAMEPAD_BUTTON_MIDDLE_RIGHT)) {
                 showHelp = false;
                 state = PLAYING;
                 PlaySound(snd.sndPotion);
             }
-            if (IsKeyPressed(KEY_ESCAPE)) quitRequested = true;
+            if (EscPressed()) quitRequested = true;
             return;
         }
         if (state == PAUSED) {
+            { int ua = HitButton(); if (ua) { HandleUiAction(ua); return; } }
             if (IsKeyPressed(KEY_F1) || IsKeyPressed(KEY_H)) showHelp = !showHelp;
-            if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ENTER) || PadPressed(GAMEPAD_BUTTON_MIDDLE_RIGHT) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) { showHelp = false; state = PLAYING; }
+            if (EscPressed() || IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ENTER) || PadPressed(GAMEPAD_BUTTON_MIDDLE_RIGHT) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) { showHelp = false; state = PLAYING; }
             if (IsKeyPressed(KEY_R)) { showHelp = false; RestartRun(); }
             if (IsKeyPressed(KEY_I)) { prevState = PAUSED; state = INVENTORY; }
             if (IsKeyPressed(KEY_O)) { settingsReturn = PAUSED; setSel = 0; state = SETTINGS; }
@@ -1044,7 +1065,8 @@ public:
             return;
         }
         if (state == INVENTORY) {
-            if (IsKeyPressed(KEY_I) || IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_ENTER) || PadPressed(GAMEPAD_BUTTON_MIDDLE_LEFT) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) state = prevState;
+            { int ua = HitButton(); if (ua) { HandleUiAction(ua); return; } }
+            if (IsKeyPressed(KEY_I) || EscPressed() || IsKeyPressed(KEY_ENTER) || PadPressed(GAMEPAD_BUTTON_MIDDLE_LEFT) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) state = prevState;
             return;
         }
         if (state == PLAYING && (IsKeyPressed(KEY_I) || PadPressed(GAMEPAD_BUTTON_MIDDLE_LEFT))) {
@@ -1052,7 +1074,7 @@ public:
             state = INVENTORY;
             return;
         }
-        if (state == PLAYING && (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P) || PadPressed(GAMEPAD_BUTTON_MIDDLE_RIGHT))) {
+        if (state == PLAYING && (EscPressed() || IsKeyPressed(KEY_P) || PadPressed(GAMEPAD_BUTTON_MIDDLE_RIGHT))) {
             StopRumble();
             state = PAUSED;
             return;
@@ -1062,6 +1084,14 @@ public:
 
         if (state == LEVEL_UP) {
             // Number keys 1, 2, 3 to choose
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                Vector2 mp = GetMousePosition();
+                float cardW = 240.0f, startX = 1280 / 2 - (cardW * 3 + 40) / 2;
+                for (size_t i = 0; i < levelChoices.size(); ++i) {
+                    Rectangle cr = { startX + i * (cardW + 20), 240.0f, cardW, 280.0f };
+                    if (CheckCollisionPointRec(mp, cr)) { ChooseUpgrade(levelChoices[i]); return; }
+                }
+            }
             if ((IsKeyPressed(KEY_ONE) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_LEFT)) && levelChoices.size() >= 1) ChooseUpgrade(levelChoices[0]);
             if ((IsKeyPressed(KEY_TWO) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_UP)) && levelChoices.size() >= 2) ChooseUpgrade(levelChoices[1]);
             if ((IsKeyPressed(KEY_THREE) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_RIGHT)) && levelChoices.size() >= 3) ChooseUpgrade(levelChoices[2]);
@@ -1069,8 +1099,9 @@ public:
         }
 
         if (state == GAME_OVER) {
+            { int ua = HitButton(); if (ua) { HandleUiAction(ua); return; } }
             if (IsKeyPressed(KEY_S) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_LEFT)) { OpenSanctuary(GAME_OVER); return; }
-            if (IsKeyPressed(KEY_R) || IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) {
+            if (IsKeyPressed(KEY_R) || IsKeyPressed(KEY_SPACE) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) {
                 RestartRun();
             }
             return;
@@ -2234,6 +2265,229 @@ public:
     float DmgMult() const { return (1.0f + (floor - 1) * 0.10f + std::max(0, floor - 8) * 0.11f) * DiffDmg(); }
     float EliteChance() const { return std::min(0.45f, 0.20f + std::max(0, floor - 8) * 0.015f); }
 
+    // ── Nút bấm trên màn hình (dùng được cho chuột lẫn chạm) ──
+    enum UiAction { UI_NONE = 0, UI_START, UI_SANCT, UI_SETTINGS, UI_HELP, UI_QUIT, UI_RESUME, UI_EQUIP, UI_RESTART, UI_BACK, UI_CLOSE_HELP, UI_CLOSE_INV };
+    struct UiBtn { Rectangle r; std::string label; int action; Color col; };
+
+    std::vector<UiBtn> BuildButtons() {
+        std::vector<UiBtn> b;
+        Color green = { 36, 104, 62, 255 }, blue = { 36, 60, 120, 255 }, purple = { 70, 50, 120, 255 }, red = { 120, 40, 50, 255 }, grey = { 44, 50, 72, 255 };
+        switch (state) {
+            case TITLE:
+                if (showHelp) {
+                    b.push_back({ { 540, 650, 200, 44 }, "CLOSE", UI_CLOSE_HELP, grey });
+                } else {
+                    b.push_back({ { 470, 404, 340, 62 }, "START", UI_START, green });
+                    b.push_back({ { 470, 480, 166, 46 }, "SANCTUARY", UI_SANCT, purple });
+                    b.push_back({ { 644, 480, 166, 46 }, "SETTINGS", UI_SETTINGS, blue });
+                    b.push_back({ { 470, 538, 166, 40 }, "CONTROLS", UI_HELP, grey });
+#ifndef __ANDROID__
+                    b.push_back({ { 644, 538, 166, 40 }, "QUIT", UI_QUIT, red });
+#endif
+                }
+                break;
+            case PAUSED:
+                if (showHelp) {
+                    b.push_back({ { 540, 650, 200, 44 }, "CLOSE", UI_CLOSE_HELP, grey });
+                } else {
+                    float y = 236;
+                    b.push_back({ { 480, y, 320, 44 }, "RESUME", UI_RESUME, green }); y += 52;
+                    b.push_back({ { 480, y, 320, 44 }, "EQUIPMENT", UI_EQUIP, blue }); y += 52;
+                    b.push_back({ { 480, y, 320, 44 }, "SETTINGS", UI_SETTINGS, blue }); y += 52;
+                    b.push_back({ { 480, y, 320, 44 }, "RESTART RUN", UI_RESTART, purple }); y += 52;
+                    b.push_back({ { 480, y, 320, 44 }, "CONTROLS", UI_HELP, grey }); y += 52;
+#ifndef __ANDROID__
+                    b.push_back({ { 480, y, 320, 44 }, "QUIT GAME", UI_QUIT, red });
+#endif
+                }
+                break;
+            case GAME_OVER:
+                b.push_back({ { 510, 505, 260, 52 }, "PLAY AGAIN", UI_RESTART, red });
+                b.push_back({ { 510, 568, 260, 46 }, "SANCTUARY", UI_SANCT, purple });
+                break;
+            case INVENTORY:
+                b.push_back({ { 1020, 598, 150, 44 }, "CLOSE", UI_CLOSE_INV, grey });
+                break;
+            case META:
+            case SHOP:
+                b.push_back({ { 30, 28, 150, 44 }, "< BACK", UI_BACK, grey });
+                break;
+            default:
+                break;
+        }
+        return b;
+    }
+
+    int HitTestButtons(Vector2 m) {
+        if ((state == TITLE || state == PAUSED) && showHelp) return UI_CLOSE_HELP; // chạm vào đâu cũng đóng bảng hướng dẫn
+        for (const auto& bt : BuildButtons()) if (CheckCollisionPointRec(m, bt.r)) return bt.action;
+        return UI_NONE;
+    }
+
+    int HitButton() {
+        if (!IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) return UI_NONE;
+        return HitTestButtons(GetMousePosition());
+    }
+
+    void HandleUiAction(int a) {
+        switch (a) {
+            case UI_START: showHelp = false; state = PLAYING; PlaySound(snd.sndPotion); break;
+            case UI_SANCT: OpenSanctuary(state == GAME_OVER ? GAME_OVER : TITLE); break;
+            case UI_SETTINGS: settingsReturn = (state == PAUSED) ? PAUSED : TITLE; setSel = 0; state = SETTINGS; break;
+            case UI_HELP: showHelp = true; break;
+            case UI_CLOSE_HELP: showHelp = false; break;
+            case UI_QUIT: quitRequested = true; break;
+            case UI_RESUME: showHelp = false; state = PLAYING; break;
+            case UI_EQUIP: prevState = PAUSED; state = INVENTORY; break;
+            case UI_RESTART: showHelp = false; RestartRun(); break;
+            case UI_BACK: if (state == META) CloseSanctuary(); else if (state == SHOP) state = PLAYING; break;
+            case UI_CLOSE_INV: state = prevState; break;
+            default: break;
+        }
+    }
+
+    void DrawButtons() {
+        Vector2 m = GetMousePosition();
+        for (const auto& bt : BuildButtons()) {
+            bool hover = CheckCollisionPointRec(m, bt.r) && !touchMode;
+            DrawRectangleRec(bt.r, hover ? Shade(bt.col, 1.35f) : bt.col);
+            DrawRectangleLinesEx(bt.r, 2.0f, hover ? WHITE : Shade(bt.col, 2.1f));
+            int fs = bt.r.height >= 50 ? 26 : 20;
+            DrawText(bt.label.c_str(), (int)(bt.r.x + bt.r.width / 2) - MeasureText(bt.label.c_str(), fs) / 2, (int)(bt.r.y + bt.r.height / 2) - fs / 2, fs, WHITE);
+        }
+    }
+
+    // ── Điều khiển cảm ứng: cần ảo nổi bên trái, nút chém / lướt / Nova bên phải ──
+    void PollTouches() {
+        touches.clear();
+        if (useFakeTouches) {
+            for (size_t i = 0; i < fakeTouches.size(); ++i) touches.push_back({ (int)i, fakeTouches[i] });
+        } else {
+            int n = GetTouchPointCount();
+            for (int i = 0; i < n; ++i) {
+                Vector2 p = GetTouchPosition(i);
+                touches.push_back({ GetTouchPointId(i), { (p.x - presentDx) / presentScale, (p.y - presentDy) / presentScale } });
+            }
+        }
+        if (!touches.empty()) touchMode = true;
+    }
+
+    static constexpr float kAtkR = 78.0f, kDashR = 54.0f, kNovaR = 54.0f, kSmallR = 26.0f;
+    Vector2 AtkC() const { return { 1150, 570 }; }
+    Vector2 DashC() const { return { 1010, 650 }; }
+    Vector2 NovaC() const { return { 1040, 478 }; }
+    Vector2 PauseC() const { return { 1236, 172 }; }
+    Vector2 GearC() const { return { 1170, 172 }; }
+    Rectangle TradeRect() const { return { 560, 536, 160, 56 }; }
+
+    void PollTouchControls() {
+        PollTouches();
+        if (!touchMode) return;
+        if (state != PLAYING) { joyId = -1; touchDashWas = touchNovaWas = touchUiWas = false; return; }
+
+        bool atk = false, dashNow = false, novaNow = false, uiNow = false, pauseTap = false, gearTap = false, tradeTap = false;
+        bool joyStillDown = false;
+        for (const auto& t : touches) if (t.first == joyId) joyStillDown = true;
+        if (!joyStillDown) joyId = -1;
+
+        for (const auto& t : touches) {
+            Vector2 p = t.second;
+            if (CheckCollisionPointCircle(p, AtkC(), kAtkR * 1.15f)) { atk = true; continue; }
+            if (CheckCollisionPointCircle(p, DashC(), kDashR * 1.15f)) { dashNow = true; continue; }
+            if (CheckCollisionPointCircle(p, NovaC(), kNovaR * 1.15f)) { novaNow = true; continue; }
+            if (CheckCollisionPointCircle(p, PauseC(), kSmallR * 1.4f)) { uiNow = true; pauseTap = !touchUiWas; continue; }
+            if (CheckCollisionPointCircle(p, GearC(), kSmallR * 1.4f)) { uiNow = true; gearTap = !touchUiWas; continue; }
+            if (shopFloor && Vector2Distance(player.pos, merchantPos) < 130.0f && CheckCollisionPointRec(p, TradeRect())) { uiNow = true; tradeTap = !touchUiWas; continue; }
+            if (t.first == joyId) continue;
+            if (joyId == -1 && p.x < 640.0f) { joyId = t.first; joyOrigin = p; }
+        }
+        touchUiWas = uiNow;
+
+        if (pauseTap) { StopRumble(); state = PAUSED; return; }
+        if (gearTap) { prevState = PLAYING; state = INVENTORY; return; }
+        if (tradeTap) { state = SHOP; shopSel = 0; PlaySound(snd.sndPotion); return; }
+
+        Vector2 mv = { 0, 0 };
+        if (joyId != -1) {
+            for (const auto& t : touches) {
+                if (t.first != joyId) continue;
+                Vector2 d = Vector2Subtract(t.second, joyOrigin);
+                float len = Vector2Length(d);
+                if (len > 90.0f) { joyOrigin = Vector2Subtract(t.second, Vector2Scale(d, 90.0f / len)); d = Vector2Subtract(t.second, joyOrigin); len = 90.0f; }
+                if (len > 12.0f) mv = Vector2Scale(d, 1.0f / 90.0f);
+                joyPos = t.second;
+            }
+        }
+        bool dashEdge = dashNow && !touchDashWas, novaEdge = novaNow && !touchNovaWas;
+        touchDashWas = dashNow;
+        touchNovaWas = novaNow;
+        if (joyId == -1 && !atk && !dashEdge && !novaEdge) return;
+
+        // tự ngắm vào quái gần nhất
+        float best = 420.0f; bool found = false;
+        for (const auto& e : enemies) {
+            if (e.hp <= 0) continue;
+            float d = Vector2Distance(player.pos, e.pos);
+            if (d < best) { best = d; padAim = Vector2Normalize(Vector2Subtract(e.pos, player.pos)); found = true; }
+        }
+        if (!found && Vector2Length(mv) > 0.3f) padAim = Vector2Normalize(mv);
+        ctl.active = true;
+        if (Vector2Length(mv) > 1.0f) mv = Vector2Normalize(mv);
+        ctl.move = mv;
+        ctl.aim = padAim;
+        ctl.attack = atk;
+        ctl.dash = dashEdge;
+        ctl.nova = novaEdge;
+    }
+
+    void DrawTouchControls() {
+        auto ring = [&](Vector2 c, float r, Color col, float frac) {
+            if (frac >= 0.999f) DrawRing(c, r - 7.0f, r - 2.0f, 0.0f, 360.0f, 40, Fade(col, 0.85f));
+            else DrawRing(c, r - 7.0f, r - 2.0f, -90.0f, -90.0f + 360.0f * std::max(0.0f, frac), 40, Fade(col, 0.85f));
+        };
+        // cần ảo
+        Vector2 jo = (joyId != -1) ? joyOrigin : Vector2{ 150, 590 };
+        DrawCircleV(jo, 90.0f, Fade(WHITE, joyId != -1 ? 0.10f : 0.06f));
+        DrawCircleLines((int)jo.x, (int)jo.y, 90.0f, Fade(WHITE, 0.35f));
+        Vector2 knob = (joyId != -1) ? joyPos : jo;
+        if (joyId != -1) { Vector2 dd = Vector2Subtract(knob, jo); if (Vector2Length(dd) > 90.0f) knob = Vector2Add(jo, Vector2Scale(Vector2Normalize(dd), 90.0f)); }
+        DrawCircleV(knob, 38.0f, Fade(WHITE, joyId != -1 ? 0.35f : 0.18f));
+
+        // nút chém
+        Vector2 a = AtkC();
+        DrawCircleV(a, kAtkR, Fade({ 220, 70, 70, 255 }, 0.30f));
+        DrawCircleLines((int)a.x, (int)a.y, kAtkR, Fade({ 255, 150, 150, 255 }, 0.7f));
+        DrawItemIcon(SLOT_WEAPON, a, 62.0f, { 255, 225, 225, 255 });
+        // lướt
+        Vector2 d = DashC();
+        float dashFrac = player.dashCooldown > 0 ? 1.0f - std::max(0.0f, player.dashTimer) / player.dashCooldown : 1.0f;
+        DrawCircleV(d, kDashR, Fade({ 240, 220, 80, 255 }, 0.25f));
+        ring(d, kDashR, { 255, 230, 90, 255 }, dashFrac);
+        DrawText("DASH", (int)d.x - MeasureText("DASH", 20) / 2, (int)d.y - 10, 20, Fade(WHITE, 0.95f));
+        // Nova
+        Vector2 n = NovaC();
+        float novaFrac = player.specialCooldown > 0 ? 1.0f - std::max(0.0f, player.specialTimer) / player.specialCooldown : 1.0f;
+        DrawCircleV(n, kNovaR, Fade({ 80, 190, 255, 255 }, 0.25f));
+        ring(n, kNovaR, { 110, 210, 255, 255 }, novaFrac);
+        DrawText("NOVA", (int)n.x - MeasureText("NOVA", 20) / 2, (int)n.y - 10, 20, Fade(WHITE, 0.95f));
+        // tạm dừng / trang bị
+        Vector2 pc = PauseC(), gc = GearC();
+        DrawCircleV(pc, kSmallR, Fade(BLACK, 0.45f));
+        DrawCircleLines((int)pc.x, (int)pc.y, kSmallR, Fade(WHITE, 0.6f));
+        DrawRectangle((int)pc.x - 8, (int)pc.y - 9, 5, 18, Fade(WHITE, 0.9f));
+        DrawRectangle((int)pc.x + 3, (int)pc.y - 9, 5, 18, Fade(WHITE, 0.9f));
+        DrawCircleV(gc, kSmallR, Fade(BLACK, 0.45f));
+        DrawCircleLines((int)gc.x, (int)gc.y, kSmallR, Fade(WHITE, 0.6f));
+        DrawItemIcon(SLOT_ARMOR, gc, 26.0f, { 220, 230, 255, 255 });
+        // nút thương nhân
+        if (shopFloor && Vector2Distance(player.pos, merchantPos) < 130.0f) {
+            Rectangle tr = TradeRect();
+            DrawRectangleRec(tr, Fade({ 60, 40, 100, 255 }, 0.9f));
+            DrawRectangleLinesEx(tr, 3.0f, GOLD);
+            DrawText("TRADE", (int)(tr.x + tr.width / 2) - MeasureText("TRADE", 28) / 2, (int)tr.y + 14, 28, GOLD);
+        }
+    }
+
     // ── Tay cầm ──
     bool PadPressed(int button) { return IsGamepadAvailable(0) && IsGamepadButtonPressed(0, button); }
 
@@ -2250,6 +2504,8 @@ public:
     void PollGamepad() {
         if (ctl.external) return;
         ctl.active = false;
+        ctl.attack = ctl.dash = ctl.nova = false;
+        ctl.move = { 0, 0 };
         if (!IsGamepadAvailable(0)) return;
         auto dz = [](float v) { return fabsf(v) < 0.2f ? 0.0f : v; };
         Vector2 mv = { dz(GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_X)), dz(GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_Y)) };
@@ -2572,7 +2828,8 @@ public:
     }
 
     void UpdateShop() {
-        if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_F) || IsKeyPressed(KEY_BACKSPACE) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_UP)) { state = PLAYING; return; }
+        { int ua = HitButton(); if (ua) { HandleUiAction(ua); return; } }
+        if (EscPressed() || IsKeyPressed(KEY_F) || IsKeyPressed(KEY_BACKSPACE) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_UP)) { state = PLAYING; return; }
         if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_RIGHT)) shopSel = (shopSel + 1) % 5;
         if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_LEFT)) shopSel = (shopSel + 4) % 5;
         if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) BuyShopSlot(shopSel);
@@ -2667,7 +2924,7 @@ public:
         // Biển hiệu nổi
         OutlinedText("SHOP", (int)p.x - MeasureText("SHOP", 20) / 2, (int)(p.y - 66.0f + bob), 20, GOLD, { 70, 36, 8, 255 });
         if (Vector2Distance(p, player.pos) < 130.0f) {
-            const char* prompt = IsGamepadAvailable(0) ? "[D-pad Up] Trade" : "[F] Trade";
+            const char* prompt = touchMode ? "" : (IsGamepadAvailable(0) ? "[D-pad Up] Trade" : "[F] Trade");
             OutlinedText(prompt, (int)p.x - MeasureText(prompt, 20) / 2, (int)p.y + 40, 20, WHITE, { 20, 24, 40, 255 });
         }
     }
@@ -2708,6 +2965,7 @@ public:
     }
 
     void UpdateMeta(float dt) {
+        { int ua = HitButton(); if (ua) { HandleUiAction(ua); return; } }
         if (metaMsgTimer > 0) metaMsgTimer -= dt;
         if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) metaSel = (metaSel + 1) % 8;
         if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) metaSel = (metaSel + 7) % 8;
@@ -2721,7 +2979,7 @@ public:
                 if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { metaSel = i; BuyMeta(i); }
             }
         }
-        if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_BACKSPACE)) CloseSanctuary();
+        if (EscPressed() || IsKeyPressed(KEY_BACKSPACE)) CloseSanctuary();
     }
 
     void DrawMetaScreen() {
@@ -2778,8 +3036,7 @@ public:
 
     // ── Cài đặt ──
     void LoadSettings() {
-        if (!FileExists("settings.cfg")) return;
-        char* txt = LoadFileText("settings.cfg");
+        char* txt = LoadFileText("settings.cfg"); // trên Android raylib tự đọc từ bộ nhớ trong của ứng dụng
         if (!txt) return;
         std::istringstream in(txt);
         UnloadFileText(txt);
@@ -2825,6 +3082,10 @@ public:
 
     void BuildResList() {
         resList.clear();
+#ifdef __ANDROID__
+        resList.push_back(0);
+        return;
+#endif
         int mw = GetMonitorWidth(GetCurrentMonitor()), mh = GetMonitorHeight(GetCurrentMonitor());
         for (int i = 0; i < 5; ++i)
             if (kResOptions[i][0] <= mw && kResOptions[i][1] <= mh) resList.push_back(i);
@@ -2836,14 +3097,19 @@ public:
     }
 
     void ApplySettings() {
+#ifndef __ANDROID__
         if (settings.fullscreen != IsWindowFullscreen()) ToggleFullscreen();
         if (!settings.fullscreen) SetWindowSize(settings.resW, settings.resH);
         if (settings.vsync) SetWindowState(FLAG_VSYNC_HINT); else ClearWindowState(FLAG_VSYNC_HINT);
+#endif
         SetTargetFPS(kFpsOptions[settings.fpsIndex]);
         SetMasterVolume(settings.volume / 10.0f);
     }
 
     void ChangeSetting(int row, int d) {
+#ifdef __ANDROID__
+        if (row <= 2) return; // độ phân giải, toàn màn hình, VSync do hệ điều hành quản lý
+#endif
         switch (row) {
             case 0: {
                 int cur = 0;
@@ -2868,6 +3134,9 @@ public:
     }
 
     std::string SettingValue(int row) {
+#ifdef __ANDROID__
+        if (row <= 2) return "Auto";
+#endif
         switch (row) {
             case 0: return settings.fullscreen ? "Native (fullscreen)" : std::to_string(settings.resW) + " x " + std::to_string(settings.resH);
             case 1: return settings.fullscreen ? "ON" : "OFF";
@@ -2903,7 +3172,7 @@ public:
                 }
             }
         }
-        if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_BACKSPACE)) { state = settingsReturn; return; }
+        if (EscPressed() || IsKeyPressed(KEY_BACKSPACE)) { state = settingsReturn; return; }
         if (delta != 0) {
             if (setSel == 11) { state = settingsReturn; return; }
             ChangeSetting(setSel, delta);
@@ -2958,6 +3227,9 @@ public:
         EndDrawing();
         SetMouseOffset(-(int)dx, -(int)dy);
         SetMouseScale(1.0f / scale, 1.0f / scale);
+        presentDx = dx;
+        presentDy = dy;
+        presentScale = scale;
     }
 
     // ── Trang bị ──
@@ -3380,37 +3652,30 @@ public:
         if (showHelp) { DrawHelpPanel(); return; }
         const char* title = "GEOMETRIC DUNGEON";
         int tw = MeasureText(title, 72);
-        int ty = 120 + (int)(sinf(t * 1.6f) * 5.0f);
+        int ty = 100 + (int)(sinf(t * 1.6f) * 5.0f);
         DrawText(title, 1280 / 2 - tw / 2 + 4, ty + 5, 72, Fade(BLACK, 0.8f));
         OutlinedText(title, 1280 / 2 - tw / 2, ty, 72, GOLD, { 120, 60, 10, 255 });
         const char* sub = "a tiny roguelike RPG";
         DrawText(sub, 1280 / 2 - MeasureText(sub, 24) / 2, ty + 88, 24, { 170, 190, 230, 255 });
 
         std::string rec = "Best Record: Floor " + std::to_string(bestFloor);
-        DrawText(rec.c_str(), 1280 / 2 - MeasureText(rec.c_str(), 22) / 2, 330, 22, SKYBLUE);
-
-        if (((int)(t * 2.0f)) % 2 == 0) {
-            const char* start = "PRESS ENTER OR CLICK TO START";
-            OutlinedText(start, 1280 / 2 - MeasureText(start, 30) / 2, 410, 30, WHITE, { 20, 24, 40, 255 });
-        }
+        DrawText(rec.c_str(), 1280 / 2 - MeasureText(rec.c_str(), 22) / 2, 300, 22, SKYBLUE);
         const char* diffName = settings.difficulty == 0 ? "Easy" : (settings.difficulty == 1 ? "Normal" : "Hard");
         std::string prog = std::string(diffName) + "     Souls: " + std::to_string(souls) + "     Runs: " + std::to_string(runs);
-        DrawText(prog.c_str(), 1280 / 2 - MeasureText(prog.c_str(), 20) / 2, 362, 20, { 190, 150, 255, 255 });
-        const char* hint = "S - Sanctuary      O - Settings      F1 - Controls      Esc - Quit";
-        DrawText(hint, 1280 / 2 - MeasureText(hint, 20) / 2, 470, 20, { 150, 165, 200, 255 });
-        if (showHelp) DrawHelpPanel();
+        DrawText(prog.c_str(), 1280 / 2 - MeasureText(prog.c_str(), 20) / 2, 336, 20, { 190, 150, 255, 255 });
+#ifndef __ANDROID__
+        const char* hint = "Enter: start    S: Sanctuary    O: Settings    F1: Controls    Esc: Quit";
+        DrawText(hint, 1280 / 2 - MeasureText(hint, 18) / 2, 620, 18, { 130, 145, 180, 255 });
+#endif
     }
 
     void DrawPauseScreen() {
         DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.72f));
+        if (showHelp) { DrawHelpPanel(); return; }
         const char* t1 = "PAUSED";
-        OutlinedText(t1, 1280 / 2 - MeasureText(t1, 60) / 2, 190, 60, WHITE, { 20, 24, 40, 255 });
-        const char* opts[] = { "ESC / P / ENTER   Resume", "I   Equipment", "O   Settings", "R   Restart run", "F1   Controls", "Q   Quit game" };
-        for (int i = 0; i < 6; ++i)
-            DrawText(opts[i], 1280 / 2 - 150, 250 + i * 40, 26, i == 5 ? Color{ 255, 130, 130, 255 } : RAYWHITE);
+        OutlinedText(t1, 1280 / 2 - MeasureText(t1, 60) / 2, 150, 60, WHITE, { 20, 24, 40, 255 });
         std::string info = "Floor " + std::to_string(floor) + "   Level " + std::to_string(player.level) + "   Slain " + std::to_string(enemiesSlain);
-        DrawText(info.c_str(), 1280 / 2 - MeasureText(info.c_str(), 20) / 2, 530, 20, SKYBLUE);
-        if (showHelp) DrawHelpPanel();
+        DrawText(info.c_str(), 1280 / 2 - MeasureText(info.c_str(), 20) / 2, 205, 20, SKYBLUE);
     }
 
     // ── Drawing ──
@@ -3635,6 +3900,8 @@ public:
         }
         DrawText("[I] Gear", 24 + 4 * 36 + 4, 146, 14, { 150, 165, 200, 255 });
 
+        if (touchMode && state == PLAYING) DrawTouchControls();
+
         // Thanh máu boss
         for (const auto& e : enemies) {
             if (e.type == BOSS && e.hp > 0) {
@@ -3675,21 +3942,23 @@ public:
             }
         }
 
-        // Skill Icons (Bottom Center)
-        DrawRectangle(1280 / 2 - 60, 720 - 70, 50, 50, { 30, 35, 48, 220 });
-        DrawText("DASH", 1280 / 2 - 54, 720 - 64, 12, YELLOW);
-        DrawText("RMB", 1280 / 2 - 50, 720 - 36, 12, GRAY);
-        if (player.dashTimer > 0) {
-            float pct = player.dashTimer / player.dashCooldown;
-            DrawRectangle(1280 / 2 - 60, (int)(720 - 70 + (1.0f - pct) * 50), 50, (int)(pct * 50), Fade(BLACK, 0.7f));
-        }
+        // Skill Icons (Bottom Center) - ẩn khi đang dùng cảm ứng vì đã có nút trên màn hình
+        if (!touchMode) {
+            DrawRectangle(1280 / 2 - 60, 720 - 70, 50, 50, { 30, 35, 48, 220 });
+            DrawText("DASH", 1280 / 2 - 54, 720 - 64, 12, YELLOW);
+            DrawText("RMB", 1280 / 2 - 50, 720 - 36, 12, GRAY);
+            if (player.dashTimer > 0) {
+                float pct = player.dashTimer / player.dashCooldown;
+                DrawRectangle(1280 / 2 - 60, (int)(720 - 70 + (1.0f - pct) * 50), 50, (int)(pct * 50), Fade(BLACK, 0.7f));
+            }
 
-        DrawRectangle(1280 / 2 + 10, 720 - 70, 50, 50, { 30, 35, 48, 220 });
-        DrawText("NOVA", 1280 / 2 + 16, 720 - 64, 12, SKYBLUE);
-        DrawText("Q / E", 1280 / 2 + 18, 720 - 36, 12, GRAY);
-        if (player.specialTimer > 0) {
-            float pct = player.specialTimer / player.specialCooldown;
-            DrawRectangle(1280 / 2 + 10, (int)(720 - 70 + (1.0f - pct) * 50), 50, (int)(pct * 50), Fade(BLACK, 0.7f));
+            DrawRectangle(1280 / 2 + 10, 720 - 70, 50, 50, { 30, 35, 48, 220 });
+            DrawText("NOVA", 1280 / 2 + 16, 720 - 64, 12, SKYBLUE);
+            DrawText("Q / E", 1280 / 2 + 18, 720 - 36, 12, GRAY);
+            if (player.specialTimer > 0) {
+                float pct = player.specialTimer / player.specialCooldown;
+                DrawRectangle(1280 / 2 + 10, (int)(720 - 70 + (1.0f - pct) * 50), 50, (int)(pct * 50), Fade(BLACK, 0.7f));
+            }
         }
 
         // Banner Toast
@@ -3720,9 +3989,9 @@ public:
                 DrawText(title.c_str(), (int)cx + 20, (int)cy + 30, 22, GOLD);
                 DrawText(desc.c_str(), (int)cx + 20, (int)cy + 85, 17, RAYWHITE);
 
-                std::string btn = "PRESS [" + std::to_string(i + 1) + "]";
+                std::string btn = touchMode ? std::string("TAP TO CHOOSE") : "PRESS [" + std::to_string(i + 1) + "]";
                 DrawRectangle((int)cx + 30, (int)cy + 210, 180, 42, DARKBLUE);
-                DrawText(btn.c_str(), (int)cx + 55, (int)cy + 222, 18, WHITE);
+                DrawText(btn.c_str(), (int)cx + 120 - MeasureText(btn.c_str(), 18) / 2, (int)cy + 222, 18, WHITE);
             }
         }
 
@@ -3750,10 +4019,7 @@ public:
             std::string st7 = "Souls earned: +" + std::to_string(lastRunSouls) + "   (total " + std::to_string(souls) + ")";
             DrawText(st7.c_str(), 1280 / 2 - 140, 458, 22, { 190, 225, 255, 255 });
 
-            DrawRectangle(1280 / 2 - 130, 505, 260, 52, MAROON);
-            DrawText("PLAY AGAIN (R)", 1280 / 2 - 75, 521, 22, WHITE);
-            const char* sanct = "S - Sanctuary: spend your Souls";
-            DrawText(sanct, 1280 / 2 - MeasureText(sanct, 20) / 2, 574, 20, { 190, 150, 255, 255 });
+            // nút PLAY AGAIN / SANCTUARY được vẽ bởi DrawButtons()
         }
 
         if (state == INVENTORY) DrawInventory();
@@ -3762,6 +4028,8 @@ public:
         if (state == META) DrawMetaScreen();
         if (state == TITLE) DrawTitleScreen();
         if (state == PAUSED) DrawPauseScreen();
+
+        DrawButtons();
 
         if (settings.showFps) {
             std::string f = "FPS: " + std::to_string(GetFPS());
@@ -3774,9 +4042,13 @@ public:
 };
 
 int main() {
+#ifndef __ANDROID__
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
+#endif
     InitWindow(1280, 720, "Geometric Dungeon - Standalone Roguelike RPG");
+#ifndef __ANDROID__
     SetWindowMinSize(640, 360);
+#endif
     SetTargetFPS(60);
     SetExitKey(KEY_NULL); // Esc dùng để tạm dừng, không thoát ngay
 
