@@ -127,6 +127,67 @@ private:
 enum EnemyType { CHASER, RANGER, BRUTE, BOSS, BOMBER, CHARGER, SPLITTER, SUMMONER };
 enum RelicType { RELIC_LIGHTNING, RELIC_TOXIC, RELIC_FROST, RELIC_AEGIS, RELIC_CHALICE, RELIC_COMBUSTION, RELIC_PHOENIX, RELIC_MIDAS, RELIC_BERSERK, RELIC_THORNS };
 enum UpgradeType { UP_HP, UP_DMG, UP_SPEED, UP_ATTACK_RATE, UP_DASH, UP_LIFESTEAL, UP_ARMOR, UP_CRIT, UP_NOVA, UP_IGNITE, UP_FROST };
+enum HeroClass { CLASS_KNIGHT = 0, CLASS_ASSASSIN = 1, CLASS_MAGE = 2, CLASS_RANGER = 3 };
+enum WeaponType { WP_SWORD = 0, WP_DAGGER = 1, WP_AXE = 2, WP_SPEAR = 3, WP_HAMMER = 4, WP_SCYTHE = 5, WP_BOW = 6, WP_STAFF = 7 };
+
+struct ClassDef {
+    const char* name;
+    const char* role;
+    Color color;
+    Color accent;
+    int startWeapon;
+    float baseHp;
+    float baseSpeed;
+    float baseDmg;
+    float baseAtkRate;
+    float baseArmor;
+    float baseCrit;
+    float qCooldown;
+    float eCooldown;
+    const char* passiveName;
+    const char* passiveDesc;
+    const char* qName;
+    const char* qDesc;
+    const char* eName;
+    const char* eDesc;
+    const char* rName;
+    const char* rDesc;
+};
+
+static const ClassDef kClasses[4] = {
+    {
+        "Vanguard Knight", "Armored Bruiser", { 70, 145, 245, 255 }, { 255, 210, 80, 255 }, WP_SWORD,
+        120.0f, 275.0f, 26.0f, 2.5f, 2.0f, 0.05f, 5.5f, 7.0f,
+        "Unyielding Aegis", "-15% dmg taken; hits/blocks +8 Rage & reflect shockwave; 5th hit heals 4 HP",
+        "Shield Bash", "Lunge forward, slam 1.9x DMG & Stun 1.2s",
+        "Holy Nova", "1.8x radial DMG + 3.5s Barrier (+4 ARM, +25% ATK SPD, block 1 hit)",
+        "Heaven's Judgment", "3.5x Light Sword + Stun, 4s holy zone (0.85x ticks & 4% HP/s heal)"
+    },
+    {
+        "Shadow Assassin", "Crit Striker", { 225, 65, 110, 255 }, { 185, 90, 255, 255 }, WP_DAGGER,
+        85.0f, 320.0f, 22.0f, 3.2f, 0.0f, 0.18f, 4.5f, 6.5f,
+        "Lethal Momentum", "Crits deal 2.4x DMG + poison; kills refund 50% Dash CD & +25% SPD 2s",
+        "Fan of Knives", "Throw 5 piercing shadow daggers (1.1x DMG, poison & slow)",
+        "Shadow Step", "Blink up to 210px, drop smoke bomb & 2.2x guaranteed-crit slash",
+        "Blade Storm", "3.5s shadow whirlwind (+35% SPD, -50% dmg taken, 0.85x slashes/0.2s)"
+    },
+    {
+        "Arcane Mage", "Elemental Caster", { 125, 110, 255, 255 }, { 95, 230, 255, 255 }, WP_STAFF,
+        80.0f, 285.0f, 28.0f, 2.3f, 0.5f, 0.10f, 5.0f, 7.5f,
+        "Arcane Resonance", "-15% Skill CDs; casting Q/E/R fires 3 homing missiles & +6 Rage",
+        "Fireball", "Blazing comet explodes in 135px AoE for 2.3x DMG & Burn",
+        "Frost Nova", "185px ice blast dealing 1.5x DMG, Freeze/Stun 1.3s & Chill",
+        "Void Cataclysm", "3.8s black hole pulls enemies & rains 12 meteors (1.5x AoE each)"
+    },
+    {
+        "Emerald Ranger", "Marksman", { 75, 210, 125, 255 }, { 255, 200, 75, 255 }, WP_BOW,
+        90.0f, 310.0f, 24.0f, 2.9f, 0.5f, 0.14f, 4.8f, 7.0f,
+        "Eagle Mark", "Every 3rd attack fires a piercing 1.5x Wind Shot (+10% Crit)",
+        "Multishot Volley", "Fire a 7-arrow fan (1.0x DMG each) with knockback",
+        "Explosive Vault", "Drop an explosive trap (2.4x AoE + slow) & vault back",
+        "Phoenix Rain", "3.6s storm of 16 fiery arrows (1.15x + Burn) & +35% ATK SPD"
+    }
+};
 
 struct Relic {
     RelicType type;
@@ -136,12 +197,14 @@ struct Relic {
 };
 
 struct Player {
+    int heroClass = CLASS_KNIGHT;
     Vector2 pos;
     Vector2 vel;
-    float maxHp = 100.0f;
-    float hp = 100.0f;
-    float speed = 280.0f;
-    float baseDmg = 25.0f;
+    float maxHp = 120.0f;
+    float hp = 120.0f;
+    float hpDisplay = 120.0f;
+    float speed = 275.0f;
+    float baseDmg = 26.0f;
     float attackRate = 2.5f;
     float attackTimer = 0.0f;
     float dashTimer = 0.0f;
@@ -150,10 +213,20 @@ struct Player {
     float dashDur = 0.2f;
     Vector2 dashDir;
     float specialTimer = 0.0f;
-    float specialCooldown = 6.0f;
+    float specialCooldown = 5.5f;
+    float skill2Timer = 0.0f;
+    float skill2Cooldown = 7.0f;
+    float rage = 0.0f;
+    float maxRage = 100.0f;
+    float ultActiveTimer = 0.0f;
+    float ultTickTimer = 0.0f;
+    float holyBuffTimer = 0.0f;
+    float hasteTimer = 0.0f;
+    int attackCounter = 0;
+    int cdrUpgrades = 0;
     float critChance = 0.05f;
     float lifesteal = 0.0f;
-    float armor = 0.0f;
+    float armor = 2.0f;
     int level = 1;
     int xp = 0;
     int xpNext = 50;
@@ -196,6 +269,7 @@ struct Enemy {
     float burnDps = 0.0f;
     float slowTimer = 0.0f;  // Frost Touch
     float slowFactor = 1.0f;
+    float stunTimer = 0.0f;  // Choáng từ kỹ năng / Búa chiến
     float hitFlash = 0.0f;   // nháy trắng khi trúng đòn
     int chargeState = 0;     // Charger: 0 tiến lại, 1 báo hiệu, 2 lao tới, 3 choáng
     float chargeTimer = 0.0f;
@@ -215,6 +289,28 @@ struct Projectile {
     float life;
     float radius;
     Color color;
+    int kind = 0;          // 0: đạn quái, 1: cung tên, 2: cầu phép trượng, 3: phi tiêu, 4: cầu lửa, 5: tên dẫn đường
+    int pierce = 0;
+    int hitMask = -1;
+    float splashRadius = 0.0f;
+    float splashRatio = 0.5f;
+    bool applyBurn = false;
+    bool applySlow = false;
+    bool applyPoison = false;
+    bool hasPreCrit = false;
+    bool preCrit = false;
+    float critBonus = 0.0f;
+};
+
+struct GroundEffect {
+    int kind = 0; // 0: Bẫy nổ Ranger, 1: Thánh vực Knight, 2: Hố đen Mage, 3: Vùng Mưa Tên Ranger, 4: Thiên thạch rơi, 5: Mũi tên Phượng Hoàng rơi
+    Vector2 pos;
+    float radius = 100.0f;
+    float timer = 1.0f;
+    float maxTimer = 1.0f;
+    float tickTimer = 0.0f;
+    float damage = 0.0f;
+    Color color = GOLD;
 };
 
 struct Loot {
@@ -235,9 +331,10 @@ struct DamagePopup {
 struct SlashVisual {
     Vector2 pos;
     float angle;
-    int kind = 0; // loại vũ khí: 0 kiếm, 1 dao găm, 2 rìu, 3 giáo
+    int kind = 0; // 0..7 vũ khí; 10: xung kích khiên, 11: ám tập, 12: bão kiếm
     float timer = 0.15f;
     float maxTimer = 0.15f;
+    Color color = WHITE;
 };
 
 struct NovaVisual {
@@ -315,6 +412,14 @@ static Color LerpColor(Color a, Color b, float t) {
 
 static float Rand01() { return (float)rand() / (float)RAND_MAX; }
 
+static void CircleGrad(float x, float y, float r, Color inner, Color outer) {
+#if RAYLIB_VERSION_MAJOR >= 6
+    DrawCircleGradient({ x, y }, r, inner, outer);
+#else
+    DrawCircleGradient((int)x, (int)y, r, inner, outer);
+#endif
+}
+
 // ── Trang bị (4 ô: vũ khí, giáp, giày, nhẫn) ─────────────────────────────
 enum EquipSlot { SLOT_WEAPON, SLOT_ARMOR, SLOT_BOOTS, SLOT_RING };
 
@@ -322,7 +427,7 @@ struct EquipItem {
     std::string name;
     int slot = 0;
     int rarity = 0; // 0 thường, 1 hiếm, 2 sử thi, 3 huyền thoại
-    int weaponType = 0; // chỉ dùng cho vũ khí: 0 kiếm, 1 dao găm, 2 rìu, 3 giáo
+    int weaponType = 0; // 0 kiếm, 1 dao găm, 2 rìu, 3 giáo, 4 búa, 5 lưỡi hái, 6 cung, 7 trượng
     float damage = 0, maxHp = 0, armor = 0, moveSpeed = 0, attackRate = 0, lifesteal = 0, crit = 0;
 
     float Score() const { return damage + maxHp * 0.3f + armor * 4.0f + moveSpeed * 6.0f + attackRate * 8.0f + lifesteal * 100.0f + crit * 80.0f; }
@@ -342,8 +447,17 @@ struct EquipItem {
     std::vector<std::string> StatLines() const {
         std::vector<std::string> v;
         if (slot == SLOT_WEAPON) {
-            static const char* trait[4] = { "Balanced swing", "Fast light strikes", "Heavy wide swing", "Long piercing thrust" };
-            v.push_back(trait[std::max(0, std::min(3, weaponType))]);
+            static const char* trait[8] = {
+                "Balanced melee swing",
+                "Fast twin-blade strikes",
+                "Heavy wide cleave",
+                "Long piercing thrust",
+                "Crushing slam (stuns)",
+                "Wide reap (+5% lifesteal)",
+                "Ranged high-speed arrows",
+                "Ranged explosive arcane bolts"
+            };
+            v.push_back(trait[std::max(0, std::min(7, weaponType))]);
         }
         auto fmt = [](float x) { std::ostringstream ss; ss << (x == (int)x ? (int)x : roundf(x * 10) / 10); return ss.str(); };
         if (damage > 0) v.push_back("+" + fmt(damage) + " Damage");
@@ -366,7 +480,22 @@ struct ItemDrop {
 
 static float R1(float v) { return roundf(v * 10.0f) / 10.0f; }
 
+static EquipItem MakeStarterWeapon(int weaponType) {
+    static const char* starterNames[8] = {
+        "Knight's Sword", "Shadow Dagger", "Iron Axe", "Guard Spear",
+        "Oak Hammer", "Reaper Scythe", "Hunter Bow", "Initiate Staff"
+    };
+    EquipItem it;
+    it.slot = SLOT_WEAPON;
+    it.rarity = 0;
+    it.weaponType = std::max(0, std::min(7, weaponType));
+    it.damage = 3.0f;
+    it.name = starterNames[it.weaponType];
+    return it;
+}
+
 static EquipItem GenerateItem(int floor) {
+    static const char* weaponNames[8] = { "Sword", "Dagger", "Axe", "Spear", "Hammer", "Scythe", "Bow", "Staff" };
     static const char* names[4][4] = {
         { "Sword", "Dagger", "Axe", "Spear" }, { "Plate", "Mail", "Vest", "Cuirass" },
         { "Boots", "Greaves", "Sandals", "Treads" }, { "Ring", "Band", "Signet", "Loop" } };
@@ -398,9 +527,14 @@ static EquipItem GenerateItem(int floor) {
             it.attackRate = std::min(2.0f, R1(0.25f * m));
             break;
     }
-    int ni = rand() % 4;
-    if (it.slot == SLOT_WEAPON) it.weaponType = ni; // Sword / Blade / Axe / Spear
-    it.name = std::string(prefix[it.rarity][rand() % 4]) + " " + names[it.slot][ni];
+    if (it.slot == SLOT_WEAPON) {
+        int wi = rand() % 8;
+        it.weaponType = wi;
+        it.name = std::string(prefix[it.rarity][rand() % 4]) + " " + weaponNames[wi];
+    } else {
+        int ni = rand() % 4;
+        it.name = std::string(prefix[it.rarity][rand() % 4]) + " " + names[it.slot][ni];
+    }
     return it;
 }
 
@@ -483,6 +617,7 @@ public:
     std::vector<SlashVisual> slashes;
     std::vector<NovaVisual> novas;
     std::vector<GhostTrail> ghosts;
+    std::vector<GroundEffect> groundEffects;
     std::vector<Vector2> pillars;
 
     int floor = 1;
@@ -501,8 +636,10 @@ public:
     float screenShakeTimer = 0.0f;
     float screenShakeMag = 0.0f;
 
-    enum State { PLAYING, LEVEL_UP, GAME_OVER, TITLE, PAUSED, INVENTORY, SETTINGS, SHOP, META };
+    enum State { PLAYING, LEVEL_UP, GAME_OVER, TITLE, PAUSED, INVENTORY, SETTINGS, SHOP, META, CLASS_SELECT };
     State state = PLAYING;
+    int selectedClass = 0;
+    int classSel = 0;
     bool quitRequested = false;
     bool showHelp = false;
     State prevState = PLAYING;
@@ -538,7 +675,7 @@ public:
         bool active = false;
         Vector2 move = { 0, 0 };
         Vector2 aim = { 1, 0 };
-        bool attack = false, dash = false, nova = false;
+        bool attack = false, dash = false, nova = false, skill2 = false, ult = false;
         bool external = false; // true: bot mô phỏng đang điều khiển, bỏ qua tay cầm
     };
     ControlOverride ctl;
@@ -568,6 +705,39 @@ public:
     float shrineRefuse = 0.0f;
     float shrinePulse = 0.0f;
 
+    float SkillCdrMult() const {
+        float mult = std::max(0.45f, 1.0f - 0.12f * player.cdrUpgrades);
+        if (player.heroClass == CLASS_MAGE) mult *= 0.85f;
+        return mult;
+    }
+    float Skill1MaxCd() const { return kClasses[std::max(0, std::min(3, player.heroClass))].qCooldown * SkillCdrMult(); }
+    float Skill2MaxCd() const { return kClasses[std::max(0, std::min(3, player.heroClass))].eCooldown * SkillCdrMult(); }
+    float EffectiveArmor() const { return player.armor + (player.holyBuffTimer > 0.0f ? 4.0f : 0.0f); }
+    float EffectiveAttackRate() const {
+        float r = player.attackRate;
+        if (player.holyBuffTimer > 0.0f) r *= 1.25f;
+        if (player.heroClass == CLASS_RANGER && player.hasteTimer > 0.0f) r *= 1.35f;
+        return r;
+    }
+    float EffectiveMoveSpeed() const {
+        float s = player.speed;
+        if (player.heroClass == CLASS_ASSASSIN) {
+            if (player.ultActiveTimer > 0.0f) s *= 1.35f;
+            else if (player.hasteTimer > 0.0f) s *= 1.25f;
+        }
+        return s;
+    }
+    void AddRage(float amt) {
+        if (amt <= 0.0f || player.rage >= player.maxRage) return;
+        float prev = player.rage;
+        player.rage = std::min(player.maxRage, player.rage + amt);
+        if (prev < player.maxRage && player.rage >= player.maxRage) {
+            PlaySound(snd.sndShield);
+            SpawnPopup({ player.pos.x, player.pos.y - 36.0f }, "RAGE FULL [R]!", GOLD);
+            Burst(player.pos, { 255, 190, 50, 255 }, 16, 200.0f, 0.5f);
+        }
+    }
+
     void Init() {
         snd.Init();
         camera.zoom = 1.0f;
@@ -585,10 +755,22 @@ public:
 
     void RestartRun() {
         player = Player();
+        int hc = std::max(0, std::min(3, selectedClass));
+        const ClassDef& cd = kClasses[hc];
+        player.heroClass = hc;
+        player.maxHp = cd.baseHp;
+        player.speed = cd.baseSpeed;
+        player.baseDmg = cd.baseDmg - 3.0f; // vũ khí khởi đầu +3 DMG
+        player.attackRate = cd.baseAtkRate;
+        player.armor = cd.baseArmor;
+        player.critChance = cd.baseCrit;
+        player.specialCooldown = Skill1MaxCd();
+        player.skill2Cooldown = Skill2MaxCd();
         player.pos = { 0, 240 };
         // Nâng cấp vĩnh viễn từ Thánh địa
         player.maxHp += 10.0f * meta[0];
         player.hp = player.maxHp;
+        player.hpDisplay = player.hp;
         player.baseDmg += 2.0f * meta[1];
         player.speed += 5.0f * meta[2];
         player.gold += 10 * meta[3];
@@ -601,7 +783,10 @@ public:
         damagePulse = 0.0f;
         hitStop = 0.0f;
         particles.clear();
+        groundEffects.clear();
         for (int i = 0; i < 4; ++i) hasEquip[i] = false;
+        int dummySold = 0;
+        TryEquipItem(MakeStarterWeapon(cd.startWeapon), dummySold);
         itemDrops.clear();
         pendingSpawns.clear();
         phoenixUsed = false;
@@ -714,7 +899,7 @@ public:
             case UP_LIFESTEAL: return "+8% Lifesteal\nHeal on hit";
             case UP_ARMOR: return "+2 Flat Armor\nReduce damage";
             case UP_CRIT: return "+8% Crit Chance\nCrits deal x2 dmg";
-            case UP_NOVA: return "-0.8s Nova Cooldown\nSpam Nova";
+            case UP_NOVA: return "-12% Skill Cooldowns\nCast Q & E faster";
             case UP_IGNITE: return "Hits burn enemies 3s\n+50% dmg/s per level";
             case UP_FROST: return "Hits slow enemies 2s\n-15% speed per level";
         }
@@ -741,10 +926,12 @@ public:
         slashes.clear();
         novas.clear();
         ghosts.clear();
+        groundEffects.clear();
         pillars.clear();
         particles.clear();
         itemDrops.clear();
         pendingSpawns.clear();
+        player.ultActiveTimer = 0.0f;
         BuildDecor();
 
         portalOpen = false;
@@ -1016,16 +1203,23 @@ public:
             if (IsKeyPressed(KEY_F1) || IsKeyPressed(KEY_H)) showHelp = !showHelp;
             else if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_DOWN) || PadPressed(GAMEPAD_BUTTON_MIDDLE_RIGHT)) {
                 showHelp = false;
-                state = PLAYING;
+                classSel = selectedClass;
+                state = CLASS_SELECT;
                 PlaySound(snd.sndPotion);
             }
             if (IsKeyPressed(KEY_ESCAPE)) quitRequested = true;
+            return;
+        }
+        if (state == CLASS_SELECT) {
+            UpdateEffects(dt);
+            UpdateClassSelect();
             return;
         }
         if (state == PAUSED) {
             if (IsKeyPressed(KEY_F1) || IsKeyPressed(KEY_H)) showHelp = !showHelp;
             if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ENTER) || PadPressed(GAMEPAD_BUTTON_MIDDLE_RIGHT) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) { showHelp = false; state = PLAYING; }
             if (IsKeyPressed(KEY_R)) { showHelp = false; RestartRun(); }
+            if (IsKeyPressed(KEY_C)) { showHelp = false; classSel = selectedClass; state = CLASS_SELECT; }
             if (IsKeyPressed(KEY_I)) { prevState = PAUSED; state = INVENTORY; }
             if (IsKeyPressed(KEY_O)) { settingsReturn = PAUSED; setSel = 0; state = SETTINGS; }
             if (IsKeyPressed(KEY_Q)) quitRequested = true;
@@ -1070,6 +1264,7 @@ public:
 
         if (state == GAME_OVER) {
             if (IsKeyPressed(KEY_S) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_LEFT)) { OpenSanctuary(GAME_OVER); return; }
+            if (IsKeyPressed(KEY_C)) { classSel = selectedClass; state = CLASS_SELECT; return; }
             if (IsKeyPressed(KEY_R) || IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) {
                 RestartRun();
             }
@@ -1082,8 +1277,16 @@ public:
         // Player Timers
         if (player.dashTimer > 0) player.dashTimer -= dt;
         if (player.specialTimer > 0) player.specialTimer -= dt;
+        if (player.skill2Timer > 0) player.skill2Timer -= dt;
         if (player.attackTimer > 0) player.attackTimer -= dt;
         if (player.invulnTimer > 0) player.invulnTimer -= dt;
+        if (player.holyBuffTimer > 0) player.holyBuffTimer -= dt;
+        if (player.hasteTimer > 0) player.hasteTimer -= dt;
+        if (player.hpDisplay > player.hp) {
+            player.hpDisplay = std::max(player.hp, player.hpDisplay - std::max(28.0f, (player.hpDisplay - player.hp) * 3.5f) * dt);
+        } else {
+            player.hpDisplay = player.hp;
+        }
         player.isInvuln = (player.invulnTimer > 0 || player.isDashing);
 
         // Aegis Shield Recharging
@@ -1112,6 +1315,7 @@ public:
 
         Vector2 mouseWorld = GetScreenToWorld2D(GetMousePosition(), camera);
         Vector2 aimDir = Vector2Normalize(Vector2Subtract(mouseWorld, player.pos));
+        if (Vector2Length(aimDir) < 0.01f) aimDir = { player.facingLeft ? -1.0f : 1.0f, 0.0f };
         if (fabs(aimDir.x) > 0.1f) player.facingLeft = (aimDir.x < 0);
         if (ctl.active) {
             move = ctl.move;
@@ -1120,13 +1324,14 @@ public:
         }
         aimDirDraw = aimDir;
 
+        float effSpd = EffectiveMoveSpeed();
         if (player.isDashing) {
-            player.pos = Vector2Add(player.pos, Vector2Scale(player.dashDir, player.speed * 2.8f * dt));
+            player.pos = Vector2Add(player.pos, Vector2Scale(player.dashDir, effSpd * 2.8f * dt));
             if (player.dashTimer <= player.dashCooldown - player.dashDur) {
                 player.isDashing = false;
             }
         } else {
-            player.pos = Vector2Add(player.pos, Vector2Scale(move, player.speed * dt));
+            player.pos = Vector2Add(player.pos, Vector2Scale(move, effSpd * dt));
             if (Vector2Length(move) > 0.1f) player.walkTimer += dt * 10.0f;
         }
 
@@ -1136,10 +1341,12 @@ public:
         player.pos.x = Clamp(player.pos.x, -boundW, boundW);
         player.pos.y = Clamp(player.pos.y, -boundH, boundH);
 
-        // Dash Action
+        // Actions: Dash, Basic Attack, Skill 1 (Q), Skill 2 (E), Ultimate (R)
         bool dashPressed = ctl.active ? ctl.dash : (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) || IsKeyPressed(KEY_LEFT_SHIFT) || IsKeyPressed(KEY_K));
         bool attackHeld = ctl.active ? ctl.attack : (IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsKeyDown(KEY_SPACE) || IsKeyDown(KEY_J));
-        bool novaPressed = ctl.active ? ctl.nova : (IsKeyPressed(KEY_Q) || IsKeyPressed(KEY_E) || IsKeyPressed(KEY_U));
+        bool skill1Pressed = ctl.active ? ctl.nova : (IsKeyPressed(KEY_Q) || IsKeyPressed(KEY_U));
+        bool skill2Pressed = ctl.active ? ctl.skill2 : (IsKeyPressed(KEY_E) || IsKeyPressed(KEY_L));
+        bool ultPressed = ctl.active ? ctl.ult : (IsKeyPressed(KEY_R) || IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE));
 
         if (dashPressed && player.dashTimer <= 0) {
             player.isDashing = true;
@@ -1149,43 +1356,35 @@ public:
             ghosts.push_back({ player.pos, player.facingLeft, 0.22f, 0.22f });
         }
 
-        // Melee Slash Attack
+        // Basic Weapon Attack
         if (attackHeld && player.attackTimer <= 0 && !player.isDashing) {
             MeleeAttack(aimDir);
         }
 
-        // Special Nova Pulse (Q / E / U)
-        if (novaPressed && player.specialTimer <= 0) {
-            player.specialTimer = player.specialCooldown;
-            PlaySound(snd.sndSpecial);
-            Shake(0.25f, 6.0f);
-            Burst(player.pos, SKYBLUE, 34, 380.0f, 0.6f);
-
-            NovaVisual nv;
-            nv.pos = player.pos;
-            nv.radius = 0;
-            nv.maxRadius = 190.0f;
-            nv.timer = 0.35f;
-            nv.maxTimer = 0.35f;
-            nv.color = SKYBLUE;
-            novas.push_back(nv);
-
-            for (auto& e : enemies) {
-                if (e.hp <= 0) continue;
-                if (Vector2Distance(player.pos, e.pos) <= nv.maxRadius) {
-                    bool isCrit = ((float)rand() / RAND_MAX < player.critChance);
-                    float dmg = player.baseDmg * 1.8f * (isCrit ? 2.0f : 1.0f);
-                    Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
-                    DamageEnemy(e, dmg, kb, 280.0f, isCrit);
-                }
-            }
+        // Skill 1 (Q / U)
+        if (skill1Pressed && player.specialTimer <= 0) {
+            CastSkill1(aimDir);
         }
+
+        // Skill 2 (E / L)
+        if (skill2Pressed && player.skill2Timer <= 0) {
+            CastSkill2(aimDir, move);
+        }
+
+        // Ultimate / Rage Skill (R / MMB)
+        if (ultPressed && player.rage >= player.maxRage) {
+            CastUltimate(aimDir);
+        }
+
+        // Active Ultimates & Ground Effects (Traps, Consecrated Ground, Void Vortex, Meteors, Arrow Rain)
+        UpdateActiveSkills(dt);
 
         // ── Enemies AI & Update ──
         for (auto& e : enemies) {
             if (e.hp <= 0) continue;
 
             if (e.hitFlash > 0) e.hitFlash -= dt;
+            if (e.stunTimer > 0) e.stunTimer -= dt;
 
             // Poison DoT
             if (e.poisonTimer > 0) {
@@ -1203,6 +1402,8 @@ public:
             if (e.slowTimer > 0) {
                 e.slowTimer -= dt;
                 speedMod *= e.slowFactor;
+            } else {
+                e.slowFactor = 1.0f;
             }
             // Ember Edge: đốt
             if (e.burnTimer > 0) {
@@ -1214,10 +1415,12 @@ public:
 
             Vector2 toPlayer = Vector2Subtract(player.pos, e.pos);
             float dist = Vector2Length(toPlayer);
-            Vector2 dir = Vector2Normalize(toPlayer);
-            if (fabs(dir.x) > 0.05f) e.facingLeft = (dir.x < 0);
+            Vector2 dir = dist > 0.01f ? Vector2Normalize(toPlayer) : Vector2{ 1, 0 };
+            if (e.stunTimer <= 0.0f && fabs(dir.x) > 0.05f) e.facingLeft = (dir.x < 0);
 
-            if (e.type == CHASER || e.type == SPLITTER) {
+            if (e.stunTimer > 0.0f) {
+                // Đang bị choáng: đứng yên, không thể tấn công hoặc tiếp tục lao
+            } else if (e.type == CHASER || e.type == SPLITTER) {
                 e.bounceTimer += dt * 6.0f;
                 float hop = std::max(0.2f, sinf(e.bounceTimer));
                 e.vel = Vector2Scale(dir, e.speed * hop * speedMod);
@@ -1463,7 +1666,7 @@ public:
                 Shake(0.15f, 4.0f);
                 Burst(e.pos, { 200, 190, 170, 255 }, 10, 180.0f, 0.4f);
             }
-            if (Vector2Distance(e.pos, player.pos) < e.radius + 18.0f) {
+            if (e.stunTimer <= 0.0f && Vector2Distance(e.pos, player.pos) < e.radius + 18.0f) {
                 float contactMul = ((e.type == CHARGER && e.chargeState == 2) || (e.type == BOSS && e.bossKind == 1 && e.chargeState == 4)) ? 1.8f : 1.0f;
                 DamagePlayer(e.contactDmg * contactMul);
             }
@@ -1473,10 +1676,30 @@ public:
         FlushSpawns();
         for (size_t i = 0; i < projectiles.size();) {
             auto& p = projectiles[i];
+            if (p.fromPlayer && p.kind == 5) { // tên ma thuật dẫn đường
+                float bestD = 520.0f;
+                Vector2 bestPos = p.pos;
+                bool found = false;
+                for (const auto& e : enemies) {
+                    if (e.hp <= 0) continue;
+                    float d = Vector2Distance(p.pos, e.pos);
+                    if (d < bestD) { bestD = d; bestPos = e.pos; found = true; }
+                }
+                if (found) {
+                    Vector2 desired = Vector2Scale(Vector2Normalize(Vector2Subtract(bestPos, p.pos)), 440.0f);
+                    p.vel = Vector2Lerp(p.vel, desired, std::min(1.0f, dt * 8.5f));
+                    if (Vector2Length(p.vel) > 1.0f) p.vel = Vector2Scale(Vector2Normalize(p.vel), 440.0f);
+                }
+            }
             p.pos = Vector2Add(p.pos, Vector2Scale(p.vel, dt));
             p.life -= dt;
 
+            if (p.fromPlayer && Rand01() < (p.kind == 4 ? 0.85f : 0.35f)) {
+                Burst(p.pos, p.color, 1, p.kind == 4 ? 65.0f : 35.0f, p.kind == 4 ? 0.28f : 0.18f);
+            }
+
             bool hit = false;
+            bool outOrExpired = false;
             if (!p.fromPlayer) {
                 if (Vector2Distance(p.pos, player.pos) < p.radius + 18.0f) {
                     DamagePlayer(p.damage);
@@ -1487,8 +1710,61 @@ public:
                         if (Vector2Distance(p.pos, pl) < 27.0f + p.radius) { hit = true; Burst(p.pos, p.color, 3, 100.0f, 0.25f); break; }
                     }
                 }
+            } else {
+                for (size_t ei = 0; ei < enemies.size(); ++ei) {
+                    Enemy& e = enemies[ei];
+                    if (e.hp <= 0 || (int)ei == p.hitMask) continue;
+                    if (Vector2Distance(p.pos, e.pos) < p.radius + e.radius) {
+                        float cc = std::min(0.85f, player.critChance + p.critBonus);
+                        bool isCrit = p.hasPreCrit ? p.preCrit : (Rand01() < cc);
+                        float critMul = (player.heroClass == CLASS_ASSASSIN ? 2.4f : 2.0f);
+                        float dmg = p.damage * (isCrit ? critMul : 1.0f);
+                        Vector2 kb = Vector2Length(p.vel) > 0.1f ? Vector2Normalize(p.vel) : Vector2{ 1, 0 };
+                        DamageEnemy(e, dmg, kb, p.kind == 3 ? 110.0f : 150.0f, isCrit, true);
+                        if (p.applyBurn) {
+                            e.burnTimer = std::max(e.burnTimer, 3.0f);
+                            e.burnDps = std::max(e.burnDps, player.baseDmg * (0.4f + 0.5f * player.igniteLevel));
+                        }
+                        if (p.applySlow) {
+                            e.slowTimer = std::max(e.slowTimer, 2.0f);
+                            e.slowFactor = std::min(e.slowFactor, 0.65f);
+                        }
+                        if (p.applyPoison) {
+                            e.poisonTimer = std::max(e.poisonTimer, 2.5f);
+                            e.poisonDmg = std::max(e.poisonDmg, dmg * 0.22f);
+                        }
+                        if (player.lifesteal > 0.0f && player.hp < player.maxHp) {
+                            float hl = std::max(1.0f, dmg * std::min(0.35f, player.lifesteal));
+                            player.hp = std::min(player.maxHp, player.hp + hl);
+                        }
+                        if (p.splashRadius > 0.0f) {
+                            TriggerProjectileSplash(p.pos, p.damage * p.splashRatio, p.splashRadius, p.color, p.applyBurn, (int)ei);
+                        }
+                        if (p.pierce > 0) {
+                            p.pierce--;
+                            p.hitMask = (int)ei;
+                        } else {
+                            hit = true;
+                            break;
+                        }
+                    }
+                }
+                if (!hit && p.kind != 5) {
+                    for (const auto& pl : pillars) {
+                        if (Vector2Distance(p.pos, pl) < 27.0f + p.radius) {
+                            hit = true;
+                            Burst(p.pos, p.color, 5, 130.0f, 0.3f);
+                            if (p.kind == 4) TriggerProjectileSplash(p.pos, p.damage, p.splashRadius, p.color, true, -1);
+                            break;
+                        }
+                    }
+                }
             }
-            if (hit || p.life <= 0 || fabs(p.pos.x) > roomW / 2.0f || fabs(p.pos.y) > roomH / 2.0f) {
+            outOrExpired = (p.life <= 0 || fabs(p.pos.x) > roomW / 2.0f || fabs(p.pos.y) > roomH / 2.0f);
+            if (!hit && outOrExpired && p.fromPlayer && p.kind == 4) {
+                TriggerProjectileSplash(p.pos, p.damage, p.splashRadius, p.color, true, -1);
+            }
+            if (hit || outOrExpired) {
                 projectiles.erase(projectiles.begin() + i);
             } else {
                 ++i;
@@ -1612,9 +1888,42 @@ public:
         }
     }
 
-    void DamageEnemy(Enemy& e, float dmg, Vector2 kb, float kbForce, bool isCrit) {
+    void TriggerProjectileSplash(Vector2 pos, float baseSplashDmg, float radius, Color col, bool applyBurn, int skipIdx) {
+        NovaVisual nv;
+        nv.pos = pos;
+        nv.radius = 0.0f;
+        nv.maxRadius = radius;
+        nv.timer = 0.28f;
+        nv.maxTimer = 0.28f;
+        nv.color = col;
+        novas.push_back(nv);
+        Burst(pos, col, radius > 90.0f ? 26 : 12, radius * 2.2f, 0.45f);
+        if (radius > 90.0f) {
+            PlaySound(snd.sndSpecial);
+            Shake(0.18f, 5.0f);
+        }
+        for (size_t i = 0; i < enemies.size(); ++i) {
+            if ((int)i == skipIdx) continue;
+            Enemy& other = enemies[i];
+            if (other.hp <= 0) continue;
+            if (Vector2Distance(pos, other.pos) <= radius + other.radius * 0.5f) {
+                bool isCrit = (Rand01() < player.critChance);
+                float critMul = (player.heroClass == CLASS_ASSASSIN ? 2.4f : 2.0f);
+                float dmg = baseSplashDmg * (isCrit ? critMul : 1.0f);
+                Vector2 kb = Vector2Normalize(Vector2Subtract(other.pos, pos));
+                DamageEnemy(other, dmg, kb, 160.0f, isCrit, true);
+                if (applyBurn) {
+                    other.burnTimer = std::max(other.burnTimer, 3.0f);
+                    other.burnDps = std::max(other.burnDps, player.baseDmg * (0.4f + 0.5f * player.igniteLevel));
+                }
+            }
+        }
+    }
+
+    void DamageEnemy(Enemy& e, float dmg, Vector2 kb, float kbForce, bool isCrit, bool allowRage = true) {
         if (e.type == CHARGER && e.chargeState == 3) dmg *= 1.5f; // choáng sau cú lao: dễ trúng đòn
         if (e.type == BOSS && e.bossKind == 1 && e.chargeState == 5) dmg *= 1.3f; // Colossus kiệt sức: nhận thêm sát thương
+        if (e.stunTimer > 0.0f) dmg *= 1.20f; // Kẻ địch đang choáng nhận thêm 20% sát thương
         if (HasRelic(RELIC_BERSERK) && player.hp < player.maxHp * 0.4f) dmg *= 1.4f;
         e.hp -= dmg;
         e.pos = Vector2Add(e.pos, Vector2Scale(kb, kbForce * 0.05f));
@@ -1622,6 +1931,13 @@ public:
         e.hitFlash = 0.09f;
         Burst(e.pos, isCrit ? Color{ 255, 217, 51, 255 } : WHITE, isCrit ? 9 : 4, isCrit ? 230.0f : 160.0f, isCrit ? 0.4f : 0.28f);
         if (isCrit) hitStop = 0.035f;
+        if (allowRage) AddRage(isCrit ? 4.0f : 2.5f);
+
+        // Nội tại Sát Thủ: đòn chí mạng gây chảy máu/độc 2s
+        if (player.heroClass == CLASS_ASSASSIN && isCrit) {
+            e.poisonTimer = std::max(e.poisonTimer, 2.0f);
+            e.poisonDmg = std::max(e.poisonDmg, dmg * 0.18f);
+        }
 
         // Ember Edge / Frost Touch
         if (player.igniteLevel > 0) {
@@ -1680,6 +1996,13 @@ public:
         if (comboCount > bestCombo) bestCombo = comboCount;
         comboTimer = 3.0f;
         PlaySound(snd.sndDeath);
+        AddRage(e.type == BOSS ? 35.0f : (e.isElite || e.isWarden ? 15.0f : 6.0f));
+
+        // Nội tại Sát Thủ: hạ gục hoàn 50% hồi chiêu Dash và tăng 25% tốc chạy trong 2s
+        if (player.heroClass == CLASS_ASSASSIN) {
+            player.dashTimer = std::max(0.0f, player.dashTimer - player.dashCooldown * 0.5f);
+            player.hasteTimer = std::max(player.hasteTimer, 2.0f);
+        }
 
         // Combo gold payout every 5 kills
         if (comboCount % 5 == 0) {
@@ -1731,20 +2054,45 @@ public:
         }
     }
 
+    void KnightCounterShockwave() {
+        AddRage(8.0f);
+        NovaVisual nv;
+        nv.pos = player.pos;
+        nv.radius = 0.0f;
+        nv.maxRadius = 120.0f;
+        nv.timer = 0.26f;
+        nv.maxTimer = 0.26f;
+        nv.color = GOLD;
+        novas.push_back(nv);
+        Burst(player.pos, GOLD, 14, 220.0f, 0.4f);
+        for (auto& en : enemies) {
+            if (en.hp <= 0) continue;
+            if (Vector2Distance(player.pos, en.pos) <= 120.0f + en.radius * 0.5f) {
+                Vector2 kb = Vector2Normalize(Vector2Subtract(en.pos, player.pos));
+                DamageEnemy(en, player.baseDmg * 0.30f, kb, 180.0f, false, false);
+            }
+        }
+    }
+
     void DamagePlayer(float dmg) {
         if (player.isInvuln || player.hp <= 0) return;
 
-        // Divine Aegis barrier check
-        if (HasRelic(RELIC_AEGIS) && player.shieldActive) {
+        // Khiên chặn đòn (Divine Aegis hoặc Thánh Quang Xung của Knight)
+        if (player.shieldActive) {
             player.shieldActive = false;
             player.shieldTimer = 0.0f;
             PlaySound(snd.sndShield);
             SpawnPopup(player.pos, "BLOCKED!", GOLD);
             Shake(0.12f, 3.0f);
+            if (player.heroClass == CLASS_KNIGHT) KnightCounterShockwave();
             return;
         }
 
-        float effDmg = std::max(1.0f, dmg * 100.0f / (100.0f + player.armor * 10.0f));
+        float effArmor = EffectiveArmor();
+        float effDmg = dmg * 100.0f / (100.0f + effArmor * 10.0f);
+        if (player.heroClass == CLASS_KNIGHT) effDmg *= 0.85f;
+        if (player.heroClass == CLASS_ASSASSIN && player.ultActiveTimer > 0.0f) effDmg *= 0.50f;
+        effDmg = std::max(1.0f, effDmg);
         player.hp = std::max(0.0f, player.hp - effDmg);
         comboCount = 0;
         damagePulse = std::min(1.0f, 0.45f + effDmg / 60.0f);
@@ -1752,6 +2100,8 @@ public:
         PlaySound(snd.sndHurt);
         Shake(0.18f, 5.0f);
         SpawnPopup(player.pos, std::to_string((int)effDmg), RED);
+        AddRage(8.0f);
+        if (player.heroClass == CLASS_KNIGHT && player.hp > 0) KnightCounterShockwave();
 
         if (player.hp <= 0 && HasRelic(RELIC_PHOENIX) && !phoenixUsed) {
             // Phoenix Feather: hồi sinh một lần với nửa máu
@@ -1863,7 +2213,13 @@ public:
         else if (up == UP_LIFESTEAL) { player.lifesteal = std::min(0.3f, player.lifesteal + 0.08f); }
         else if (up == UP_ARMOR) { player.armor += 2.0f; }
         else if (up == UP_CRIT) { player.critChance = std::min(0.6f, player.critChance + 0.08f); }
-        else if (up == UP_NOVA) { player.specialCooldown = std::max(2.5f, player.specialCooldown - 0.8f); }
+        else if (up == UP_NOVA) {
+            player.cdrUpgrades = std::min(5, player.cdrUpgrades + 1);
+            player.specialCooldown = Skill1MaxCd();
+            player.skill2Cooldown = Skill2MaxCd();
+            player.specialTimer = std::min(player.specialTimer, player.specialCooldown);
+            player.skill2Timer = std::min(player.skill2Timer, player.skill2Cooldown);
+        }
         else if (up == UP_IGNITE) { player.igniteLevel++; }
         else if (up == UP_FROST) { player.frostLevel++; }
     }
@@ -2154,76 +2510,203 @@ public:
             DrawCircleLines((int)c.x, (int)c.y, r + 7.0f, Fade({ 255, 130, 30, 255 }, fl));
             DrawCircleV({ c.x - r * 0.5f, c.y - r - 4.0f }, 3.0f + 2.0f * fl, Fade({ 255, 170, 40, 255 }, 0.9f));
         }
+        if (e.stunTimer > 0.0f && !(e.type == CHARGER && e.chargeState == 3)) {
+            Color starCol = (e.chillTimer > 0.0f) ? Color{ 150, 235, 255, 255 } : Color{ 255, 230, 80, 255 };
+            for (int i = 0; i < 3; ++i) {
+                float a3 = t * 6.5f + i * 2.094f;
+                DrawCircleV({ c.x + cosf(a3) * r * 0.85f, c.y - r - 8.0f + sinf(a3) * 5.0f }, 4.2f, starCol);
+            }
+        }
     }
 
-    void DrawPlayerSprite() {
+    static void DrawWeaponModel(Vector2 hand, Vector2 dir, int wt, float t) {
+        Vector2 perp = { -dir.y, dir.x };
+        if (wt == WP_BOW) {
+            float ang = atan2f(dir.y, dir.x) * RAD2DEG;
+            Vector2 bowC = { hand.x + dir.x * 4.0f, hand.y + dir.y * 4.0f };
+            DrawRing(bowC, 15.0f, 19.0f, ang - 75.0f, ang + 75.0f, 16, { 165, 112, 58, 255 });
+            DrawRing(bowC, 17.5f, 19.5f, ang - 75.0f, ang + 75.0f, 16, { 110, 215, 130, 255 });
+            Vector2 topLimb = { bowC.x + cosf((ang - 75.0f) * DEG2RAD) * 16.5f, bowC.y + sinf((ang - 75.0f) * DEG2RAD) * 16.5f };
+            Vector2 botLimb = { bowC.x + cosf((ang + 75.0f) * DEG2RAD) * 16.5f, bowC.y + sinf((ang + 75.0f) * DEG2RAD) * 16.5f };
+            DrawLineEx(topLimb, botLimb, 1.5f, Fade(WHITE, 0.7f));
+            // Mũi tên đặt sẵn trên cung
+            Vector2 arrTail = Vector2Subtract(bowC, Vector2Scale(dir, 4.0f));
+            Vector2 arrTip = Vector2Add(bowC, Vector2Scale(dir, 24.0f));
+            DrawLineEx(arrTail, arrTip, 2.5f, { 225, 200, 140, 255 });
+            Tri({ arrTip.x + dir.x * 7.0f, arrTip.y + dir.y * 7.0f }, { arrTip.x + perp.x * 4.0f, arrTip.y + perp.y * 4.0f }, { arrTip.x - perp.x * 4.0f, arrTip.y - perp.y * 4.0f }, { 120, 245, 160, 255 });
+        } else if (wt == WP_STAFF) {
+            Vector2 tail = Vector2Subtract(hand, Vector2Scale(dir, 12.0f));
+            Vector2 tip = Vector2Add(hand, Vector2Scale(dir, 30.0f));
+            DrawLineEx(tail, tip, 5.0f, { 88, 52, 128, 255 });
+            DrawLineEx(tail, tip, 2.8f, { 145, 95, 200, 255 });
+            // Chạc vàng giữ ngọc phép
+            Vector2 pL = Vector2Add(tip, Vector2Add(Vector2Scale(dir, 7.0f), Vector2Scale(perp, 6.0f)));
+            Vector2 pR = Vector2Add(tip, Vector2Add(Vector2Scale(dir, 7.0f), Vector2Scale(perp, -6.0f)));
+            DrawLineEx(tip, pL, 2.5f, GOLD);
+            DrawLineEx(tip, pR, 2.5f, GOLD);
+            Vector2 orb = Vector2Add(tip, Vector2Scale(dir, 6.0f));
+            float pulse = 0.8f + 0.2f * sinf(t * 7.0f);
+            DrawCircleV(orb, 9.0f * pulse, Fade({ 95, 225, 255, 255 }, 0.35f));
+            DrawCircleV(orb, 5.2f * pulse, { 115, 230, 255, 255 });
+            DrawCircleV(orb, 2.2f, WHITE);
+        } else if (wt == WP_HAMMER) {
+            Vector2 tip = Vector2Add(hand, Vector2Scale(dir, 26.0f));
+            DrawLineEx(hand, tip, 5.0f, { 110, 74, 42, 255 });
+            DrawLineEx(hand, tip, 2.0f, { 160, 112, 64, 255 });
+            Vector2 hA = Vector2Add(tip, Vector2Scale(perp, 12.0f));
+            Vector2 hB = Vector2Subtract(tip, Vector2Scale(perp, 12.0f));
+            DrawLineEx(hA, hB, 14.0f, { 90, 98, 122, 255 });
+            DrawLineEx(hA, hB, 10.0f, { 188, 198, 220, 255 });
+            DrawLineEx(Vector2Add(tip, Vector2Scale(perp, 4.0f)), Vector2Subtract(tip, Vector2Scale(perp, 4.0f)), 11.0f, GOLD);
+        } else if (wt == WP_SCYTHE) {
+            Vector2 tail = Vector2Subtract(hand, Vector2Scale(dir, 10.0f));
+            Vector2 tip = Vector2Add(hand, Vector2Scale(dir, 34.0f));
+            DrawLineEx(tail, tip, 4.5f, { 54, 44, 72, 255 });
+            DrawLineEx(tail, tip, 2.2f, { 100, 88, 130, 255 });
+            Vector2 bladeTip = Vector2Add(tip, Vector2Add(Vector2Scale(dir, -12.0f), Vector2Scale(perp, 24.0f)));
+            Vector2 bladeMid = Vector2Add(tip, Vector2Add(Vector2Scale(dir, 5.0f), Vector2Scale(perp, 13.0f)));
+            Tri(tip, bladeMid, bladeTip, { 195, 210, 235, 255 });
+            DrawLineEx(tip, bladeTip, 2.5f, { 190, 120, 255, 255 });
+        } else {
+            float wlen = (wt == WP_DAGGER) ? 19.0f : (wt == WP_SPEAR ? 44.0f : (wt == WP_AXE ? 24.0f : 27.0f));
+            Vector2 tip = { hand.x + dir.x * wlen, hand.y + dir.y * wlen };
+            DrawLineEx(hand, tip, 6.0f, { 90, 100, 130, 255 });
+            DrawLineEx(hand, tip, 4.0f, { 232, 238, 250, 255 });
+            DrawLineEx(hand, tip, 1.5f, WHITE);
+            if (wt == WP_AXE) {
+                Tri({ tip.x - dir.x * 16.0f + perp.x * 15.0f, tip.y - dir.y * 16.0f + perp.y * 15.0f }, { tip.x + dir.x * 6.0f, tip.y + dir.y * 6.0f }, { tip.x - dir.x * 16.0f - perp.x * 3.0f, tip.y - dir.y * 16.0f - perp.y * 3.0f }, { 196, 204, 224, 255 });
+                Tri({ tip.x - dir.x * 16.0f - perp.x * 15.0f, tip.y - dir.y * 16.0f - perp.y * 15.0f }, { tip.x + dir.x * 6.0f, tip.y + dir.y * 6.0f }, { tip.x - dir.x * 16.0f + perp.x * 3.0f, tip.y - dir.y * 16.0f + perp.y * 3.0f }, { 170, 178, 200, 255 });
+            } else if (wt == WP_SPEAR) {
+                Tri({ tip.x + dir.x * 16.0f, tip.y + dir.y * 16.0f }, { tip.x + perp.x * 6.0f, tip.y + perp.y * 6.0f }, { tip.x - perp.x * 6.0f, tip.y - perp.y * 6.0f }, { 236, 242, 255, 255 });
+                Tri(tip, { tip.x - dir.x * 8.0f + perp.x * 5.0f, tip.y - dir.y * 8.0f + perp.y * 5.0f }, { tip.x - dir.x * 8.0f - perp.x * 5.0f, tip.y - dir.y * 8.0f - perp.y * 5.0f }, { 210, 50, 65, 255 });
+            }
+            DrawLineEx({ hand.x + perp.x * 7.0f, hand.y + perp.y * 7.0f }, { hand.x - perp.x * 7.0f, hand.y - perp.y * 7.0f }, 4.0f, GOLD);
+        }
+        DrawCircleV(hand, 4.2f, { 140, 150, 176, 255 });
+    }
+
+    static void DrawHeroModel(Vector2 p, int heroClass, int wt, Vector2 aimDir, bool facingLeft, float walkTimer, bool moving,
+                              float atkSweep, bool isInvuln, bool shieldActive, float holyBuffTimer, float ultActiveTimer) {
         const float t = (float)GetTime();
-        const Vector2 p = player.pos;
-        const float face = player.facingLeft ? -1.0f : 1.0f;
+        const float face = facingLeft ? -1.0f : 1.0f;
         const float back = -face;
-        const bool moving = player.walkTimer > 0.01f && (IsKeyDown(KEY_W) || IsKeyDown(KEY_A) || IsKeyDown(KEY_S) || IsKeyDown(KEY_D)
-                              || IsKeyDown(KEY_UP) || IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_RIGHT));
-        float bob = moving ? fabsf(sinf(player.walkTimer)) * -2.5f : sinf(t * 3.0f) * 1.2f;
+        float bob = moving ? fabsf(sinf(walkTimer)) * -2.5f : sinf(t * 3.0f) * 1.2f;
         float sway = sinf(t * 8.0f) * 2.5f + (moving ? 4.0f : 0.0f);
         Vector2 body = { p.x, p.y + bob };
+        float step = moving ? sinf(walkTimer) * 4.0f : 0.0f;
 
-        // Áo choàng (sau lưng)
-        Color cape = { 44, 74, 168, 255 };
-        Vector2 A = { body.x + back * 6.0f, body.y - 11.0f }, B = { body.x + back * 6.0f, body.y + 11.0f };
-        Vector2 C = { body.x + back * (31.0f + sway), body.y + 20.0f + sway * 0.4f }, D = { body.x + back * (31.0f + sway), body.y - 4.0f };
-        Tri(A, B, C, cape); Tri(A, C, D, cape);
-        DrawLineEx(A, D, 2.0f, Shade(cape, 0.55f));
-        DrawLineEx(B, C, 2.0f, Shade(cape, 0.55f));
+        if (holyBuffTimer > 0.0f) {
+            float k = 0.65f + 0.35f * sinf(t * 10.0f);
+            DrawCircleV(body, 28.0f, Fade(GOLD, 0.14f * k));
+            DrawCircleLines((int)body.x, (int)body.y, 27.0f, Fade(GOLD, 0.65f * k));
+        }
 
-        // Ủng bước chân
-        float step = moving ? sinf(player.walkTimer) * 4.0f : 0.0f;
-        DrawEllipse((int)(p.x - 7.0f), (int)(p.y + 16.0f + step * 0.5f), 6.0f, 4.0f, { 52, 46, 64, 255 });
-        DrawEllipse((int)(p.x + 7.0f), (int)(p.y + 16.0f - step * 0.5f), 6.0f, 4.0f, { 52, 46, 64, 255 });
+        if (heroClass == CLASS_KNIGHT) {
+            Color cape = { 44, 74, 168, 255 };
+            Vector2 A = { body.x + back * 6.0f, body.y - 11.0f }, B = { body.x + back * 6.0f, body.y + 11.0f };
+            Vector2 C = { body.x + back * (31.0f + sway), body.y + 20.0f + sway * 0.4f }, D = { body.x + back * (31.0f + sway), body.y - 4.0f };
+            Tri(A, B, C, cape); Tri(A, C, D, cape);
+            DrawLineEx(A, D, 2.0f, Shade(cape, 0.55f)); DrawLineEx(B, C, 2.0f, Shade(cape, 0.55f));
+            DrawEllipse((int)(p.x - 7.0f), (int)(p.y + 16.0f + step * 0.5f), 6.0f, 4.0f, { 52, 46, 64, 255 });
+            DrawEllipse((int)(p.x + 7.0f), (int)(p.y + 16.0f - step * 0.5f), 6.0f, 4.0f, { 52, 46, 64, 255 });
+            Tri({ body.x, body.y - 16.0f }, { body.x + back * (30.0f + sway * 0.5f), body.y - 26.0f + sway * 0.3f }, { body.x + back * 9.0f, body.y - 8.0f }, { 224, 52, 66, 255 });
+            DrawLineEx({ body.x, body.y - 16.0f }, { body.x + back * (30.0f + sway * 0.5f), body.y - 26.0f + sway * 0.3f }, 2.0f, { 140, 24, 36, 255 });
+            Blob(body, 17.0f, 17.5f, { 222, 228, 244, 255 });
+            DrawCircleSector({ body.x, body.y - 1.0f }, 17.0f, 180.0f, 360.0f, 28, { 176, 188, 214, 255 });
+            DrawLineEx({ body.x - 17.0f, body.y - 1.0f }, { body.x + 17.0f, body.y - 1.0f }, 2.0f, { 98, 110, 140, 255 });
+            DrawEllipse((int)(body.x - 6.0f), (int)(body.y - 11.0f), 5.0f, 2.2f, Fade(WHITE, 0.7f));
+            DrawCircleV({ body.x - 13.0f, body.y + 1.0f }, 4.5f, GOLD);
+            DrawCircleV({ body.x + 13.0f, body.y + 1.0f }, 4.5f, GOLD);
+            DrawEllipse((int)(body.x + face * 5.5f), (int)(body.y + 2.0f), 9.0f, 3.6f, { 18, 24, 48, 255 });
+            DrawEllipse((int)(body.x + face * 8.0f), (int)(body.y + 2.0f), 4.5f, 1.8f, { 90, 230, 255, 255 });
+        } else if (heroClass == CLASS_ASSASSIN) {
+            // Khăn quàng đỏ bay phía sau
+            Color scarf = { 210, 42, 74, 255 };
+            Tri({ body.x + back * 4.0f, body.y - 6.0f }, { body.x + back * (34.0f + sway * 1.2f), body.y - 14.0f + sway * 0.5f }, { body.x + back * (28.0f + sway), body.y + 4.0f }, scarf);
+            Tri({ body.x + back * 4.0f, body.y + 2.0f }, { body.x + back * (30.0f + sway), body.y + 8.0f }, { body.x + back * (24.0f + sway), body.y + 18.0f + sway * 0.4f }, Shade(scarf, 0.7f));
+            DrawEllipse((int)(p.x - 6.5f), (int)(p.y + 16.0f + step * 0.5f), 5.5f, 3.5f, { 30, 26, 38, 255 });
+            DrawEllipse((int)(p.x + 6.5f), (int)(p.y + 16.0f - step * 0.5f), 5.5f, 3.5f, { 30, 26, 38, 255 });
+            Blob(body, 15.0f, 16.5f, { 44, 42, 62, 255 });
+            // Mũ trùm sát thủ
+            Tri({ body.x - 16.0f, body.y + 1.0f }, { body.x + 16.0f, body.y + 1.0f }, { body.x + back * 8.0f, body.y - 23.0f }, { 34, 30, 50, 255 });
+            DrawCircleSector({ body.x, body.y - 2.0f }, 15.5f, 180.0f, 360.0f, 24, { 52, 46, 74, 255 });
+            DrawEllipse((int)(body.x + face * 4.5f), (int)(body.y + 2.0f), 9.0f, 4.5f, { 16, 12, 24, 255 });
+            DrawCircleV({ body.x + face * 7.5f, body.y + 1.5f }, 2.4f, { 255, 70, 120, 255 });
+            DrawCircleV({ body.x + face * 2.5f, body.y + 1.5f }, 2.4f, { 255, 70, 120, 255 });
+            // Dao găm phụ ở tay còn lại
+            if (wt == WP_DAGGER) {
+                Vector2 offH = { body.x - aimDir.x * 10.0f + back * 8.0f, body.y + 5.0f };
+                DrawLineEx(offH, { offH.x + face * 13.0f, offH.y + 5.0f }, 3.0f, { 210, 220, 245, 255 });
+            }
+            if (ultActiveTimer > 0.0f) {
+                for (int i = 0; i < 4; ++i) {
+                    float a3 = t * 14.0f + i * (PI / 2.0f);
+                    DrawRing(body, 32.0f, 37.0f, a3 * RAD2DEG, a3 * RAD2DEG + 55.0f, 8, Fade({ 255, 70, 140, 255 }, 0.85f));
+                }
+            }
+        } else if (heroClass == CLASS_MAGE) {
+            // Áo choàng pháp sư
+            Color robe = { 82, 66, 178, 255 };
+            Tri({ body.x - 19.0f, body.y + 19.0f }, { body.x + 19.0f, body.y + 19.0f }, { body.x, body.y - 12.0f }, Shade(robe, 0.72f));
+            Tri({ body.x - 15.0f, body.y + 18.0f }, { body.x + 15.0f, body.y + 18.0f }, { body.x, body.y - 10.0f }, robe);
+            DrawLineEx({ body.x, body.y - 8.0f }, { body.x, body.y + 18.0f }, 3.0f, GOLD);
+            Blob({ body.x, body.y - 2.0f }, 14.5f, 14.5f, { 102, 86, 208, 255 });
+            // Mũ phù thủy chóp nhọn + vành
+            DrawEllipse((int)body.x, (int)(body.y - 9.0f), 22.0f, 6.0f, { 54, 42, 128, 255 });
+            DrawEllipse((int)body.x, (int)(body.y - 10.0f), 20.0f, 4.5f, { 78, 62, 168, 255 });
+            Tri({ body.x - 13.0f, body.y - 10.0f }, { body.x + 13.0f, body.y - 10.0f }, { body.x + back * 7.0f, body.y - 34.0f }, { 68, 52, 152, 255 });
+            DrawCircleV({ body.x + face * 3.0f, body.y - 16.0f }, 3.2f, { 110, 240, 255, 255 });
+            DrawEllipse((int)(body.x + face * 4.5f), (int)(body.y + 1.0f), 8.5f, 4.0f, { 16, 12, 34, 255 });
+            DrawCircleV({ body.x + face * 7.0f, body.y + 1.0f }, 2.3f, { 100, 240, 255, 255 });
+            DrawCircleV({ body.x + face * 2.0f, body.y + 1.0f }, 2.3f, { 100, 240, 255, 255 });
+            // 2 ấn ký ma pháp xoay quanh vai
+            for (int i = 0; i < 2; ++i) {
+                float a3 = t * 3.2f + i * PI;
+                DrawCircleV({ body.x + cosf(a3) * 23.0f, body.y - 4.0f + sinf(a3) * 8.0f }, 3.2f, { 110, 235, 255, 255 });
+            }
+        } else {
+            // Emerald Ranger: áo choàng xanh lục + ống tên sau lưng + mũ trùm
+            Color cloak = { 42, 134, 78, 255 };
+            Tri({ body.x + back * 5.0f, body.y - 10.0f }, { body.x + back * 5.0f, body.y + 12.0f }, { body.x + back * (28.0f + sway), body.y + 19.0f + sway * 0.3f }, cloak);
+            DrawLineEx({ body.x + back * 8.0f, body.y - 15.0f }, { body.x + back * 14.0f, body.y + 6.0f }, 6.0f, { 126, 84, 46, 255 }); // ống tên
+            DrawCircleV({ body.x + back * 9.0f, body.y - 16.0f }, 2.5f, { 255, 220, 110, 255 });
+            DrawEllipse((int)(p.x - 6.5f), (int)(p.y + 16.0f + step * 0.5f), 5.5f, 3.8f, { 78, 52, 34, 255 });
+            DrawEllipse((int)(p.x + 6.5f), (int)(p.y + 16.0f - step * 0.5f), 5.5f, 3.8f, { 78, 52, 34, 255 });
+            Blob(body, 15.5f, 16.5f, { 62, 178, 102, 255 });
+            DrawCircleSector({ body.x, body.y - 2.0f }, 16.0f, 180.0f, 360.0f, 24, { 44, 138, 76, 255 });
+            Tri({ body.x - 14.0f, body.y - 2.0f }, { body.x + 14.0f, body.y - 2.0f }, { body.x + back * 9.0f, body.y - 21.0f }, { 48, 150, 84, 255 });
+            DrawEllipse((int)(body.x + face * 5.0f), (int)(body.y + 2.0f), 8.5f, 4.0f, { 18, 28, 22, 255 });
+            DrawCircleV({ body.x + face * 7.5f, body.y + 1.5f }, 2.3f, { 255, 225, 95, 255 });
+            DrawCircleV({ body.x + face * 2.5f, body.y + 1.5f }, 2.3f, { 255, 225, 95, 255 });
+            DrawCircleV({ body.x, body.y + 9.0f }, 3.2f, GOLD);
+        }
 
-        // Lông vũ mũ
-        Tri({ body.x, body.y - 16.0f }, { body.x + back * (30.0f + sway * 0.5f), body.y - 26.0f + sway * 0.3f }, { body.x + back * 9.0f, body.y - 8.0f }, { 224, 52, 66, 255 });
-        DrawLineEx({ body.x, body.y - 16.0f }, { body.x + back * (30.0f + sway * 0.5f), body.y - 26.0f + sway * 0.3f }, 2.0f, { 140, 24, 36, 255 });
-
-        // Thân giáp
-        Blob(body, 17.0f, 17.5f, { 222, 228, 244, 255 });
-        // Mũ giáp nửa trên
-        DrawCircleSector({ body.x, body.y - 1.0f }, 17.0f, 180.0f, 360.0f, 28, { 176, 188, 214, 255 });
-        DrawLineEx({ body.x - 17.0f, body.y - 1.0f }, { body.x + 17.0f, body.y - 1.0f }, 2.0f, { 98, 110, 140, 255 });
-        DrawEllipse((int)(body.x - 6.0f), (int)(body.y - 11.0f), 5.0f, 2.2f, Fade(WHITE, 0.7f));
-        // Kính ngắm phát sáng hướng về phía nhìn
-        DrawEllipse((int)(body.x + face * 5.5f), (int)(body.y + 2.0f), 9.0f, 3.6f, { 18, 24, 48, 255 });
-        DrawEllipse((int)(body.x + face * 8.0f), (int)(body.y + 2.0f), 4.5f, 1.8f, { 90, 230, 255, 255 });
-        DrawCircleV({ body.x + face * 3.0f, body.y + 2.0f }, 4.0f, Fade({ 90, 230, 255, 255 }, 0.18f));
-
-        // Kiếm vung theo hướng ngắm
-        float a = atan2f(aimDirDraw.y, aimDirDraw.x);
-        float sinceAtk = (1.0f / player.attackRate) - player.attackTimer;
-        float off = (player.attackTimer > 0.0f && sinceAtk < 0.16f) ? Lerp(-1.25f, 1.25f, sinceAtk / 0.16f) : 0.5f;
-        float sa = a + off;
+        // Vũ khí theo hướng ngắm
+        float a = atan2f(aimDir.y, aimDir.x);
+        float sa = a + atkSweep;
         Vector2 dir = { cosf(sa), sinf(sa) };
         Vector2 hand = { body.x + dir.x * 16.0f, body.y + dir.y * 16.0f };
-        int wt = hasEquip[SLOT_WEAPON] ? equipped[SLOT_WEAPON].weaponType : 0;
-        float wlen = (wt == 1) ? 19.0f : (wt == 3 ? 44.0f : (wt == 2 ? 24.0f : 27.0f));
-        Vector2 tip = { hand.x + dir.x * wlen, hand.y + dir.y * wlen };
-        DrawLineEx(hand, tip, 6.0f, { 90, 100, 130, 255 });
-        DrawLineEx(hand, tip, 4.0f, { 232, 238, 250, 255 });
-        DrawLineEx(hand, tip, 1.5f, WHITE);
-        Vector2 perp = { -dir.y, dir.x };
-        if (wt == 2) { // rìu: lưỡi hình bán nguyệt ở đầu cán
-            Tri({ tip.x - dir.x * 16.0f + perp.x * 15.0f, tip.y - dir.y * 16.0f + perp.y * 15.0f }, { tip.x + dir.x * 6.0f, tip.y + dir.y * 6.0f }, { tip.x - dir.x * 16.0f - perp.x * 3.0f, tip.y - dir.y * 16.0f - perp.y * 3.0f }, { 196, 204, 224, 255 });
-            Tri({ tip.x - dir.x * 16.0f - perp.x * 15.0f, tip.y - dir.y * 16.0f - perp.y * 15.0f }, { tip.x + dir.x * 6.0f, tip.y + dir.y * 6.0f }, { tip.x - dir.x * 16.0f + perp.x * 3.0f, tip.y - dir.y * 16.0f + perp.y * 3.0f }, { 170, 178, 200, 255 });
-        } else if (wt == 3) { // giáo: mũi nhọn
-            Tri({ tip.x + dir.x * 16.0f, tip.y + dir.y * 16.0f }, { tip.x + perp.x * 6.0f, tip.y + perp.y * 6.0f }, { tip.x - perp.x * 6.0f, tip.y - perp.y * 6.0f }, { 236, 242, 255, 255 });
-        }
-        DrawLineEx({ hand.x + perp.x * 7.0f, hand.y + perp.y * 7.0f }, { hand.x - perp.x * 7.0f, hand.y - perp.y * 7.0f }, 4.0f, GOLD);
-        DrawCircleV(hand, 4.2f, { 140, 150, 176, 255 });
-        DrawCircleV(hand, 4.2f, Fade(WHITE, 0.0f));
+        DrawWeaponModel(hand, dir, wt, t);
 
-        // Nhấp nháy khi bất tử tạm thời
-        if (player.isInvuln) {
+        if (shieldActive) {
+            DrawCircleLines((int)body.x, (int)body.y, 28, Fade(GOLD, 0.85f));
+        }
+        if (isInvuln) {
             float k = 0.5f + 0.5f * sinf(t * 30.0f);
             DrawCircleLines((int)body.x, (int)body.y, 24.0f, Fade(SKYBLUE, 0.4f + 0.5f * k));
         }
+    }
+
+    void DrawPlayerSprite() {
+        const bool moving = player.walkTimer > 0.01f && (IsKeyDown(KEY_W) || IsKeyDown(KEY_A) || IsKeyDown(KEY_S) || IsKeyDown(KEY_D)
+                              || IsKeyDown(KEY_UP) || IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_RIGHT) || (ctl.active && Vector2Length(ctl.move) > 0.1f));
+        int wt = hasEquip[SLOT_WEAPON] ? equipped[SLOT_WEAPON].weaponType : kClasses[player.heroClass].startWeapon;
+        float effRate = EffectiveAttackRate();
+        float sinceAtk = (1.0f / std::max(0.1f, effRate)) - player.attackTimer;
+        float off = 0.5f;
+        if (wt == WP_BOW || wt == WP_STAFF) off = 0.0f;
+        else if (player.attackTimer > 0.0f && sinceAtk < 0.16f) off = Lerp(-1.25f, 1.25f, sinceAtk / 0.16f);
+        DrawHeroModel(player.pos, player.heroClass, wt, aimDirDraw, player.facingLeft, player.walkTimer, moving, off, player.isInvuln, player.shieldActive, player.holyBuffTimer, player.ultActiveTimer);
     }
 
     // Độ khó theo tầng: tăng đều, rồi dốc hơn từ tầng 9 để theo kịp sức mạnh của người chơi (cân bằng bằng bot mô phỏng)
@@ -2259,10 +2742,12 @@ public:
         float lt = GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_TRIGGER);
         bool atk = IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_TRIGGER_1) || IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_DOWN) || rt > 0.3f;
         bool ltDown = lt > 0.5f;
-        bool dashBtn = IsGamepadButtonPressed(0, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT) || IsGamepadButtonPressed(0, GAMEPAD_BUTTON_LEFT_TRIGGER_1) || (ltDown && !padLtWas);
+        bool dashBtn = IsGamepadButtonPressed(0, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT) || (ltDown && !padLtWas);
         padLtWas = ltDown;
-        bool novaBtn = IsGamepadButtonPressed(0, GAMEPAD_BUTTON_RIGHT_FACE_LEFT) || IsGamepadButtonPressed(0, GAMEPAD_BUTTON_RIGHT_FACE_UP);
-        if (Vector2Length(mv) < 0.01f && !aimStick && !atk && !dashBtn && !novaBtn) return; // tay cầm đang rảnh: dùng bàn phím/chuột
+        bool novaBtn = IsGamepadButtonPressed(0, GAMEPAD_BUTTON_RIGHT_FACE_LEFT);
+        bool skill2Btn = IsGamepadButtonPressed(0, GAMEPAD_BUTTON_RIGHT_FACE_UP);
+        bool ultBtn = IsGamepadButtonPressed(0, GAMEPAD_BUTTON_LEFT_TRIGGER_1);
+        if (Vector2Length(mv) < 0.01f && !aimStick && !atk && !dashBtn && !novaBtn && !skill2Btn && !ultBtn) return; // tay cầm đang rảnh: dùng bàn phím/chuột
 
         if (aimStick) {
             padAim = Vector2Normalize(stick);
@@ -2283,6 +2768,8 @@ public:
         ctl.attack = atk;
         ctl.dash = dashBtn;
         ctl.nova = novaBtn;
+        ctl.skill2 = skill2Btn;
+        ctl.ult = ultBtn;
     }
 
     // ── Quái phụ sinh ra khi đang duyệt danh sách: đưa vào hàng đợi, thêm vào cuối khung ──
@@ -2363,33 +2850,106 @@ public:
         }
     }
 
-    // Đòn chém / đâm theo loại vũ khí đang trang bị
+    // Đòn đánh cơ bản theo 8 loại vũ khí + nội tại từng hệ nhân vật
     void MeleeAttack(Vector2 aimDir) {
-        // Loại vũ khí: kiếm cân bằng, dao găm nhanh, rìu nặng và rộng, giáo dài xuyên
-        int wt = hasEquip[SLOT_WEAPON] ? equipped[SLOT_WEAPON].weaponType : 0;
-        static const float wReach[4] = { 45.0f, 38.0f, 40.0f, 0.0f };
-        static const float wRadius[4] = { 75.0f, 64.0f, 98.0f, 0.0f };
-        static const float wDmg[4] = { 1.0f, 0.85f, 1.35f, 1.1f };
-        static const float wRate[4] = { 1.0f, 1.3f, 0.75f, 0.95f };
-        static const float wKb[4] = { 1.0f, 0.8f, 1.4f, 1.0f };
-        player.attackTimer = 1.0f / (player.attackRate * wRate[wt]);
-        PlaySound(snd.sndSlash);
+        int wt = hasEquip[SLOT_WEAPON] ? equipped[SLOT_WEAPON].weaponType : kClasses[player.heroClass].startWeapon;
+        wt = std::max(0, std::min(7, wt));
+        static const float wReach[8]  = { 45.0f, 38.0f, 40.0f, 0.0f, 46.0f, 26.0f, 20.0f, 20.0f };
+        static const float wRadius[8] = { 75.0f, 64.0f, 98.0f, 0.0f, 85.0f, 92.0f, 0.0f,  0.0f  };
+        static const float wDmg[8]    = { 1.00f, 0.85f, 1.35f, 1.10f, 1.55f, 1.20f, 0.95f, 1.15f };
+        static const float wRate[8]   = { 1.00f, 1.30f, 0.75f, 0.95f, 0.65f, 0.85f, 1.15f, 0.90f };
+        static const float wKb[8]     = { 1.00f, 0.80f, 1.40f, 1.00f, 1.80f, 0.85f, 1.00f, 1.00f };
+
+        float effRate = EffectiveAttackRate();
+        player.attackTimer = 1.0f / std::max(0.2f, effRate * wRate[wt]);
+        player.attackCounter++;
+
+        // Nội tại Hiệp Sĩ: đòn đánh thứ 5 hồi 4 HP
+        if (player.heroClass == CLASS_KNIGHT && (player.attackCounter % 5 == 0) && player.hp < player.maxHp) {
+            player.hp = std::min(player.maxHp, player.hp + 4.0f);
+            SpawnPopup({ player.pos.x, player.pos.y - 24.0f }, "+4", GREEN);
+            Burst(player.pos, GREEN, 6, 110.0f, 0.35f);
+        }
+
+        // Nội tại Xạ Thủ: đòn thứ 3 bắn Tên Gió xuyên thấu (+50% DMG, +10% Crit)
+        bool eagleMark = (player.heroClass == CLASS_RANGER && (player.attackCounter % 3 == 0));
 
         SlashVisual sv;
         sv.pos = Vector2Add(player.pos, Vector2Scale(aimDir, 35.0f));
         sv.angle = atan2f(aimDir.y, aimDir.x) * RAD2DEG;
         sv.kind = wt;
+        sv.color = eagleMark ? Color{ 85, 255, 165, 255 } : WHITE;
         slashes.push_back(sv);
+
+        // Vũ khí tầm xa: Cung (6) và Trượng (7)
+        if (wt == WP_BOW || wt == WP_STAFF) {
+            PlaySound(snd.sndShoot);
+            Projectile p;
+            p.fromPlayer = true;
+            p.pos = Vector2Add(player.pos, Vector2Scale(aimDir, 22.0f));
+            float spd = (wt == WP_BOW) ? (eagleMark ? 740.0f : 620.0f) : 480.0f;
+            p.vel = Vector2Scale(aimDir, spd);
+            p.damage = player.baseDmg * wDmg[wt] * (eagleMark ? 1.50f : 1.0f);
+            p.life = 1.8f;
+            p.kind = (wt == WP_BOW) ? 1 : 2;
+            p.critBonus = eagleMark ? 0.10f : 0.0f;
+            if (wt == WP_BOW) {
+                bool isCrit = (Rand01() < std::min(0.85f, player.critChance + p.critBonus));
+                p.hasPreCrit = true;
+                p.preCrit = isCrit;
+                p.pierce = eagleMark ? 99 : (isCrit ? 1 : 0);
+                p.radius = eagleMark ? 9.0f : 6.5f;
+                p.color = eagleMark ? Color{ 85, 255, 165, 255 } : (isCrit ? GOLD : Color{ 225, 245, 145, 255 });
+            } else {
+                p.pierce = eagleMark ? 99 : 0;
+                p.splashRadius = 52.0f;
+                p.splashRatio = 0.50f;
+                p.radius = 8.5f;
+                p.color = eagleMark ? Color{ 85, 255, 165, 255 } : Color{ 110, 215, 255, 255 };
+            }
+            projectiles.push_back(p);
+            Burst(p.pos, p.color, eagleMark ? 8 : 3, 120.0f, 0.25f);
+            return;
+        }
+
+        PlaySound(snd.sndSlash);
+        if (eagleMark) {
+            // Xạ thủ dùng vũ khí cận chiến vẫn phóng được luồng gió đòn thứ 3
+            Projectile wp;
+            wp.fromPlayer = true;
+            wp.pos = Vector2Add(player.pos, Vector2Scale(aimDir, 20.0f));
+            wp.vel = Vector2Scale(aimDir, 680.0f);
+            wp.damage = player.baseDmg * 1.50f;
+            wp.life = 1.5f;
+            wp.kind = 1;
+            wp.pierce = 99;
+            wp.critBonus = 0.10f;
+            wp.radius = 9.0f;
+            wp.color = { 85, 255, 165, 255 };
+            projectiles.push_back(wp);
+        }
 
         Vector2 hitCenter = Vector2Add(player.pos, Vector2Scale(aimDir, wReach[wt]));
         float hitRadius = wRadius[wt];
         Vector2 spearEnd = Vector2Add(player.pos, Vector2Scale(aimDir, 135.0f));
         bool hitAny = false;
+        float maxHitDmg = 0.0f;
+
+        if (wt == WP_HAMMER) {
+            NovaVisual nv;
+            nv.pos = hitCenter;
+            nv.radius = 0.0f;
+            nv.maxRadius = 85.0f;
+            nv.timer = 0.22f;
+            nv.maxTimer = 0.22f;
+            nv.color = { 255, 195, 85, 255 };
+            novas.push_back(nv);
+        }
 
         for (auto& e : enemies) {
             if (e.hp <= 0) continue;
             bool inRange;
-            if (wt == 3) { // giáo: đâm theo một đường thẳng, trúng mọi kẻ địch trên đường
+            if (wt == WP_SPEAR) {
                 Vector2 ap = Vector2Subtract(e.pos, player.pos), ab = Vector2Subtract(spearEnd, player.pos);
                 float tt = Clamp(Vector2DotProduct(ap, ab) / Vector2DotProduct(ab, ab), 0.0f, 1.0f);
                 Vector2 closest = Vector2Add(player.pos, Vector2Scale(ab, tt));
@@ -2399,16 +2959,581 @@ public:
             }
             if (inRange) {
                 hitAny = true;
-                bool isCrit = ((float)rand() / RAND_MAX < player.critChance);
-                float dmg = player.baseDmg * wDmg[wt] * (isCrit ? 2.0f : 1.0f);
+                float cc = std::min(0.85f, player.critChance + (eagleMark ? 0.10f : 0.0f));
+                bool isCrit = (Rand01() < cc);
+                float critMul = (player.heroClass == CLASS_ASSASSIN ? 2.4f : 2.0f);
+                float dmg = player.baseDmg * wDmg[wt] * (eagleMark ? 1.50f : 1.0f) * (isCrit ? critMul : 1.0f);
+                maxHitDmg = std::max(maxHitDmg, dmg);
                 Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
-                DamageEnemy(e, dmg, kb, (isCrit ? 240.0f : 160.0f) * wKb[wt], isCrit);
+                float kbForce = (isCrit ? 240.0f : 160.0f) * wKb[wt];
+                if (wt == WP_SCYTHE && Vector2Distance(player.pos, e.pos) > 48.0f) {
+                    kb = Vector2Negate(kb); // Lưỡi hái kéo nhẹ quái vào tầm
+                    kbForce = 180.0f;
+                }
+                DamageEnemy(e, dmg, kb, kbForce, isCrit, true);
+                if (wt == WP_HAMMER && e.hp > 0) {
+                    e.stunTimer = std::max(e.stunTimer, 0.55f);
+                }
             }
         }
         if (hitAny) {
+            float ls = std::min(0.35f, player.lifesteal + (wt == WP_SCYTHE ? 0.05f : 0.0f));
+            if (ls > 0.0f && player.hp < player.maxHp) {
+                float heal = std::max(1.0f, maxHitDmg * ls);
+                player.hp = std::min(player.maxHp, player.hp + heal);
+                SpawnPopup({ player.pos.x, player.pos.y - 26.0f }, "+" + std::to_string((int)heal), GREEN);
+            }
             PlaySound(snd.sndHit);
-            Shake(0.12f, 3.5f);
+            Shake(wt == WP_HAMMER ? 0.17f : 0.12f, wt == WP_HAMMER ? 5.0f : 3.5f);
         }
+    }
+
+    // ── Nội tại Pháp Sư: mỗi lần dùng kỹ năng bắn 3 tia ma thuật dẫn đường + 6 Nộ ──
+    void TriggerArcaneResonance(Vector2 aimDir) {
+        if (player.heroClass != CLASS_MAGE) return;
+        AddRage(6.0f);
+        float baseAng = atan2f(aimDir.y, aimDir.x);
+        for (int i = -1; i <= 1; ++i) {
+            float a = baseAng + i * 0.55f;
+            Projectile p;
+            p.fromPlayer = true;
+            p.kind = 5;
+            p.pos = Vector2Add(player.pos, { cosf(a) * 18.0f, sinf(a) * 18.0f });
+            p.vel = { cosf(a) * 440.0f, sinf(a) * 440.0f };
+            p.damage = player.baseDmg * 0.55f;
+            p.life = 2.2f;
+            p.radius = 6.5f;
+            p.color = { 120, 230, 255, 255 };
+            projectiles.push_back(p);
+        }
+    }
+
+    // ── Kỹ năng 1 [Q] ──
+    void CastSkill1(Vector2 aimDir) {
+        player.specialCooldown = Skill1MaxCd();
+        player.specialTimer = player.specialCooldown;
+        float critMul = (player.heroClass == CLASS_ASSASSIN ? 2.4f : 2.0f);
+
+        if (player.heroClass == CLASS_KNIGHT) {
+            // Xung Kích Khiên: lướt tới 75px, húc choáng 1.2s
+            Vector2 dest = Vector2Add(player.pos, Vector2Scale(aimDir, 75.0f));
+            float bw = roomW / 2.0f - 30.0f, bh = roomH / 2.0f - 30.0f;
+            dest.x = Clamp(dest.x, -bw, bw);
+            dest.y = Clamp(dest.y, -bh, bh);
+            ResolvePillars(dest, 15.0f);
+            ghosts.push_back({ player.pos, player.facingLeft, 0.25f, 0.25f });
+            player.pos = dest;
+            player.invulnTimer = std::max(player.invulnTimer, 0.28f);
+
+            PlaySound(snd.sndSpecial);
+            Shake(0.24f, 6.5f);
+            Vector2 slamCenter = Vector2Add(player.pos, Vector2Scale(aimDir, 38.0f));
+            Burst(slamCenter, GOLD, 24, 320.0f, 0.55f);
+            SlashVisual sv;
+            sv.pos = slamCenter;
+            sv.angle = atan2f(aimDir.y, aimDir.x) * RAD2DEG;
+            sv.kind = 10;
+            sv.timer = 0.22f;
+            sv.maxTimer = 0.22f;
+            sv.color = GOLD;
+            slashes.push_back(sv);
+
+            NovaVisual nv;
+            nv.pos = slamCenter;
+            nv.maxRadius = 140.0f;
+            nv.timer = 0.28f;
+            nv.maxTimer = 0.28f;
+            nv.color = GOLD;
+            novas.push_back(nv);
+
+            for (auto& e : enemies) {
+                if (e.hp <= 0) continue;
+                if (Vector2Distance(slamCenter, e.pos) <= 140.0f + e.radius * 0.5f) {
+                    bool isCrit = (Rand01() < player.critChance);
+                    float dmg = player.baseDmg * 1.9f * (isCrit ? critMul : 1.0f);
+                    Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
+                    DamageEnemy(e, dmg, kb, 300.0f, isCrit, true);
+                    if (e.hp > 0) e.stunTimer = std::max(e.stunTimer, 1.2f);
+                }
+            }
+        } else if (player.heroClass == CLASS_ASSASSIN) {
+            // Phi Tiêu Bóng Tối: phóng 5 phi tiêu xuyên 1 mục tiêu, làm chậm & trúng độc
+            PlaySound(snd.sndSlash);
+            Shake(0.14f, 3.5f);
+            float baseAng = atan2f(aimDir.y, aimDir.x);
+            for (int i = -2; i <= 2; ++i) {
+                float a = baseAng + i * 0.19f;
+                Vector2 d = { cosf(a), sinf(a) };
+                Projectile p;
+                p.fromPlayer = true;
+                p.kind = 3;
+                p.pos = Vector2Add(player.pos, Vector2Scale(d, 18.0f));
+                p.vel = Vector2Scale(d, 560.0f);
+                p.damage = player.baseDmg * 1.1f;
+                p.life = 1.4f;
+                p.radius = 8.0f;
+                p.pierce = 1;
+                p.applySlow = true;
+                p.applyPoison = true;
+                p.color = { 235, 70, 140, 255 };
+                projectiles.push_back(p);
+            }
+            Burst(player.pos, { 225, 65, 130, 255 }, 12, 220.0f, 0.35f);
+        } else if (player.heroClass == CLASS_MAGE) {
+            // Cầu Lửa Hủy Diệt: nổ 135px AoE 2.3x + thiêu đốt
+            PlaySound(snd.sndShoot);
+            Shake(0.14f, 4.0f);
+            Projectile p;
+            p.fromPlayer = true;
+            p.kind = 4;
+            p.pos = Vector2Add(player.pos, Vector2Scale(aimDir, 22.0f));
+            p.vel = Vector2Scale(aimDir, 470.0f);
+            p.damage = player.baseDmg * 2.3f;
+            p.life = 1.6f;
+            p.radius = 12.0f;
+            p.splashRadius = 135.0f;
+            p.splashRatio = 1.0f;
+            p.applyBurn = true;
+            p.color = { 255, 130, 45, 255 };
+            projectiles.push_back(p);
+            Burst(p.pos, ORANGE, 10, 160.0f, 0.35f);
+            TriggerArcaneResonance(aimDir);
+        } else {
+            // Liên Xạ Tiễn: bắn quạt 7 mũi tên vàng
+            PlaySound(snd.sndShoot);
+            Shake(0.14f, 3.5f);
+            float baseAng = atan2f(aimDir.y, aimDir.x);
+            for (int i = -3; i <= 3; ++i) {
+                float a = baseAng + i * 0.14f;
+                Vector2 d = { cosf(a), sinf(a) };
+                Projectile p;
+                p.fromPlayer = true;
+                p.kind = 1;
+                p.pos = Vector2Add(player.pos, Vector2Scale(d, 20.0f));
+                p.vel = Vector2Scale(d, 630.0f);
+                p.damage = player.baseDmg * 1.0f;
+                p.life = 1.6f;
+                p.radius = 7.0f;
+                p.color = GOLD;
+                projectiles.push_back(p);
+            }
+            Burst(Vector2Add(player.pos, Vector2Scale(aimDir, 20.0f)), GOLD, 12, 200.0f, 0.35f);
+        }
+    }
+
+    // ── Kỹ năng 2 [E] ──
+    void CastSkill2(Vector2 aimDir, Vector2 moveDir) {
+        player.skill2Cooldown = Skill2MaxCd();
+        player.skill2Timer = player.skill2Cooldown;
+        float critMul = (player.heroClass == CLASS_ASSASSIN ? 2.4f : 2.0f);
+
+        if (player.heroClass == CLASS_KNIGHT) {
+            // Thánh Quang Xung: nổ 190px 1.8x + buff 3.5s (+4 Armor, +25% Atk Speed, khiên chặn 1 đòn)
+            PlaySound(snd.sndSpecial);
+            Shake(0.25f, 6.0f);
+            Burst(player.pos, GOLD, 34, 380.0f, 0.6f);
+            player.holyBuffTimer = 3.5f;
+            player.shieldActive = true;
+            SpawnPopup({ player.pos.x, player.pos.y - 34.0f }, "HOLY BARRIER!", GOLD);
+
+            NovaVisual nv;
+            nv.pos = player.pos;
+            nv.maxRadius = 190.0f;
+            nv.timer = 0.35f;
+            nv.maxTimer = 0.35f;
+            nv.color = { 255, 220, 95, 255 };
+            novas.push_back(nv);
+
+            for (auto& e : enemies) {
+                if (e.hp <= 0) continue;
+                if (Vector2Distance(player.pos, e.pos) <= nv.maxRadius) {
+                    bool isCrit = (Rand01() < player.critChance);
+                    float dmg = player.baseDmg * 1.8f * (isCrit ? critMul : 1.0f);
+                    Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
+                    DamageEnemy(e, dmg, kb, 280.0f, isCrit, true);
+                }
+            }
+        } else if (player.heroClass == CLASS_ASSASSIN) {
+            // Ám Tập: bom khói tại chỗ cũ, dịch chuyển 210px & chém tất chí mạng 2.2x
+            Vector2 origin = player.pos;
+            NovaVisual smoke;
+            smoke.pos = origin;
+            smoke.maxRadius = 130.0f;
+            smoke.timer = 0.35f;
+            smoke.maxTimer = 0.35f;
+            smoke.color = { 130, 100, 175, 255 };
+            novas.push_back(smoke);
+            Burst(origin, { 120, 90, 160, 255 }, 20, 200.0f, 0.55f);
+            for (auto& e : enemies) {
+                if (e.hp > 0 && Vector2Distance(origin, e.pos) <= 130.0f) {
+                    e.slowTimer = std::max(e.slowTimer, 3.0f);
+                    e.slowFactor = std::min(e.slowFactor, 0.55f);
+                }
+            }
+
+            Vector2 dest = Vector2Add(origin, Vector2Scale(aimDir, 210.0f));
+            float bw = roomW / 2.0f - 30.0f, bh = roomH / 2.0f - 30.0f;
+            dest.x = Clamp(dest.x, -bw, bw);
+            dest.y = Clamp(dest.y, -bh, bh);
+            ResolvePillars(dest, 15.0f);
+            for (int k = 1; k <= 3; ++k) {
+                ghosts.push_back({ Vector2Lerp(origin, dest, k * 0.25f), player.facingLeft, 0.28f, 0.28f });
+            }
+            player.pos = dest;
+            player.invulnTimer = std::max(player.invulnTimer, 0.50f);
+
+            PlaySound(snd.sndSpecial);
+            Shake(0.22f, 6.0f);
+            Burst(dest, { 255, 70, 140, 255 }, 28, 320.0f, 0.5f);
+            SlashVisual sv;
+            sv.pos = dest;
+            sv.angle = atan2f(aimDir.y, aimDir.x) * RAD2DEG;
+            sv.kind = 11;
+            sv.timer = 0.22f;
+            sv.maxTimer = 0.22f;
+            sv.color = { 255, 75, 145, 255 };
+            slashes.push_back(sv);
+
+            NovaVisual slashRing;
+            slashRing.pos = dest;
+            slashRing.maxRadius = 125.0f;
+            slashRing.timer = 0.26f;
+            slashRing.maxTimer = 0.26f;
+            slashRing.color = { 255, 75, 145, 255 };
+            novas.push_back(slashRing);
+
+            for (auto& e : enemies) {
+                if (e.hp <= 0) continue;
+                if (Vector2Distance(dest, e.pos) <= 125.0f + e.radius * 0.4f) {
+                    float dmg = player.baseDmg * 2.2f * critMul; // Chắc chắn chí mạng!
+                    Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, dest));
+                    DamageEnemy(e, dmg, kb, 220.0f, true, true);
+                }
+            }
+        } else if (player.heroClass == CLASS_MAGE) {
+            // Vòng Băng Giá: nổ băng 185px, đóng băng/choáng 1.3s + làm chậm 3s
+            PlaySound(snd.sndFreeze);
+            Shake(0.22f, 5.5f);
+            Burst(player.pos, { 130, 235, 255, 255 }, 32, 360.0f, 0.6f);
+            NovaVisual nv;
+            nv.pos = player.pos;
+            nv.maxRadius = 185.0f;
+            nv.timer = 0.35f;
+            nv.maxTimer = 0.35f;
+            nv.color = { 115, 230, 255, 255 };
+            novas.push_back(nv);
+
+            for (auto& e : enemies) {
+                if (e.hp <= 0) continue;
+                if (Vector2Distance(player.pos, e.pos) <= nv.maxRadius) {
+                    bool isCrit = (Rand01() < player.critChance);
+                    float dmg = player.baseDmg * 1.5f * (isCrit ? critMul : 1.0f);
+                    Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
+                    DamageEnemy(e, dmg, kb, 200.0f, isCrit, true);
+                    if (e.hp > 0) {
+                        e.stunTimer = std::max(e.stunTimer, 1.3f);
+                        e.chillTimer = std::max(e.chillTimer, 3.0f);
+                    }
+                }
+            }
+            TriggerArcaneResonance(aimDir);
+        } else {
+            // Bẫy Nổ & Nhào Lộn: đặt bẫy tại chỗ và lộn ngược 120px
+            GroundEffect trap;
+            trap.kind = 0;
+            trap.pos = player.pos;
+            trap.radius = 140.0f;
+            trap.maxTimer = 0.75f;
+            trap.timer = 0.75f;
+            trap.damage = player.baseDmg * 2.4f;
+            trap.color = { 90, 240, 145, 255 };
+            groundEffects.push_back(trap);
+
+            Vector2 backDir = Vector2Length(moveDir) > 0.1f ? Vector2Negate(moveDir) : Vector2Negate(aimDir);
+            if (Vector2Length(aimDir) > 0.1f) backDir = Vector2Negate(aimDir);
+            Vector2 dest = Vector2Add(player.pos, Vector2Scale(backDir, 120.0f));
+            float bw = roomW / 2.0f - 30.0f, bh = roomH / 2.0f - 30.0f;
+            dest.x = Clamp(dest.x, -bw, bw);
+            dest.y = Clamp(dest.y, -bh, bh);
+            ResolvePillars(dest, 15.0f);
+            ghosts.push_back({ player.pos, player.facingLeft, 0.25f, 0.25f });
+            player.pos = dest;
+            player.invulnTimer = std::max(player.invulnTimer, 0.40f);
+            PlaySound(snd.sndDash);
+            Burst(trap.pos, { 110, 235, 145, 255 }, 14, 180.0f, 0.4f);
+        }
+    }
+
+    // ── Kỹ năng Nộ [R] ──
+    void CastUltimate(Vector2 aimDir) {
+        player.rage = 0.0f;
+        PlaySound(snd.sndSpecial);
+        PlaySound(snd.sndLevelUp);
+        Shake(0.45f, 9.0f);
+        hitStop = 0.06f;
+
+        if (player.heroClass == CLASS_KNIGHT) {
+            // Phán Quyết Thiên Đường: đại kiếm ánh sáng 250px, 3.5x DMG + choáng 1.5s + thánh vực 4s
+            ShowBanner("HEAVEN'S JUDGMENT!", 2.2f);
+            Burst(player.pos, GOLD, 48, 440.0f, 0.85f);
+            NovaVisual nv;
+            nv.pos = player.pos;
+            nv.maxRadius = 250.0f;
+            nv.timer = 0.45f;
+            nv.maxTimer = 0.45f;
+            nv.color = GOLD;
+            novas.push_back(nv);
+
+            for (auto& e : enemies) {
+                if (e.hp <= 0) continue;
+                if (Vector2Distance(player.pos, e.pos) <= 250.0f) {
+                    bool isCrit = (Rand01() < player.critChance);
+                    float dmg = player.baseDmg * 3.5f * (isCrit ? 2.0f : 1.0f);
+                    Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
+                    DamageEnemy(e, dmg, kb, 260.0f, isCrit, false);
+                    if (e.hp > 0) e.stunTimer = std::max(e.stunTimer, 1.5f);
+                }
+            }
+            GroundEffect zone;
+            zone.kind = 1;
+            zone.pos = player.pos;
+            zone.radius = 250.0f;
+            zone.maxTimer = 4.0f;
+            zone.timer = 4.0f;
+            zone.tickTimer = 0.40f;
+            zone.damage = player.baseDmg * 0.85f;
+            zone.color = GOLD;
+            groundEffects.push_back(zone);
+        } else if (player.heroClass == CLASS_ASSASSIN) {
+            // Vũ Điệu Tử Thần: 3.5s bão kiếm xung quanh người chơi
+            ShowBanner("BLADE STORM!", 2.2f);
+            player.ultActiveTimer = 3.5f;
+            player.ultTickTimer = 0.0f;
+            player.invulnTimer = std::max(player.invulnTimer, 0.45f);
+            Burst(player.pos, { 255, 65, 130, 255 }, 42, 400.0f, 0.7f);
+        } else if (player.heroClass == CLASS_MAGE) {
+            // Thiên Thạch Hư Không: hố đen hút quái & mưa 12 thiên thạch
+            ShowBanner("VOID CATACLYSM!", 2.2f);
+            Vector2 center = Vector2Add(player.pos, Vector2Scale(aimDir, 150.0f));
+            center.x = Clamp(center.x, -(roomW / 2.0f - 120.0f), roomW / 2.0f - 120.0f);
+            center.y = Clamp(center.y, -(roomH / 2.0f - 100.0f), roomH / 2.0f - 100.0f);
+            GroundEffect vortex;
+            vortex.kind = 2;
+            vortex.pos = center;
+            vortex.radius = 240.0f;
+            vortex.maxTimer = 3.8f;
+            vortex.timer = 3.8f;
+            vortex.tickTimer = 0.15f;
+            vortex.damage = player.baseDmg * 1.5f;
+            vortex.color = { 175, 90, 255, 255 };
+            groundEffects.push_back(vortex);
+            Burst(center, { 175, 90, 255, 255 }, 38, 360.0f, 0.8f);
+            TriggerArcaneResonance(aimDir);
+        } else {
+            // Mưa Tên Phượng Hoàng: 16 mũi tên lửa rơi + tăng 35% tốc đánh
+            ShowBanner("PHOENIX ARROW RAIN!", 2.2f);
+            player.hasteTimer = 3.6f;
+            Vector2 center = Vector2Add(player.pos, Vector2Scale(aimDir, 130.0f));
+            center.x = Clamp(center.x, -(roomW / 2.0f - 120.0f), roomW / 2.0f - 120.0f);
+            center.y = Clamp(center.y, -(roomH / 2.0f - 100.0f), roomH / 2.0f - 100.0f);
+            GroundEffect rain;
+            rain.kind = 3;
+            rain.pos = center;
+            rain.radius = 250.0f;
+            rain.maxTimer = 3.6f;
+            rain.timer = 3.6f;
+            rain.tickTimer = 0.10f;
+            rain.damage = player.baseDmg * 1.15f;
+            rain.color = { 255, 160, 55, 255 };
+            groundEffects.push_back(rain);
+            Burst(player.pos, { 255, 175, 65, 255 }, 32, 340.0f, 0.65f);
+        }
+    }
+
+    void UpdateActiveSkills(float dt) {
+        // Bão kiếm Sát Thủ
+        if (player.ultActiveTimer > 0.0f) {
+            player.ultActiveTimer -= dt;
+            if (player.heroClass == CLASS_ASSASSIN) {
+                player.ultTickTimer -= dt;
+                if (player.ultTickTimer <= 0.0f) {
+                    player.ultTickTimer = 0.20f;
+                    PlaySound(snd.sndSlash);
+                    SlashVisual sv;
+                    sv.pos = player.pos;
+                    sv.angle = fmodf((float)GetTime() * 900.0f, 360.0f);
+                    sv.kind = 12;
+                    sv.timer = 0.16f;
+                    sv.maxTimer = 0.16f;
+                    sv.color = { 255, 70, 145, 255 };
+                    slashes.push_back(sv);
+                    for (auto& e : enemies) {
+                        if (e.hp <= 0) continue;
+                        if (Vector2Distance(player.pos, e.pos) <= 185.0f + e.radius * 0.4f) {
+                            bool isCrit = (Rand01() < player.critChance);
+                            float dmg = player.baseDmg * 0.85f * (isCrit ? 2.4f : 1.0f);
+                            Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
+                            DamageEnemy(e, dmg, kb, 110.0f, isCrit, false);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Hiệu ứng mặt đất: Bẫy, Thánh vực, Hố đen, Mưa tên, Thiên thạch rơi
+        std::vector<GroundEffect> spawned;
+        for (size_t i = 0; i < groundEffects.size();) {
+            GroundEffect& ge = groundEffects[i];
+            ge.timer -= dt;
+
+            if (ge.kind == 0) { // Bẫy nổ Ranger
+                bool triggered = (ge.timer <= 0.0f);
+                if (!triggered && ge.timer <= ge.maxTimer - 0.15f) {
+                    for (const auto& e : enemies) {
+                        if (e.hp > 0 && Vector2Distance(ge.pos, e.pos) <= 55.0f + e.radius) { triggered = true; break; }
+                    }
+                }
+                if (triggered) {
+                    PlaySound(snd.sndSpecial);
+                    Shake(0.24f, 6.0f);
+                    NovaVisual nv;
+                    nv.pos = ge.pos;
+                    nv.maxRadius = ge.radius;
+                    nv.timer = 0.32f;
+                    nv.maxTimer = 0.32f;
+                    nv.color = { 255, 175, 65, 255 };
+                    novas.push_back(nv);
+                    Burst(ge.pos, { 255, 175, 65, 255 }, 30, 340.0f, 0.55f);
+                    for (auto& e : enemies) {
+                        if (e.hp <= 0) continue;
+                        if (Vector2Distance(ge.pos, e.pos) <= ge.radius + e.radius * 0.4f) {
+                            bool isCrit = (Rand01() < player.critChance);
+                            float dmg = ge.damage * (isCrit ? 2.0f : 1.0f);
+                            Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, ge.pos));
+                            DamageEnemy(e, dmg, kb, 260.0f, isCrit, true);
+                            if (e.hp > 0) {
+                                e.slowTimer = std::max(e.slowTimer, 3.0f);
+                                e.slowFactor = std::min(e.slowFactor, 0.55f);
+                            }
+                        }
+                    }
+                    groundEffects.erase(groundEffects.begin() + i);
+                    continue;
+                }
+            } else if (ge.kind == 1) { // Thánh vực Knight
+                ge.tickTimer -= dt;
+                if (ge.tickTimer <= 0.0f) {
+                    ge.tickTimer = 0.40f;
+                    Burst(ge.pos, GOLD, 8, 220.0f, 0.4f);
+                    if (player.hp < player.maxHp) {
+                        float heal = std::max(1.0f, player.maxHp * 0.016f);
+                        player.hp = std::min(player.maxHp, player.hp + heal);
+                        SpawnPopup({ player.pos.x, player.pos.y - 26.0f }, "+" + std::to_string((int)roundf(heal)), GREEN);
+                    }
+                    for (auto& e : enemies) {
+                        if (e.hp <= 0) continue;
+                        if (Vector2Distance(ge.pos, e.pos) <= ge.radius) {
+                            bool isCrit = (Rand01() < player.critChance);
+                            float dmg = ge.damage * (isCrit ? 2.0f : 1.0f);
+                            Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, ge.pos));
+                            DamageEnemy(e, dmg, kb, 80.0f, isCrit, false);
+                        }
+                    }
+                }
+            } else if (ge.kind == 2) { // Hố đen Mage
+                for (auto& e : enemies) {
+                    if (e.hp <= 0) continue;
+                    float d = Vector2Distance(ge.pos, e.pos);
+                    if (d <= ge.radius && d > 18.0f) {
+                        Vector2 pull = Vector2Normalize(Vector2Subtract(ge.pos, e.pos));
+                        e.pos = Vector2Add(e.pos, Vector2Scale(pull, (e.type == BOSS ? 45.0f : 115.0f) * dt));
+                    }
+                }
+                ge.tickTimer -= dt;
+                if (ge.tickTimer <= 0.0f) {
+                    ge.tickTimer = 0.30f;
+                    Vector2 target = ge.pos;
+                    std::vector<Vector2> cands;
+                    for (const auto& e : enemies) if (e.hp > 0 && Vector2Distance(ge.pos, e.pos) <= ge.radius * 0.85f) cands.push_back(e.pos);
+                    if (!cands.empty() && Rand01() < 0.7f) {
+                        Vector2 c = cands[rand() % cands.size()];
+                        target = { c.x + (Rand01() - 0.5f) * 40.0f, c.y + (Rand01() - 0.5f) * 40.0f };
+                    } else {
+                        float a = Rand01() * 2.0f * PI, rr = sqrtf(Rand01()) * (ge.radius * 0.82f);
+                        target = { ge.pos.x + cosf(a) * rr, ge.pos.y + sinf(a) * rr };
+                    }
+                    GroundEffect met;
+                    met.kind = 4;
+                    met.pos = target;
+                    met.radius = 95.0f;
+                    met.maxTimer = 0.35f;
+                    met.timer = 0.35f;
+                    met.damage = ge.damage;
+                    met.color = { 185, 95, 255, 255 };
+                    spawned.push_back(met);
+                }
+            } else if (ge.kind == 3) { // Mưa Tên Phượng Hoàng Ranger
+                ge.tickTimer -= dt;
+                if (ge.tickTimer <= 0.0f) {
+                    ge.tickTimer = 0.22f;
+                    Vector2 target = ge.pos;
+                    std::vector<Vector2> cands;
+                    for (const auto& e : enemies) if (e.hp > 0 && Vector2Distance(ge.pos, e.pos) <= ge.radius * 0.9f) cands.push_back(e.pos);
+                    if (!cands.empty() && Rand01() < 0.75f) {
+                        Vector2 c = cands[rand() % cands.size()];
+                        target = { c.x + (Rand01() - 0.5f) * 35.0f, c.y + (Rand01() - 0.5f) * 35.0f };
+                    } else {
+                        float a = Rand01() * 2.0f * PI, rr = sqrtf(Rand01()) * (ge.radius * 0.88f);
+                        target = { ge.pos.x + cosf(a) * rr, ge.pos.y + sinf(a) * rr };
+                    }
+                    GroundEffect arr;
+                    arr.kind = 5;
+                    arr.pos = target;
+                    arr.radius = 75.0f;
+                    arr.maxTimer = 0.25f;
+                    arr.timer = 0.25f;
+                    arr.damage = ge.damage;
+                    arr.color = { 255, 165, 55, 255 };
+                    spawned.push_back(arr);
+                }
+            } else if (ge.kind == 4 || ge.kind == 5) { // Thiên thạch / Mũi tên lửa rơi
+                if (ge.timer <= 0.0f) {
+                    bool isMet = (ge.kind == 4);
+                    PlaySound(isMet ? snd.sndSpecial : snd.sndHit);
+                    Shake(0.10f, isMet ? 4.0f : 2.5f);
+                    NovaVisual nv;
+                    nv.pos = ge.pos;
+                    nv.maxRadius = ge.radius;
+                    nv.timer = 0.25f;
+                    nv.maxTimer = 0.25f;
+                    nv.color = ge.color;
+                    novas.push_back(nv);
+                    Burst(ge.pos, ge.color, isMet ? 20 : 12, 260.0f, 0.45f);
+                    for (auto& e : enemies) {
+                        if (e.hp <= 0) continue;
+                        if (Vector2Distance(ge.pos, e.pos) <= ge.radius + e.radius * 0.4f) {
+                            bool isCrit = (Rand01() < player.critChance);
+                            float dmg = ge.damage * (isCrit ? 2.0f : 1.0f);
+                            Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, ge.pos));
+                            DamageEnemy(e, dmg, kb, 140.0f, isCrit, false);
+                            if (!isMet && e.hp > 0) {
+                                e.burnTimer = std::max(e.burnTimer, 2.5f);
+                                e.burnDps = std::max(e.burnDps, player.baseDmg * (0.4f + 0.5f * player.igniteLevel));
+                            }
+                        }
+                    }
+                    groundEffects.erase(groundEffects.begin() + i);
+                    continue;
+                }
+            }
+
+            if (ge.timer <= 0.0f) {
+                groundEffects.erase(groundEffects.begin() + i);
+            } else {
+                ++i;
+            }
+        }
+        for (const auto& s : spawned) groundEffects.push_back(s);
     }
 
     // ── Bố cục phòng & va chạm cột ──
@@ -2509,7 +3634,7 @@ public:
         DrawEllipse((int)p.x, (int)p.y + 18, 28.0f * s, 9.0f * s, Fade(BLACK, 0.38f));
         if (!c.opened) {
             BeginBlendMode(BLEND_ADDITIVE);
-            DrawCircleGradient((int)p.x, (int)p.y, 60.0f * s, Fade(band, 0.22f + 0.08f * sinf(t * 3.0f)), Fade(band, 0.0f));
+            CircleGrad(p.x, p.y, 60.0f * s, Fade(band, 0.22f + 0.08f * sinf(t * 3.0f)), Fade(band, 0.0f));
             EndBlendMode();
         }
         // Thân rương
@@ -2528,7 +3653,7 @@ public:
             float lift = c.anim * 16.0f * s;
             DrawRectangle((int)(p.x - 21 * s), (int)(p.y - 28 * s - lift * 0.3f), (int)(42 * s), (int)(10 * s), Shade(wood, 0.8f));
             BeginBlendMode(BLEND_ADDITIVE);
-            DrawCircleGradient((int)p.x, (int)(p.y - 4), 34.0f * s * (1.0f - c.anim * 0.5f), Fade({ 255, 230, 120, 255 }, 0.5f * (1.0f - c.anim)), Fade({ 255, 230, 120, 255 }, 0.0f));
+            CircleGrad(p.x, p.y - 4, 34.0f * s * (1.0f - c.anim * 0.5f), Fade({ 255, 230, 120, 255 }, 0.5f * (1.0f - c.anim)), Fade({ 255, 230, 120, 255 }, 0.0f));
             EndBlendMode();
         }
     }
@@ -2611,7 +3736,7 @@ public:
                 DrawText(TextFormat("Heals %d HP", (int)s.heal), (int)r.x + 12, (int)r.y + 156, 16, RAYWHITE);
             } else {
                 DrawCircleV(ic, 34.0f, Fade(rc, 0.16f));
-                DrawItemIcon(s.item.slot, ic, 54.0f, rc);
+                DrawItemIcon(s.item.slot, ic, 54.0f, rc, s.item.weaponType);
                 // tên có thể dài: tách làm 2 dòng
                 std::string nm = s.item.name;
                 size_t sp = nm.find(' ');
@@ -2660,7 +3785,7 @@ public:
         Vector2 lan = { p.x - 44.0f + sinf(t * 2.5f) * 3.0f, p.y - 2.0f };
         DrawLineEx({ p.x - 30.0f, p.y - 12.0f + bob }, { lan.x, lan.y - 8.0f }, 2.0f, { 90, 70, 50, 255 });
         BeginBlendMode(BLEND_ADDITIVE);
-        DrawCircleGradient((int)lan.x, (int)lan.y, 46.0f, Fade({ 255, 190, 80, 255 }, 0.4f), Fade({ 255, 190, 80, 255 }, 0.0f));
+        CircleGrad(lan.x, lan.y, 46.0f, Fade({ 255, 190, 80, 255 }, 0.4f), Fade({ 255, 190, 80, 255 }, 0.0f));
         EndBlendMode();
         DrawRectangle((int)lan.x - 5, (int)lan.y - 6, 10, 13, { 255, 214, 110, 255 });
         DrawRectangleLines((int)lan.x - 5, (int)lan.y - 6, 10, 13, { 90, 60, 30, 255 });
@@ -2737,7 +3862,7 @@ public:
         int sw = MeasureText(sv.c_str(), 28);
         float wx = 1280 / 2.0f - sw / 2.0f - 30.0f, wy = 126.0f + sinf(t * 3.0f) * 2.0f;
         BeginBlendMode(BLEND_ADDITIVE);
-        DrawCircleGradient((int)wx, (int)wy, 26.0f, Fade({ 150, 200, 255, 255 }, 0.5f), Fade({ 150, 200, 255, 255 }, 0.0f));
+        CircleGrad(wx, wy, 26.0f, Fade({ 150, 200, 255, 255 }, 0.5f), Fade({ 150, 200, 255, 255 }, 0.0f));
         EndBlendMode();
         DrawCircleV({ wx, wy }, 8.0f, { 190, 225, 255, 255 });
         Tri({ wx - 5, wy + 4 }, { wx + 5, wy + 4 }, { wx, wy + 18 }, Fade({ 190, 225, 255, 255 }, 0.7f));
@@ -2804,6 +3929,7 @@ public:
             else if (k == "best") bestFloor = std::max(1, v);
             else if (k == "souls") souls = std::max(0, v);
             else if (k == "runs") runs = std::max(0, v);
+            else if (k == "heroClass") selectedClass = std::max(0, std::min(3, v));
             else if (k.size() == 5 && k.compare(0, 4, "meta") == 0) {
                 int mi = k[4] - '0';
                 if (mi >= 0 && mi < 8) meta[mi] = std::max(0, std::min(kMeta[mi].maxLevel, v));
@@ -2816,7 +3942,8 @@ public:
         o << "resW=" << settings.resW << "\nresH=" << settings.resH << "\nfullscreen=" << settings.fullscreen
           << "\nvsync=" << settings.vsync << "\nfpsIndex=" << settings.fpsIndex << "\nshowFps=" << settings.showFps
           << "\nvibration=" << settings.vibration << "\nlighting=" << settings.lighting << "\nparticles=" << settings.particles
-          << "\nvignette=" << settings.vignette << "\nvolume=" << settings.volume << "\ndifficulty=" << settings.difficulty << "\nbest=" << bestFloor << "\nsouls=" << souls << "\nruns=" << runs;
+          << "\nvignette=" << settings.vignette << "\nvolume=" << settings.volume << "\ndifficulty=" << settings.difficulty
+          << "\nbest=" << bestFloor << "\nsouls=" << souls << "\nruns=" << runs << "\nheroClass=" << selectedClass;
         for (int i = 0; i < 8; ++i) o << "\nmeta" << i << "=" << meta[i];
         o << "\n";
         std::string s = o.str();
@@ -3024,17 +4151,53 @@ public:
         }
     }
 
-    static void DrawItemIcon(int slot, Vector2 c, float s, Color col) {
+    static void DrawItemIcon(int slot, Vector2 c, float s, Color col, int weaponType = 0) {
         Color dark = Shade(col, 0.45f);
         switch (slot) {
             case SLOT_WEAPON: {
-                Vector2 a = { c.x - s * 0.42f, c.y + s * 0.42f }, b = { c.x + s * 0.46f, c.y - s * 0.46f };
-                DrawLineEx(a, b, s * 0.20f, dark);
-                DrawLineEx(a, b, s * 0.12f, col);
-                DrawLineEx({ c.x - s * 0.12f, c.y - s * 0.12f - 0.0f }, { c.x + s * 0.05f, c.y + s * 0.05f }, 1.0f, WHITE);
-                Vector2 g = { c.x - s * 0.18f, c.y + s * 0.18f };
-                DrawLineEx({ g.x - s * 0.2f, g.y - s * 0.2f }, { g.x + s * 0.2f, g.y + s * 0.2f }, s * 0.12f, GOLD);
-                DrawCircleV({ c.x - s * 0.48f, c.y + s * 0.48f }, s * 0.10f, GOLD);
+                if (weaponType == WP_DAGGER) {
+                    Vector2 a = { c.x - s * 0.28f, c.y + s * 0.28f }, b = { c.x + s * 0.34f, c.y - s * 0.34f };
+                    DrawLineEx(a, b, s * 0.16f, dark);
+                    DrawLineEx(a, b, s * 0.09f, col);
+                    DrawLineEx({ c.x - s * 0.28f, c.y + s * 0.04f }, { c.x - s * 0.04f, c.y + s * 0.28f }, s * 0.10f, GOLD);
+                } else if (weaponType == WP_AXE) {
+                    Vector2 a = { c.x - s * 0.42f, c.y + s * 0.42f }, b = { c.x + s * 0.36f, c.y - s * 0.36f };
+                    DrawLineEx(a, b, s * 0.13f, { 120, 80, 48, 255 });
+                    Tri({ c.x + s * 0.04f, c.y - s * 0.18f }, { c.x + s * 0.44f, c.y - s * 0.44f }, { c.x + s * 0.38f, c.y + s * 0.08f }, col);
+                    Tri({ c.x + s * 0.16f, c.y - s * 0.04f }, { c.x - s * 0.12f, c.y - s * 0.42f }, { c.x + s * 0.42f, c.y - s * 0.44f }, Shade(col, 0.8f));
+                } else if (weaponType == WP_SPEAR) {
+                    Vector2 a = { c.x - s * 0.46f, c.y + s * 0.46f }, b = { c.x + s * 0.26f, c.y - s * 0.26f };
+                    DrawLineEx(a, b, s * 0.11f, { 130, 88, 50, 255 });
+                    Tri({ c.x + s * 0.50f, c.y - s * 0.50f }, { c.x + s * 0.10f, c.y - s * 0.28f }, { c.x + s * 0.28f, c.y - s * 0.10f }, col);
+                } else if (weaponType == WP_HAMMER) {
+                    Vector2 a = { c.x - s * 0.40f, c.y + s * 0.40f }, b = { c.x + s * 0.26f, c.y - s * 0.26f };
+                    DrawLineEx(a, b, s * 0.14f, { 125, 82, 46, 255 });
+                    DrawLineEx({ b.x - s * 0.24f, b.y - s * 0.24f }, { b.x + s * 0.24f, b.y + s * 0.24f }, s * 0.26f, dark);
+                    DrawLineEx({ b.x - s * 0.20f, b.y - s * 0.20f }, { b.x + s * 0.20f, b.y + s * 0.20f }, s * 0.18f, col);
+                } else if (weaponType == WP_SCYTHE) {
+                    Vector2 a = { c.x - s * 0.42f, c.y + s * 0.44f }, b = { c.x + s * 0.30f, c.y - s * 0.34f };
+                    DrawLineEx(a, b, s * 0.11f, { 88, 72, 118, 255 });
+                    Tri(b, { c.x + s * 0.48f, c.y - s * 0.08f }, { c.x + s * 0.24f, c.y + s * 0.34f }, col);
+                    DrawLineEx(b, { c.x + s * 0.24f, c.y + s * 0.34f }, s * 0.06f, WHITE);
+                } else if (weaponType == WP_BOW) {
+                    DrawRing({ c.x - s * 0.05f, c.y + s * 0.05f }, s * 0.34f, s * 0.44f, -120.0f, 30.0f, 16, { 165, 110, 56, 255 });
+                    DrawLineEx({ c.x - s * 0.24f, c.y - s * 0.30f }, { c.x + s * 0.30f, c.y + s * 0.24f }, 1.5f, WHITE);
+                    DrawLineEx({ c.x - s * 0.20f, c.y + s * 0.20f }, { c.x + s * 0.42f, c.y - s * 0.42f }, s * 0.09f, col);
+                } else if (weaponType == WP_STAFF) {
+                    Vector2 a = { c.x - s * 0.44f, c.y + s * 0.44f }, b = { c.x + s * 0.22f, c.y - s * 0.22f };
+                    DrawLineEx(a, b, s * 0.12f, { 110, 70, 155, 255 });
+                    DrawCircleV({ c.x + s * 0.30f, c.y - s * 0.30f }, s * 0.20f, Fade(col, 0.45f));
+                    DrawCircleV({ c.x + s * 0.30f, c.y - s * 0.30f }, s * 0.13f, col);
+                    DrawCircleV({ c.x + s * 0.27f, c.y - s * 0.33f }, s * 0.05f, WHITE);
+                } else {
+                    Vector2 a = { c.x - s * 0.42f, c.y + s * 0.42f }, b = { c.x + s * 0.46f, c.y - s * 0.46f };
+                    DrawLineEx(a, b, s * 0.20f, dark);
+                    DrawLineEx(a, b, s * 0.12f, col);
+                    DrawLineEx({ c.x - s * 0.12f, c.y - s * 0.12f }, { c.x + s * 0.05f, c.y + s * 0.05f }, 1.0f, WHITE);
+                    Vector2 g = { c.x - s * 0.18f, c.y + s * 0.18f };
+                    DrawLineEx({ g.x - s * 0.2f, g.y - s * 0.2f }, { g.x + s * 0.2f, g.y + s * 0.2f }, s * 0.12f, GOLD);
+                    DrawCircleV({ c.x - s * 0.48f, c.y + s * 0.48f }, s * 0.10f, GOLD);
+                }
                 break;
             }
             case SLOT_ARMOR: {
@@ -3070,13 +4233,13 @@ public:
             float bob = sinf(t * 3.0f + d.phase) * 4.0f;
             DrawEllipse((int)d.pos.x, (int)d.pos.y + 14, 14.0f, 5.0f, Fade(BLACK, 0.35f));
             BeginBlendMode(BLEND_ADDITIVE);
-            DrawCircleGradient((int)d.pos.x, (int)(d.pos.y - 6), 46.0f, Fade(rc, 0.45f), Fade(rc, 0.0f));
+            CircleGrad(d.pos.x, d.pos.y - 6, 46.0f, Fade(rc, 0.45f), Fade(rc, 0.0f));
             EndBlendMode();
             if (d.item.rarity >= 2)
                 DrawRectangleGradientV((int)d.pos.x - 5, (int)d.pos.y - 100, 10, 100, Fade(rc, 0.0f), Fade(rc, d.item.rarity == 3 ? 0.45f : 0.28f));
             DrawCircleV({ d.pos.x, d.pos.y - 8.0f + bob }, 17.0f, { 18, 22, 34, 230 });
             DrawCircleLines((int)d.pos.x, (int)(d.pos.y - 8.0f + bob), 17.0f, rc);
-            DrawItemIcon(d.item.slot, { d.pos.x, d.pos.y - 8.0f + bob }, 22.0f, rc);
+            DrawItemIcon(d.item.slot, { d.pos.x, d.pos.y - 8.0f + bob }, 22.0f, rc, d.item.weaponType);
             if (d.life < 8.0f && ((int)(t * 6.0f)) % 2 == 0) DrawCircleLines((int)d.pos.x, (int)(d.pos.y - 8.0f + bob), 21.0f, WHITE); // sắp biến mất
             if (Vector2Distance(d.pos, player.pos) < 130.0f) {
                 std::string title = d.item.name;
@@ -3095,68 +4258,83 @@ public:
     }
 
     void DrawInventory() {
-        DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.82f));
-        int px = 90, py = 70, pw = 1100, ph = 590;
+        const ClassDef& cd = kClasses[std::max(0, std::min(3, player.heroClass))];
+        DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.84f));
+        int px = 70, py = 46, pw = 1140, ph = 632;
         DrawRectangle(px, py, pw, ph, { 14, 18, 30, 248 });
         DrawRectangleLines(px, py, pw, ph, GOLD);
-        const char* title = "EQUIPMENT";
-        DrawText(title, 1280 / 2 - MeasureText(title, 34) / 2, py + 16, 34, GOLD);
+        std::string title = std::string("EQUIPMENT & SKILLS  -  ") + cd.name;
+        DrawText(title.c_str(), 1280 / 2 - MeasureText(title.c_str(), 30) / 2, py + 14, 30, cd.color);
 
         static const char* slotNames[4] = { "WEAPON", "ARMOR", "BOOTS", "RING" };
-        int cw = 250, gap = 14, cx0 = px + (pw - (cw * 4 + gap * 3)) / 2, cy = py + 70, ch = 250;
+        int cw = 260, gap = 14, cx0 = px + (pw - (cw * 4 + gap * 3)) / 2, cy = py + 58, ch = 228;
         for (int i = 0; i < 4; ++i) {
             int cx = cx0 + i * (cw + gap);
             Color rc = hasEquip[i] ? equipped[i].RarityColor() : Color{ 70, 80, 105, 255 };
             DrawRectangle(cx, cy, cw, ch, { 22, 28, 44, 255 });
             DrawRectangleLines(cx, cy, cw, ch, rc);
-            DrawRectangle(cx, cy, cw, 28, Fade(rc, 0.25f));
-            DrawText(slotNames[i], cx + 12, cy + 6, 18, rc);
+            DrawRectangle(cx, cy, cw, 26, Fade(rc, 0.25f));
+            DrawText(slotNames[i], cx + 12, cy + 5, 17, rc);
             if (hasEquip[i]) {
-                DrawCircleV({ (float)cx + cw / 2.0f, (float)cy + 76 }, 36.0f, Fade(rc, 0.18f));
-                DrawItemIcon(i, { (float)cx + cw / 2.0f, (float)cy + 76 }, 58.0f, rc);
-                DrawText(equipped[i].name.c_str(), cx + 12, cy + 124, 18, rc);
-                DrawText(equipped[i].RarityName(), cx + 12, cy + 146, 14, Fade(rc, 0.8f));
+                DrawCircleV({ (float)cx + cw / 2.0f, (float)cy + 66 }, 32.0f, Fade(rc, 0.18f));
+                DrawItemIcon(i, { (float)cx + cw / 2.0f, (float)cy + 66 }, 52.0f, rc, equipped[i].weaponType);
+                DrawText(equipped[i].name.c_str(), cx + 12, cy + 108, 17, rc);
+                DrawText(equipped[i].RarityName(), cx + 12, cy + 128, 13, Fade(rc, 0.8f));
                 auto lines = equipped[i].StatLines();
-                for (size_t k = 0; k < lines.size(); ++k) DrawText(lines[k].c_str(), cx + 12, cy + 170 + (int)k * 20, 16, RAYWHITE);
+                for (size_t k = 0; k < lines.size(); ++k) DrawText(lines[k].c_str(), cx + 12, cy + 148 + (int)k * 18, 15, RAYWHITE);
             } else {
-                DrawItemIcon(i, { (float)cx + cw / 2.0f, (float)cy + 76 }, 58.0f, { 60, 68, 90, 255 });
-                DrawText("- Empty -", cx + cw / 2 - MeasureText("- Empty -", 18) / 2, cy + 140, 18, { 110, 120, 145, 255 });
+                DrawItemIcon(i, { (float)cx + cw / 2.0f, (float)cy + 66 }, 52.0f, { 60, 68, 90, 255 }, 0);
+                DrawText("- Empty -", cx + cw / 2 - MeasureText("- Empty -", 18) / 2, cy + 128, 18, { 110, 120, 145, 255 });
             }
         }
 
         // Chỉ số nhân vật
-        int sy = cy + ch + 24;
-        DrawText("CHARACTER", px + 36, sy, 22, SKYBLUE);
+        int sy = cy + ch + 18;
+        DrawText("CHARACTER", px + 36, sy, 20, SKYBLUE);
         char buf[96];
         auto stat = [&](int col, int row, const char* label, const std::string& val) {
-            DrawText(label, px + 36 + col * 330, sy + 36 + row * 28, 18, { 170, 185, 215, 255 });
-            DrawText(val.c_str(), px + 36 + col * 330 + 160, sy + 36 + row * 28, 18, WHITE);
+            DrawText(label, px + 36 + col * 345, sy + 28 + row * 24, 16, { 170, 185, 215, 255 });
+            DrawText(val.c_str(), px + 36 + col * 345 + 155, sy + 28 + row * 24, 16, WHITE);
         };
         snprintf(buf, sizeof(buf), "%d / %d", (int)player.hp, (int)player.maxHp); stat(0, 0, "Health", buf);
         snprintf(buf, sizeof(buf), "%.0f", player.baseDmg); stat(0, 1, "Damage", buf);
-        snprintf(buf, sizeof(buf), "%.1f", player.armor); stat(0, 2, "Armor", buf);
-        snprintf(buf, sizeof(buf), "%.0f", player.speed); stat(1, 0, "Move Speed", buf);
-        snprintf(buf, sizeof(buf), "%.2f /s", player.attackRate); stat(1, 1, "Attack Speed", buf);
+        snprintf(buf, sizeof(buf), "%.1f", EffectiveArmor()); stat(0, 2, "Armor", buf);
+        snprintf(buf, sizeof(buf), "%.0f", EffectiveMoveSpeed()); stat(1, 0, "Move Speed", buf);
+        snprintf(buf, sizeof(buf), "%.2f /s", EffectiveAttackRate()); stat(1, 1, "Attack Speed", buf);
         snprintf(buf, sizeof(buf), "%d%%", (int)roundf(std::min(0.6f, player.critChance) * 100)); stat(1, 2, "Crit Chance", buf);
         snprintf(buf, sizeof(buf), "%d%%", (int)roundf(std::min(0.3f, player.lifesteal) * 100)); stat(2, 0, "Lifesteal", buf);
         snprintf(buf, sizeof(buf), "%.1fs", player.dashCooldown); stat(2, 1, "Dash Cooldown", buf);
-        snprintf(buf, sizeof(buf), "%.1fs", player.specialCooldown); stat(2, 2, "Nova Cooldown", buf);
-        std::string extra = "Ember Edge Lv" + std::to_string(player.igniteLevel) + "   Frost Touch Lv" + std::to_string(player.frostLevel) + "   Relics: " + std::to_string(player.relics.size());
-        DrawText(extra.c_str(), px + 36 + 780 - MeasureText(extra.c_str(), 16) , sy + 2, 16, { 150, 165, 200, 255 });
+        snprintf(buf, sizeof(buf), "%.1fs / %.1fs", Skill1MaxCd(), Skill2MaxCd()); stat(2, 2, "Q / E Cooldown", buf);
+        std::string extra = "Rage: " + std::to_string((int)player.rage) + "/100   Ember Lv" + std::to_string(player.igniteLevel) + "   Frost Lv" + std::to_string(player.frostLevel);
+        DrawText(extra.c_str(), px + pw - 36 - MeasureText(extra.c_str(), 15), sy + 2, 15, { 150, 165, 200, 255 });
+
+        // Bộ 4 kỹ năng của Class
+        int ky = sy + 106;
+        DrawText("SKILLS", px + 36, ky, 18, cd.accent);
+        const char* tags[4] = { "[PASSIVE]", "[Q]", "[E]", "[R] RAGE" };
+        const char* sNames[4] = { cd.passiveName, cd.qName, cd.eName, cd.rName };
+        const char* sDescs[4] = { cd.passiveDesc, cd.qDesc, cd.eDesc, cd.rDesc };
+        for (int s = 0; s < 4; ++s) {
+            int rowY = ky + 24 + s * 22;
+            DrawText(tags[s], px + 36, rowY, 15, s == 3 ? ORANGE : (s == 0 ? cd.color : SKYBLUE));
+            DrawText(sNames[s], px + 132, rowY, 15, WHITE);
+            DrawText(sDescs[s], px + 305, rowY, 14, { 190, 205, 230, 255 });
+        }
+
         if (!player.relics.empty()) {
-            DrawText("RELICS", px + 36, py + ph - 108, 16, SKYBLUE);
-            int rx = px + 110, ry = py + ph - 108;
+            DrawText("RELICS", px + 36, py + ph - 92, 15, SKYBLUE);
+            int rx = px + 110, ry = py + ph - 92;
             for (const auto& r : player.relics) {
                 std::string label = r.name + " (" + RelicDesc(r.type) + ")";
-                int w = MeasureText(label.c_str(), 14) + 26;
-                if (rx + w > px + pw - 20) { rx = px + 110; ry += 18; }
-                DrawCircle(rx + 5, ry + 8, 5, r.color);
-                DrawText(label.c_str(), rx + 16, ry + 1, 14, r.color);
-                rx += w + 14;
+                int w = MeasureText(label.c_str(), 13) + 24;
+                if (rx + w > px + pw - 20) { rx = px + 110; ry += 16; }
+                DrawCircle(rx + 5, ry + 7, 4.5f, r.color);
+                DrawText(label.c_str(), rx + 14, ry + 1, 13, r.color);
+                rx += w + 12;
             }
         }
-        DrawText("Gear drops from enemies. Better gear is equipped automatically; worse gear is sold for gold.", px + 36, py + ph - 52, 16, { 170, 185, 215, 255 });
-        DrawText("Press I or Esc to close", px + 36, py + ph - 28, 16, { 120, 135, 165, 255 });
+        DrawText("Gear drops from enemies. Better gear equips automatically; weaker gear sells for gold.", px + 36, py + ph - 46, 15, { 170, 185, 215, 255 });
+        DrawText("Press I or Esc to close", px + 36, py + ph - 24, 15, { 120, 135, 165, 255 });
     }
 
     // ── Môi trường: tường gạch, decal, đuốc, cột, ánh sáng ──
@@ -3276,7 +4454,7 @@ public:
         DrawRectangle((int)t.x - 3, (int)t.y - 2, 6, 15, { 70, 50, 36, 255 });
         DrawRectangle((int)t.x - 6, (int)t.y - 4, 12, 5, { 120, 88, 54, 255 });
         BeginBlendMode(BLEND_ADDITIVE);
-        DrawCircleGradient((int)t.x, (int)t.y - 8, 58.0f, Fade({ 255, 150, 50, 255 }, 0.32f * fl), Fade({ 255, 150, 50, 255 }, 0.0f));
+        CircleGrad(t.x, t.y - 8, 58.0f, Fade({ 255, 150, 50, 255 }, 0.32f * fl), Fade({ 255, 150, 50, 255 }, 0.0f));
         EndBlendMode();
         DrawCircleV({ t.x, t.y - 8.0f }, 7.5f * fl, { 255, 120, 30, 255 });
         DrawCircleV({ t.x, t.y - 9.0f }, 4.8f * fl, { 255, 200, 70, 255 });
@@ -3286,7 +4464,7 @@ public:
     void AddLight(Vector2 wp, float radius, Color col, float inten) {
         Vector2 sp = GetWorldToScreen2D(wp, camera);
         if (sp.x < -radius || sp.x > 1280 + radius || sp.y < -radius || sp.y > 720 + radius) return;
-        DrawCircleGradient((int)sp.x, (int)sp.y, radius, Fade(col, inten), Fade(col, 0.0f));
+        CircleGrad(sp.x, sp.y, radius, Fade(col, inten), Fade(col, 0.0f));
     }
 
     // Bản đồ ánh sáng nhân với cảnh: xa nguồn sáng thì tối dần
@@ -3307,7 +4485,8 @@ public:
         }
         if (portalOpen) AddLight(portalPos, 230.0f, { 80, 220, 255, 255 }, 0.7f);
         if (hasShrine && !shrineUsed) AddLight({ shrinePos.x, shrinePos.y - 40.0f }, 190.0f, { 255, 50, 80, 255 }, 0.55f + 0.1f * sinf(shrinePulse));
-        for (const auto& pr : projectiles) AddLight(pr.pos, 80.0f, pr.color, 0.7f);
+        for (const auto& pr : projectiles) AddLight(pr.pos, pr.kind == 4 ? 130.0f : 80.0f, pr.color, pr.kind == 4 ? 0.85f : 0.7f);
+        for (const auto& ge : groundEffects) AddLight(ge.pos, ge.radius * 1.15f + 40.0f, ge.color, 0.55f);
         for (const auto& nv : novas) {
             float k = nv.timer / nv.maxTimer;
             AddLight(nv.pos, nv.radius * 1.4f + 60.0f, nv.color, 0.55f * k);
@@ -3338,6 +4517,204 @@ public:
         EndBlendMode();
     }
 
+    // ── Vẽ chữ tự xuống dòng & biểu tượng kỹ năng ──
+    static int DrawWrappedText(const char* txt, int x, int y, int maxW, int fontSize, int lineH, Color col) {
+        std::istringstream iss(txt);
+        std::string word, line;
+        int curY = y;
+        while (iss >> word) {
+            std::string test = line.empty() ? word : (line + " " + word);
+            if (MeasureText(test.c_str(), fontSize) > maxW && !line.empty()) {
+                DrawText(line.c_str(), x, curY, fontSize, col);
+                curY += lineH;
+                line = word;
+            } else {
+                line = test;
+            }
+        }
+        if (!line.empty()) {
+            DrawText(line.c_str(), x, curY, fontSize, col);
+            curY += lineH;
+        }
+        return curY;
+    }
+
+    static void DrawSkillIcon(int heroClass, int slotKind, Vector2 c, float s, Color col) {
+        if (slotKind == -1) { // Dash wing/boot
+            DrawLineEx({ c.x - s * 0.35f, c.y + s * 0.15f }, { c.x + s * 0.25f, c.y - s * 0.25f }, 3.0f, col);
+            DrawLineEx({ c.x - s * 0.25f, c.y + s * 0.30f }, { c.x + s * 0.35f, c.y - s * 0.05f }, 2.5f, Fade(col, 0.75f));
+            Tri({ c.x + s * 0.38f, c.y - s * 0.28f }, { c.x + s * 0.08f, c.y - s * 0.28f }, { c.x + s * 0.28f, c.y - s * 0.02f }, col);
+            return;
+        }
+        if (heroClass == CLASS_KNIGHT) {
+            if (slotKind == 0) { // Passive: Shield + Cross
+                DrawCircleV(c, s * 0.36f, Fade(col, 0.22f));
+                DrawCircleLines((int)c.x, (int)c.y, s * 0.36f, col);
+                DrawLineEx({ c.x, c.y - s * 0.22f }, { c.x, c.y + s * 0.22f }, 3.0f, GOLD);
+                DrawLineEx({ c.x - s * 0.20f, c.y }, { c.x + s * 0.20f, c.y }, 3.0f, GOLD);
+            } else if (slotKind == 1) { // Q: Shield Bash
+                DrawRectangle((int)(c.x - s * 0.24f), (int)(c.y - s * 0.26f), (int)(s * 0.42f), (int)(s * 0.50f), col);
+                DrawLineEx({ c.x + s * 0.18f, c.y }, { c.x + s * 0.42f, c.y }, 3.5f, GOLD);
+                Tri({ c.x + s * 0.46f, c.y }, { c.x + s * 0.26f, c.y - s * 0.18f }, { c.x + s * 0.26f, c.y + s * 0.18f }, GOLD);
+            } else if (slotKind == 2) { // E: Holy Nova
+                DrawCircleLines((int)c.x, (int)c.y, s * 0.34f, col);
+                DrawCircleV(c, s * 0.16f, GOLD);
+                for (int i = 0; i < 4; ++i) {
+                    float a = i * (PI / 2.0f);
+                    DrawLineEx({ c.x + cosf(a) * s * 0.18f, c.y + sinf(a) * s * 0.18f }, { c.x + cosf(a) * s * 0.42f, c.y + sinf(a) * s * 0.42f }, 2.5f, GOLD);
+                }
+            } else { // R: Heaven's Judgment Sword
+                DrawLineEx({ c.x, c.y - s * 0.42f }, { c.x, c.y + s * 0.38f }, 4.5f, GOLD);
+                DrawLineEx({ c.x - s * 0.24f, c.y - s * 0.16f }, { c.x + s * 0.24f, c.y - s * 0.16f }, 3.5f, WHITE);
+                DrawCircleLines((int)c.x, (int)(c.y + s * 0.20f), s * 0.28f, Fade(GOLD, 0.8f));
+            }
+        } else if (heroClass == CLASS_ASSASSIN) {
+            if (slotKind == 0) { // Passive: Crit Star
+                Tri({ c.x, c.y - s * 0.36f }, { c.x - s * 0.22f, c.y + s * 0.24f }, { c.x + s * 0.22f, c.y + s * 0.24f }, col);
+                Tri({ c.x, c.y + s * 0.36f }, { c.x - s * 0.22f, c.y - s * 0.18f }, { c.x + s * 0.22f, c.y - s * 0.18f }, Fade(GOLD, 0.85f));
+            } else if (slotKind == 1) { // Q: Fan of Knives
+                for (int i = -1; i <= 1; ++i) {
+                    float a = -PI / 2.0f + i * 0.45f;
+                    DrawLineEx(c, { c.x + cosf(a) * s * 0.42f, c.y + sinf(a) * s * 0.42f }, 3.0f, col);
+                }
+            } else if (slotKind == 2) { // E: Shadow Step
+                DrawCircleLines((int)(c.x - s * 0.14f), (int)c.y, s * 0.20f, Fade(col, 0.5f));
+                DrawLineEx({ c.x - s * 0.22f, c.y + s * 0.22f }, { c.x + s * 0.34f, c.y - s * 0.30f }, 3.5f, col);
+                DrawCircleV({ c.x + s * 0.26f, c.y - s * 0.22f }, 4.0f, WHITE);
+            } else { // R: Blade Storm
+                DrawRing(c, s * 0.22f, s * 0.36f, 0.0f, 140.0f, 10, col);
+                DrawRing(c, s * 0.22f, s * 0.36f, 180.0f, 320.0f, 10, { 255, 90, 175, 255 });
+                DrawCircleV(c, s * 0.10f, WHITE);
+            }
+        } else if (heroClass == CLASS_MAGE) {
+            if (slotKind == 0) { // Passive: Arcane Crystal
+                Tri({ c.x, c.y - s * 0.38f }, { c.x - s * 0.22f, c.y }, { c.x + s * 0.22f, c.y }, col);
+                Tri({ c.x, c.y + s * 0.38f }, { c.x - s * 0.22f, c.y }, { c.x + s * 0.22f, c.y }, Shade(col, 0.7f));
+            } else if (slotKind == 1) { // Q: Fireball
+                DrawCircleV(c, s * 0.28f, ORANGE);
+                DrawCircleV({ c.x + s * 0.04f, c.y - s * 0.04f }, s * 0.15f, YELLOW);
+            } else if (slotKind == 2) { // E: Frost Nova
+                for (int i = 0; i < 3; ++i) {
+                    float a = i * (PI / 3.0f);
+                    DrawLineEx({ c.x - cosf(a) * s * 0.36f, c.y - sinf(a) * s * 0.36f }, { c.x + cosf(a) * s * 0.36f, c.y + sinf(a) * s * 0.36f }, 2.5f, SKYBLUE);
+                }
+            } else { // R: Void Meteor
+                DrawCircleV(c, s * 0.26f, { 165, 85, 255, 255 });
+                DrawCircleLines((int)c.x, (int)c.y, s * 0.38f, SKYBLUE);
+                DrawCircleV({ c.x - s * 0.08f, c.y - s * 0.08f }, s * 0.10f, WHITE);
+            }
+        } else {
+            if (slotKind == 0) { // Passive: Eagle Mark
+                DrawRing(c, s * 0.26f, s * 0.34f, 0.0f, 360.0f, 16, col);
+                DrawCircleV(c, s * 0.12f, GOLD);
+            } else if (slotKind == 1) { // Q: Multishot
+                for (int i = -1; i <= 1; ++i) {
+                    float a = -PI / 2.0f + i * 0.38f;
+                    DrawLineEx({ c.x - cosf(a) * s * 0.22f, c.y - sinf(a) * s * 0.22f }, { c.x + cosf(a) * s * 0.34f, c.y + sinf(a) * s * 0.34f }, 2.5f, GOLD);
+                }
+            } else if (slotKind == 2) { // E: Explosive Trap
+                DrawCircleLines((int)c.x, (int)c.y, s * 0.34f, col);
+                DrawCircleV(c, s * 0.16f, ORANGE);
+            } else { // R: Phoenix Arrow Rain
+                for (int i = -1; i <= 1; ++i) {
+                    DrawLineEx({ c.x + i * s * 0.18f - s * 0.12f, c.y - s * 0.34f }, { c.x + i * s * 0.18f + s * 0.12f, c.y + s * 0.34f }, 2.5f, { 255, 165, 55, 255 });
+                }
+            }
+        }
+    }
+
+    // ── Màn hình chọn nhân vật ──
+    void UpdateClassSelect() {
+        if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_RIGHT)) classSel = (classSel + 1) % 4;
+        if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_LEFT)) classSel = (classSel + 3) % 4;
+        for (int i = 0; i < 4; ++i) if (IsKeyPressed(KEY_ONE + i)) classSel = i;
+        if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_BACKSPACE) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) { state = TITLE; return; }
+
+        Vector2 m = GetMousePosition();
+        bool startClick = false;
+        const int cardW = 285, gap = 16, x0 = (1280 - (cardW * 4 + gap * 3)) / 2, cy = 84, cardH = 532;
+        for (int i = 0; i < 4; ++i) {
+            Rectangle r = { (float)(x0 + i * (cardW + gap)), (float)cy, (float)cardW, (float)cardH };
+            if (CheckCollisionPointRec(m, r)) {
+                if (GetMouseDelta().x != 0 || GetMouseDelta().y != 0) classSel = i;
+                if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                    if (classSel == i) startClick = true;
+                    else { classSel = i; PlaySound(snd.sndCoin); }
+                }
+            }
+        }
+        Rectangle startBtn = { 1280 / 2.0f - 180.0f, 634.0f, 360.0f, 46.0f };
+        if (CheckCollisionPointRec(m, startBtn) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) startClick = true;
+
+        if (startClick || IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) {
+            selectedClass = classSel;
+            SaveSettings();
+            RestartRun();
+            PlaySound(snd.sndPotion);
+        }
+    }
+
+    void DrawClassSelectScreen() {
+        float t = (float)GetTime();
+        DrawRectangleGradientV(0, 0, 1280, 720, Fade({ 8, 10, 18, 255 }, 0.92f), Fade({ 12, 16, 28, 255 }, 0.88f));
+        const char* hdr = "CHOOSE YOUR HERO";
+        OutlinedText(hdr, 1280 / 2 - MeasureText(hdr, 42) / 2, 22, 42, GOLD, { 80, 40, 10, 255 });
+
+        const int cardW = 285, gap = 16, x0 = (1280 - (cardW * 4 + gap * 3)) / 2, cy = 84, cardH = 532;
+        static const char* wpNames[8] = { "Sword", "Dagger", "Axe", "Spear", "Hammer", "Scythe", "Bow", "Staff" };
+        for (int i = 0; i < 4; ++i) {
+            const ClassDef& cd = kClasses[i];
+            int cx = x0 + i * (cardW + gap);
+            bool sel = (classSel == i);
+            Rectangle r = { (float)cx, (float)cy, (float)cardW, (float)cardH };
+            DrawRectangleRec(r, sel ? Color{ 26, 34, 56, 252 } : Color{ 16, 20, 34, 240 });
+            DrawRectangle(cx, cy, cardW, 44, Fade(cd.color, sel ? 0.35f : 0.16f));
+            DrawRectangleLinesEx(r, sel ? 3.0f : 1.5f, sel ? GOLD : Fade(cd.color, 0.55f));
+
+            DrawText(TextFormat("[%d]", i + 1), cx + 10, cy + 12, 16, GOLD);
+            DrawText(cd.name, cx + 40, cy + 8, 20, sel ? WHITE : cd.color);
+            DrawText(cd.role, cx + 40, cy + 28, 12, { 185, 198, 225, 255 });
+
+            // Xem trước nhân vật sống động
+            Vector2 prevPos = { cx + cardW / 2.0f, (float)cy + 102.0f };
+            DrawCircleV(prevPos, 38.0f, Fade(cd.color, sel ? 0.18f : 0.08f));
+            float aimA = sel ? sinf(t * 1.8f) * 0.45f : 0.25f;
+            DrawHeroModel(prevPos, i, cd.startWeapon, { cosf(aimA), sinf(aimA) }, false, t * (sel ? 6.0f : 0.0f), sel, sel ? sinf(t * 5.0f) * 0.3f : 0.35f, false, false, 0.0f, 0.0f);
+
+            // Chỉ số cơ bản
+            int stY = cy + 152;
+            DrawRectangle(cx + 10, stY, cardW - 20, 56, { 12, 15, 26, 220 });
+            DrawText(TextFormat("HP: %d   DMG: %d   ARM: %.1f", (int)cd.baseHp, (int)cd.baseDmg, cd.baseArmor), cx + 18, stY + 8, 13, RAYWHITE);
+            DrawText(TextFormat("SPD: %d   ATK: %.1f/s   CRIT: %d%%", (int)cd.baseSpeed, cd.baseAtkRate, (int)roundf(cd.baseCrit * 100)), cx + 18, stY + 24, 13, SKYBLUE);
+            DrawText(TextFormat("Weapon: %s", wpNames[cd.startWeapon]), cx + 18, stY + 40, 13, GOLD);
+
+            // 4 kỹ năng: 1 Passive, 2 thường (Q, E), 1 Nộ (R)
+            int sy = stY + 66;
+            const char* tags[4] = { "PASSIVE", "SKILL [Q]", "SKILL [E]", "ULTIMATE [R]" };
+            const char* sn[4] = { cd.passiveName, cd.qName, cd.eName, cd.rName };
+            const char* sd[4] = { cd.passiveDesc, cd.qDesc, cd.eDesc, cd.rDesc };
+            Color sCol[4] = { cd.color, SKYBLUE, { 110, 235, 175, 255 }, ORANGE };
+            for (int k = 0; k < 4; ++k) {
+                int boxY = sy + k * 76;
+                DrawRectangle(cx + 10, boxY, cardW - 20, 70, { 12, 16, 28, 220 });
+                DrawRectangleLines(cx + 10, boxY, cardW - 20, 70, Fade(sCol[k], 0.45f));
+                DrawSkillIcon(i, k, { (float)cx + 28, (float)boxY + 20 }, 24.0f, sCol[k]);
+                DrawText(tags[k], cx + 48, boxY + 4, 11, sCol[k]);
+                DrawText(sn[k], cx + 48, boxY + 17, 14, WHITE);
+                DrawWrappedText(sd[k], cx + 16, boxY + 34, cardW - 32, 11, 13, { 188, 200, 224, 255 });
+            }
+        }
+
+        const ClassDef& cur = kClasses[classSel];
+        Rectangle startBtn = { 1280 / 2.0f - 180.0f, 634.0f, 360.0f, 46.0f };
+        DrawRectangleRec(startBtn, { 34, 88, 56, 255 });
+        DrawRectangleLinesEx(startBtn, 2.0f, GOLD);
+        std::string bTxt = std::string("PLAY AS ") + cur.name + " [ENTER]";
+        DrawText(bTxt.c_str(), 1280 / 2 - MeasureText(bTxt.c_str(), 18) / 2, 648, 18, WHITE);
+        const char* foot = "1-4 / A-D / Click: select hero     Enter / Double-Click: start     Esc: back";
+        DrawText(foot, 1280 / 2 - MeasureText(foot, 15) / 2, 692, 15, { 150, 165, 200, 255 });
+    }
+
     // ── Màn hình tiêu đề / tạm dừng / hướng dẫn ──
     static void OutlinedText(const char* txt, int x, int y, int size, Color col, Color outline) {
         for (int ox = -2; ox <= 2; ox += 2)
@@ -3347,31 +4724,31 @@ public:
     }
 
     void DrawHelpPanel() {
-        int w = 820, h = 594, x = 1280 / 2 - w / 2, y = 64;
+        int w = 860, h = 612, x = 1280 / 2 - w / 2, y = 54;
         DrawRectangle(x, y, w, h, { 14, 18, 30, 245 });
         DrawRectangleLines(x, y, w, h, GOLD);
-        DrawText("CONTROLS", x + w / 2 - MeasureText("CONTROLS", 30) / 2, y + 18, 30, GOLD);
+        DrawText("CONTROLS", x + w / 2 - MeasureText("CONTROLS", 30) / 2, y + 16, 30, GOLD);
         const char* rows[][2] = {
             { "W A S D / Arrows", "Move" },
-            { "Mouse", "Aim your sword" },
-            { "Left Click / Space / J", "Slash (hold to keep attacking)" },
+            { "Mouse", "Aim weapon & skills" },
+            { "Left Click / Space / J", "Basic Attack (8 weapon types)" },
             { "Right Click / Shift / K", "Dash (brief invulnerability)" },
-            { "Q / E / U", "Nova shockwave" },
+            { "Q / U", "Class Skill 1" },
+            { "E / L", "Class Skill 2" },
+            { "R / Middle Click", "Ultimate Rage Skill (at 100 Rage)" },
             { "1 / 2 / 3", "Pick an upgrade on level-up" },
-            { "I", "Open the equipment screen" },
+            { "I", "Equipment, stats & full skill kit" },
             { "F", "Trade with the merchant (every 3rd floor)" },
-            { "Gamepad", "Sticks, RT/A slash, B dash, X/Y Nova, Start pause" },
+            { "Gamepad", "Sticks, RT/A atk, B dash, X Skill 1, Y Skill 2, LB Ult" },
             { "O / F2", "Settings (title and pause menu)" },
             { "S", "Sanctuary: permanent upgrades (title / game over)" },
-            { "M", "Toggle the radar" },
-            { "Esc / P", "Pause" },
-            { "F1 / H", "Show or hide this help" },
+            { "M / Esc / F1", "Radar / Pause / Controls" },
         };
         for (int i = 0; i < 14; ++i) {
-            DrawText(rows[i][0], x + 36, y + 76 + i * 34, 20, SKYBLUE);
-            DrawText(rows[i][1], x + 340, y + 76 + i * 34, 20, RAYWHITE);
+            DrawText(rows[i][0], x + 36, y + 72 + i * 34, 19, SKYBLUE);
+            DrawText(rows[i][1], x + 340, y + 72 + i * 34, 19, RAYWHITE);
         }
-        DrawText("Clear a room, enter the portal. Blood Shrines trade HP for upgrades.", x + 36, y + h - 40, 16, { 190, 200, 220, 255 });
+        DrawText("Clear a room, enter the portal. Hit enemies to build 100 Rage for [R] Ultimate!", x + 36, y + h - 42, 16, { 190, 200, 220, 255 });
     }
 
     void DrawTitleScreen() {
@@ -3380,22 +4757,26 @@ public:
         if (showHelp) { DrawHelpPanel(); return; }
         const char* title = "GEOMETRIC DUNGEON";
         int tw = MeasureText(title, 72);
-        int ty = 120 + (int)(sinf(t * 1.6f) * 5.0f);
+        int ty = 110 + (int)(sinf(t * 1.6f) * 5.0f);
         DrawText(title, 1280 / 2 - tw / 2 + 4, ty + 5, 72, Fade(BLACK, 0.8f));
         OutlinedText(title, 1280 / 2 - tw / 2, ty, 72, GOLD, { 120, 60, 10, 255 });
-        const char* sub = "a tiny roguelike RPG";
-        DrawText(sub, 1280 / 2 - MeasureText(sub, 24) / 2, ty + 88, 24, { 170, 190, 230, 255 });
+        const char* sub = "4 Classes  -  8 Weapons  -  Rage Ultimates";
+        DrawText(sub, 1280 / 2 - MeasureText(sub, 22) / 2, ty + 88, 22, { 170, 190, 230, 255 });
 
         std::string rec = "Best Record: Floor " + std::to_string(bestFloor);
-        DrawText(rec.c_str(), 1280 / 2 - MeasureText(rec.c_str(), 22) / 2, 330, 22, SKYBLUE);
+        DrawText(rec.c_str(), 1280 / 2 - MeasureText(rec.c_str(), 22) / 2, 310, 22, SKYBLUE);
+
+        const ClassDef& cd = kClasses[std::max(0, std::min(3, selectedClass))];
+        std::string heroTxt = std::string("Last Hero: ") + cd.name;
+        DrawText(heroTxt.c_str(), 1280 / 2 - MeasureText(heroTxt.c_str(), 20) / 2, 344, 20, cd.color);
 
         if (((int)(t * 2.0f)) % 2 == 0) {
-            const char* start = "PRESS ENTER OR CLICK TO START";
-            OutlinedText(start, 1280 / 2 - MeasureText(start, 30) / 2, 410, 30, WHITE, { 20, 24, 40, 255 });
+            const char* start = "PRESS ENTER OR CLICK TO CHOOSE HERO";
+            OutlinedText(start, 1280 / 2 - MeasureText(start, 28) / 2, 405, 28, WHITE, { 20, 24, 40, 255 });
         }
         const char* diffName = settings.difficulty == 0 ? "Easy" : (settings.difficulty == 1 ? "Normal" : "Hard");
         std::string prog = std::string(diffName) + "     Souls: " + std::to_string(souls) + "     Runs: " + std::to_string(runs);
-        DrawText(prog.c_str(), 1280 / 2 - MeasureText(prog.c_str(), 20) / 2, 362, 20, { 190, 150, 255, 255 });
+        DrawText(prog.c_str(), 1280 / 2 - MeasureText(prog.c_str(), 20) / 2, 372, 20, { 190, 150, 255, 255 });
         const char* hint = "S - Sanctuary      O - Settings      F1 - Controls      Esc - Quit";
         DrawText(hint, 1280 / 2 - MeasureText(hint, 20) / 2, 470, 20, { 150, 165, 200, 255 });
         if (showHelp) DrawHelpPanel();
@@ -3404,12 +4785,12 @@ public:
     void DrawPauseScreen() {
         DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.72f));
         const char* t1 = "PAUSED";
-        OutlinedText(t1, 1280 / 2 - MeasureText(t1, 60) / 2, 190, 60, WHITE, { 20, 24, 40, 255 });
-        const char* opts[] = { "ESC / P / ENTER   Resume", "I   Equipment", "O   Settings", "R   Restart run", "F1   Controls", "Q   Quit game" };
-        for (int i = 0; i < 6; ++i)
-            DrawText(opts[i], 1280 / 2 - 150, 250 + i * 40, 26, i == 5 ? Color{ 255, 130, 130, 255 } : RAYWHITE);
-        std::string info = "Floor " + std::to_string(floor) + "   Level " + std::to_string(player.level) + "   Slain " + std::to_string(enemiesSlain);
-        DrawText(info.c_str(), 1280 / 2 - MeasureText(info.c_str(), 20) / 2, 530, 20, SKYBLUE);
+        OutlinedText(t1, 1280 / 2 - MeasureText(t1, 60) / 2, 165, 60, WHITE, { 20, 24, 40, 255 });
+        const char* opts[] = { "ESC / P / ENTER   Resume", "I   Equipment & Skills", "C   Change Hero Class", "O   Settings", "R   Restart run", "F1   Controls", "Q   Quit game" };
+        for (int i = 0; i < 7; ++i)
+            DrawText(opts[i], 1280 / 2 - 160, 236 + i * 38, 25, i == 6 ? Color{ 255, 130, 130, 255 } : RAYWHITE);
+        std::string info = std::string(kClasses[player.heroClass].name) + "   Floor " + std::to_string(floor) + "   Level " + std::to_string(player.level) + "   Slain " + std::to_string(enemiesSlain);
+        DrawText(info.c_str(), 1280 / 2 - MeasureText(info.c_str(), 20) / 2, 534, 20, SKYBLUE);
         if (showHelp) DrawHelpPanel();
     }
 
@@ -3422,16 +4803,24 @@ public:
 
         BeginMode2D(camera);
 
-        // 1. Tường gạch, sàn caro, bóng viền, decal, đuốc, cột
+        // 1. Tường gạch, sàn đá vát cạnh, bóng viền, decal, đuốc, cột
         int halfW = (int)roomW / 2;
         int halfH = (int)roomH / 2;
         int tileSize = 48;
         DrawWalls(biome);
         for (int y = -halfH; y < halfH; y += tileSize) {
             for (int x = -halfW; x < halfW; x += tileSize) {
-                bool alt = (((x / tileSize) + (y / tileSize)) & 1) == 0;
+                int tx = x / tileSize, ty = y / tileSize;
+                bool alt = ((tx + ty) & 1) == 0;
                 Color tileCol = alt ? biome.tileA : biome.tileB;
+                int th = ((tx * 73856093) ^ (ty * 19349663)) & 15;
+                tileCol = Shade(tileCol, 0.96f + (th & 3) * 0.025f);
                 DrawRectangle(x, y, tileSize, tileSize, tileCol);
+                DrawRectangle(x, y, tileSize, 2, Fade(WHITE, 0.04f));
+                DrawRectangle(x, y, 2, tileSize, Fade(WHITE, 0.03f));
+                DrawRectangleLines(x, y, tileSize, tileSize, Fade(BLACK, 0.16f));
+                if (th == 0) DrawRectangle(x + 12, y + 16, 6, 4, Fade(BLACK, 0.12f));
+                else if (th == 7) DrawRectangle(x + 28, y + 30, 5, 5, Fade(WHITE, 0.04f));
             }
         }
         // Bóng đổ từ tường xuống sàn
@@ -3458,6 +4847,15 @@ public:
         // Blood Shrine
         if (hasShrine) {
             float sx = shrinePos.x, sy = shrinePos.y;
+            if (!shrineUsed) {
+                float tm = (float)GetTime();
+                DrawCircle((int)sx, (int)sy + 8, 42.0f, Fade({ 255, 40, 70, 255 }, 0.10f));
+                DrawCircleLines((int)sx, (int)sy + 8, 42.0f, Fade({ 255, 60, 90, 255 }, 0.45f));
+                for (int i = 0; i < 6; ++i) {
+                    float a = tm * 1.2f + i * (PI / 3.0f);
+                    DrawCircleV({ sx + cosf(a) * 42.0f, sy + 8.0f + sinf(a) * 20.0f }, 2.5f, { 255, 110, 130, 255 });
+                }
+            }
             DrawEllipse((int)sx, (int)sy + 26, 30, 10, { 0, 0, 0, 100 });
             Color stone = shrineUsed ? Color{ 90, 88, 100, 255 } : Color{ 110, 104, 130, 255 };
             DrawRectangle((int)sx - 22, (int)sy + 14, 44, 14, stone);
@@ -3476,13 +4874,75 @@ public:
             }
         }
 
-        // Exit Portal
+        // Exit Portal (vòng ma pháp đa tầng xoay)
         if (portalOpen) {
-            float pulse = sinf(GetTime() * 6.0f) * 6.0f;
-            DrawCircle((int)portalPos.x, (int)portalPos.y, 34 + pulse, { 50, 200, 255, 60 });
-            DrawCircle((int)portalPos.x, (int)portalPos.y, 26, { 100, 240, 255, 255 });
-            DrawCircle((int)portalPos.x, (int)portalPos.y, 16, WHITE);
-            DrawText("PORTAL", (int)portalPos.x - 26, (int)portalPos.y + 36, 14, SKYBLUE);
+            float tm = (float)GetTime();
+            float pulse = sinf(tm * 6.0f) * 5.0f;
+            BeginBlendMode(BLEND_ADDITIVE);
+            CircleGrad(portalPos.x, portalPos.y, 58.0f + pulse, Fade(SKYBLUE, 0.45f), Fade(SKYBLUE, 0.0f));
+            EndBlendMode();
+            DrawRing(portalPos, 32.0f, 36.0f, tm * 70.0f, tm * 70.0f + 270.0f, 24, { 90, 225, 255, 210 });
+            DrawRing(portalPos, 23.0f, 27.0f, -tm * 110.0f, -tm * 110.0f + 260.0f, 20, { 170, 245, 255, 230 });
+            for (int i = 0; i < 8; ++i) {
+                float a = tm * 2.2f + i * (PI / 4.0f);
+                DrawCircleV({ portalPos.x + cosf(a) * 34.0f, portalPos.y + sinf(a) * 34.0f }, 3.0f, WHITE);
+            }
+            DrawCircle((int)portalPos.x, (int)portalPos.y, 19.0f, { 70, 210, 255, 220 });
+            DrawCircle((int)portalPos.x, (int)portalPos.y, 11.0f, WHITE);
+            DrawText("PORTAL", (int)portalPos.x - 26, (int)portalPos.y + 40, 14, SKYBLUE);
+        }
+
+        // Ground Effects (Traps, Consecrated Ground, Void Vortex, Phoenix Rain, Falling Meteors/Arrows)
+        for (const auto& ge : groundEffects) {
+            float tm = (float)GetTime();
+            float prog = 1.0f - (ge.timer / std::max(0.01f, ge.maxTimer));
+            if (ge.kind == 0) { // Bẫy nổ Ranger
+                DrawCircleV(ge.pos, ge.radius, Fade(ge.color, 0.07f));
+                DrawCircleLines((int)ge.pos.x, (int)ge.pos.y, ge.radius, Fade(ge.color, 0.45f));
+                DrawRing(ge.pos, 18.0f, 22.0f, 0.0f, prog * 360.0f, 18, ORANGE);
+                DrawCircleV(ge.pos, 11.0f, { 40, 90, 60, 240 });
+                DrawCircleV(ge.pos, 5.5f, (sinf(tm * 24.0f) > 0) ? YELLOW : ORANGE);
+            } else if (ge.kind == 1) { // Thánh vực Knight
+                float alpha = std::min(1.0f, ge.timer);
+                DrawCircleV(ge.pos, ge.radius, Fade(GOLD, 0.10f * alpha));
+                DrawRing(ge.pos, ge.radius - 6.0f, ge.radius, tm * 45.0f, tm * 45.0f + 300.0f, 36, Fade(GOLD, 0.70f * alpha));
+                DrawRing(ge.pos, ge.radius * 0.55f, ge.radius * 0.57f, -tm * 60.0f, -tm * 60.0f + 260.0f, 28, Fade(WHITE, 0.55f * alpha));
+                // Đại kiếm ánh sáng giáng xuống ở 0.7s đầu
+                if (ge.timer > ge.maxTimer - 0.7f) {
+                    float k = 1.0f - (ge.maxTimer - ge.timer) / 0.7f;
+                    float yOff = (1.0f - std::min(1.0f, (ge.maxTimer - ge.timer) / 0.18f)) * -260.0f;
+                    Vector2 tip = { ge.pos.x, ge.pos.y + yOff };
+                    DrawRectangle((int)tip.x - 12, (int)(tip.y - 220), 24, 210, Fade(GOLD, 0.85f * k));
+                    DrawRectangle((int)tip.x - 5, (int)(tip.y - 220), 10, 215, Fade(WHITE, 0.95f * k));
+                    DrawRectangle((int)tip.x - 42, (int)(tip.y - 165), 84, 14, Fade(GOLD, 0.90f * k));
+                    Tri({ tip.x - 12, tip.y - 10 }, { tip.x + 12, tip.y - 10 }, { tip.x, tip.y + 16 }, Fade(WHITE, k));
+                }
+            } else if (ge.kind == 2) { // Hố đen Mage
+                float alpha = std::min(1.0f, ge.timer);
+                DrawCircleV(ge.pos, ge.radius, Fade({ 110, 45, 200, 255 }, 0.12f * alpha));
+                DrawRing(ge.pos, ge.radius - 5.0f, ge.radius, -tm * 80.0f, -tm * 80.0f + 310.0f, 36, Fade({ 180, 95, 255, 255 }, 0.75f * alpha));
+                DrawRing(ge.pos, 45.0f, 54.0f, tm * 160.0f, tm * 160.0f + 260.0f, 20, Fade({ 120, 225, 255, 255 }, 0.8f * alpha));
+                DrawCircleV(ge.pos, 26.0f, Fade({ 15, 8, 30, 255 }, 0.9f * alpha));
+            } else if (ge.kind == 3) { // Vùng Mưa Tên Ranger
+                float alpha = std::min(1.0f, ge.timer);
+                DrawCircleV(ge.pos, ge.radius, Fade({ 255, 145, 45, 255 }, 0.08f * alpha));
+                DrawCircleLines((int)ge.pos.x, (int)ge.pos.y, ge.radius, Fade({ 255, 175, 65, 255 }, 0.65f * alpha));
+            } else if (ge.kind == 4) { // Thiên thạch rơi
+                float rem = std::max(0.0f, ge.timer / ge.maxTimer);
+                DrawCircleV(ge.pos, ge.radius, Fade(ge.color, 0.12f));
+                DrawCircleLines((int)ge.pos.x, (int)ge.pos.y, ge.radius * (1.0f - rem * 0.5f), Fade(ge.color, 0.85f));
+                Vector2 skyPos = { ge.pos.x + rem * 110.0f, ge.pos.y - rem * 240.0f };
+                DrawLineEx(skyPos, { skyPos.x + 28.0f, skyPos.y - 58.0f }, 10.0f, Fade(ORANGE, 0.7f));
+                DrawCircleV(skyPos, 15.0f, { 185, 95, 255, 255 });
+                DrawCircleV(skyPos, 8.0f, WHITE);
+            } else if (ge.kind == 5) { // Mũi tên Phượng Hoàng rơi
+                float rem = std::max(0.0f, ge.timer / ge.maxTimer);
+                DrawCircleV(ge.pos, ge.radius, Fade(ORANGE, 0.10f));
+                DrawCircleLines((int)ge.pos.x, (int)ge.pos.y, ge.radius * (1.0f - rem * 0.5f), Fade(GOLD, 0.8f));
+                Vector2 skyPos = { ge.pos.x - rem * 45.0f, ge.pos.y - rem * 210.0f };
+                DrawLineEx(skyPos, { skyPos.x - 14.0f, skyPos.y - 42.0f }, 5.0f, { 255, 130, 40, 255 });
+                DrawLineEx(skyPos, { skyPos.x - 10.0f, skyPos.y - 30.0f }, 2.5f, YELLOW);
+            }
         }
 
         // Loots
@@ -3493,27 +4953,43 @@ public:
 
         // Ghost Trails
         for (const auto& g : ghosts) {
-            float a = (g.timer / g.maxTimer) * 0.4f;
-            DrawCircle((int)g.pos.x, (int)g.pos.y, 20, Fade(SKYBLUE, a));
+            float a = (g.timer / g.maxTimer) * 0.45f;
+            DrawCircle((int)g.pos.x, (int)g.pos.y, 18, Fade(kClasses[player.heroClass].color, a));
         }
 
-        // Slashes: vệt cung kiếm
+        // Slashes: vệt cung kiếm & kỹ năng
         for (const auto& sl : slashes) {
             float rad = sl.angle * DEG2RAD;
             float k = sl.timer / sl.maxTimer;
             Vector2 centre = Vector2Subtract(sl.pos, { cosf(rad) * 35.0f, sinf(rad) * 35.0f });
-            if (sl.kind == 3) { // giáo: vệt đâm thẳng
+            if (sl.kind == WP_SPEAR) {
                 Vector2 dirv = { cosf(rad), sinf(rad) };
                 Vector2 tipv = Vector2Add(centre, Vector2Scale(dirv, 140.0f));
-                DrawLineEx(Vector2Add(centre, Vector2Scale(dirv, 20.0f)), tipv, 10.0f * k + 2.0f, Fade({ 120, 220, 255, 255 }, 0.5f * k));
+                DrawLineEx(Vector2Add(centre, Vector2Scale(dirv, 20.0f)), tipv, 10.0f * k + 2.0f, Fade(sl.color, 0.5f * k));
                 DrawLineEx(Vector2Add(centre, Vector2Scale(dirv, 20.0f)), tipv, 4.0f * k + 1.0f, Fade(WHITE, 0.95f * k));
-            } else if (sl.kind == 2) { // rìu: cung rất rộng
-                DrawRing(centre, 40.0f, 74.0f, sl.angle - 85.0f, sl.angle + 85.0f, 30, Fade(WHITE, 0.8f * k));
-                DrawRing(centre, 34.0f, 46.0f, sl.angle - 70.0f, sl.angle + 70.0f, 26, Fade({ 255, 190, 110, 255 }, 0.7f * k));
-            } else if (sl.kind == 1) { // dao găm: cung nhỏ, mảnh
-                DrawRing(centre, 34.0f, 44.0f, sl.angle - 42.0f, sl.angle + 42.0f, 18, Fade(WHITE, 0.85f * k));
+            } else if (sl.kind == WP_AXE || sl.kind == WP_SCYTHE) {
+                Color arcC = (sl.kind == WP_SCYTHE) ? Color{ 195, 110, 255, 255 } : Color{ 255, 190, 110, 255 };
+                float span = (sl.kind == WP_SCYTHE) ? 110.0f : 85.0f;
+                DrawRing(centre, 40.0f, 76.0f, sl.angle - span, sl.angle + span, 30, Fade(sl.color, 0.8f * k));
+                DrawRing(centre, 32.0f, 46.0f, sl.angle - span * 0.8f, sl.angle + span * 0.8f, 26, Fade(arcC, 0.7f * k));
+            } else if (sl.kind == WP_HAMMER) {
+                DrawRing(centre, 36.0f, 68.0f, sl.angle - 75.0f, sl.angle + 75.0f, 24, Fade({ 255, 195, 85, 255 }, 0.85f * k));
+                DrawRing(centre, 28.0f, 40.0f, sl.angle - 55.0f, sl.angle + 55.0f, 18, Fade(WHITE, 0.8f * k));
+            } else if (sl.kind == WP_DAGGER) {
+                DrawRing(centre, 34.0f, 44.0f, sl.angle - 42.0f, sl.angle + 42.0f, 18, Fade(sl.color, 0.85f * k));
+            } else if (sl.kind == WP_BOW || sl.kind == WP_STAFF) {
+                Vector2 dirv = { cosf(rad), sinf(rad) };
+                DrawCircleV(Vector2Add(centre, Vector2Scale(dirv, 24.0f)), 14.0f * k, Fade(sl.color, 0.55f * k));
+            } else if (sl.kind == 10) { // Shield Bash
+                DrawRing(centre, 48.0f, 95.0f, sl.angle - 70.0f, sl.angle + 70.0f, 24, Fade(GOLD, 0.85f * k));
+            } else if (sl.kind == 11) { // Shadow Step Cross Slash
+                DrawRing(sl.pos, 45.0f, 118.0f, sl.angle - 95.0f, sl.angle + 95.0f, 26, Fade({ 255, 75, 145, 255 }, 0.85f * k));
+                DrawRing(sl.pos, 60.0f, 95.0f, sl.angle + 85.0f, sl.angle + 275.0f, 26, Fade({ 180, 75, 255, 255 }, 0.75f * k));
+            } else if (sl.kind == 12) { // Blade Storm
+                DrawRing(sl.pos, 110.0f, 178.0f, sl.angle, sl.angle + 135.0f, 22, Fade({ 255, 65, 130, 255 }, 0.75f * k));
+                DrawRing(sl.pos, 110.0f, 178.0f, sl.angle + 180.0f, sl.angle + 315.0f, 22, Fade({ 190, 80, 255, 255 }, 0.75f * k));
             } else {
-                DrawRing(centre, 36.0f, 52.0f, sl.angle - 60.0f, sl.angle + 60.0f, 24, Fade(WHITE, 0.85f * k));
+                DrawRing(centre, 36.0f, 52.0f, sl.angle - 60.0f, sl.angle + 60.0f, 24, Fade(sl.color, 0.85f * k));
                 DrawRing(centre, 30.0f, 38.0f, sl.angle - 45.0f, sl.angle + 45.0f, 20, Fade({ 120, 220, 255, 255 }, 0.7f * k));
             }
         }
@@ -3542,19 +5018,33 @@ public:
 
         // Projectiles
         for (const auto& p : projectiles) {
-            DrawCircleV(p.pos, p.radius * 2.0f, Fade(p.color, 0.22f));
-            DrawCircleV(p.pos, p.radius, p.color);
-            DrawCircleLines((int)p.pos.x, (int)p.pos.y, p.radius, WHITE);
+            if (p.kind == 1) { // Mũi tên có đuôi lông
+                Vector2 dir = Vector2Length(p.vel) > 0.1f ? Vector2Normalize(p.vel) : Vector2{ 1, 0 };
+                Vector2 tail = Vector2Subtract(p.pos, Vector2Scale(dir, 18.0f));
+                DrawLineEx(tail, p.pos, 4.5f, Fade(p.color, 0.35f));
+                DrawLineEx(tail, p.pos, 2.5f, p.color);
+                DrawCircleV(p.pos, 3.0f, WHITE);
+            } else if (p.kind == 3) { // Phi tiêu xoay
+                float spin = (float)GetTime() * 18.0f;
+                for (int k = 0; k < 4; ++k) {
+                    float a = spin + k * (PI / 2.0f);
+                    DrawLineEx(p.pos, { p.pos.x + cosf(a) * 9.0f, p.pos.y + sinf(a) * 9.0f }, 2.5f, p.color);
+                }
+                DrawCircleV(p.pos, 3.0f, WHITE);
+            } else if (p.kind == 4) { // Cầu lửa rực cháy
+                DrawCircleV(p.pos, p.radius * 2.4f, Fade(ORANGE, 0.28f));
+                DrawCircleV(p.pos, p.radius * 1.3f, p.color);
+                DrawCircleV(p.pos, p.radius * 0.7f, YELLOW);
+            } else {
+                DrawCircleV(p.pos, p.radius * 2.0f, Fade(p.color, 0.25f));
+                DrawCircleV(p.pos, p.radius, p.color);
+                DrawCircleLines((int)p.pos.x, (int)p.pos.y, p.radius, WHITE);
+            }
         }
 
         // Player
         DrawEllipse((int)player.pos.x, (int)player.pos.y + 16, 20, 8, { 0, 0, 0, 100 }); // Shadow
         DrawPlayerSprite();
-
-        // Aegis Barrier Glow
-        if (player.shieldActive) {
-            DrawCircleLines((int)player.pos.x, (int)player.pos.y, 28, Fade(GOLD, 0.8f));
-        }
 
         DrawItemDrops();
 
@@ -3585,33 +5075,52 @@ public:
         }
 
         // ── 2D Screen Space UI ──
-        // Top-Left: HP, XP, Gold
-        DrawRectangle(20, 20, 320, 28, { 40, 45, 55, 200 });
-        float hpPct = std::max(0.0f, player.hp / player.maxHp);
-        DrawRectangle(22, 22, (int)(316 * hpPct), 24, { 230, 50, 60, 255 });
-        std::string hpTxt = "HP: " + std::to_string((int)player.hp) + " / " + std::to_string((int)player.maxHp);
-        DrawText(hpTxt.c_str(), 110, 25, 18, WHITE);
+        const ClassDef& cd = kClasses[std::max(0, std::min(3, player.heroClass))];
+        // Top-Left: Class Badge, HP (with damage lag), XP, Rage, Gold
+        DrawRectangle(20, 14, 320, 22, { 18, 22, 34, 225 });
+        DrawRectangleLines(20, 14, 320, 22, Fade(cd.color, 0.75f));
+        DrawText(cd.name, 28, 17, 15, cd.color);
+        std::string clsRight = "LVL " + std::to_string(player.level);
+        DrawText(clsRight.c_str(), 332 - MeasureText(clsRight.c_str(), 15), 17, 15, GOLD);
 
-        DrawRectangle(20, 56, 320, 18, { 40, 45, 55, 200 });
-        float xpPct = (float)player.xp / player.xpNext;
-        DrawRectangle(22, 58, (int)(316 * xpPct), 14, SKYBLUE);
-        std::string xpTxt = "LVL " + std::to_string(player.level) + " - XP: " + std::to_string(player.xp) + "/" + std::to_string(player.xpNext);
-        DrawText(xpTxt.c_str(), 110, 58, 14, WHITE);
+        DrawRectangle(20, 40, 320, 24, { 35, 38, 48, 220 });
+        float lagPct = std::max(0.0f, std::min(1.0f, player.hpDisplay / std::max(1.0f, player.maxHp)));
+        float hpPct = std::max(0.0f, std::min(1.0f, player.hp / std::max(1.0f, player.maxHp)));
+        DrawRectangle(22, 42, (int)(316 * lagPct), 20, { 245, 220, 220, 210 });
+        DrawRectangle(22, 42, (int)(316 * hpPct), 20, { 225, 48, 62, 255 });
+        std::string hpTxt = "HP " + std::to_string((int)player.hp) + " / " + std::to_string((int)player.maxHp);
+        DrawText(hpTxt.c_str(), 116, 44, 16, WHITE);
+
+        DrawRectangle(20, 68, 320, 14, { 35, 38, 48, 220 });
+        float xpPct = std::min(1.0f, (float)player.xp / std::max(1, player.xpNext));
+        DrawRectangle(22, 70, (int)(316 * xpPct), 10, SKYBLUE);
+        std::string xpTxt = "XP " + std::to_string(player.xp) + "/" + std::to_string(player.xpNext);
+        DrawText(xpTxt.c_str(), 134, 69, 12, WHITE);
+
+        // Thanh Nộ (Rage Bar)
+        DrawRectangle(20, 86, 320, 16, { 35, 26, 22, 225 });
+        float ragePct = std::min(1.0f, player.rage / player.maxRage);
+        bool rageReady = (player.rage >= player.maxRage);
+        Color rageCol = rageReady ? ((int)(GetTime() * 8.0f) % 2 == 0 ? GOLD : ORANGE) : Color{ 235, 110, 35, 255 };
+        DrawRectangle(22, 88, (int)(316 * ragePct), 12, rageCol);
+        DrawRectangleLines(20, 86, 320, 16, rageReady ? GOLD : Color{ 90, 60, 40, 255 });
+        std::string rageTxt = rageReady ? "RAGE 100/100  [R] ULTIMATE READY!" : ("RAGE " + std::to_string((int)player.rage) + " / 100");
+        DrawText(rageTxt.c_str(), 180 - MeasureText(rageTxt.c_str(), 12) / 2, 88, 12, WHITE);
 
         std::string goldTxt = "Gold: " + std::to_string(player.gold);
-        DrawText(goldTxt.c_str(), 24, 84, 20, GOLD);
+        DrawText(goldTxt.c_str(), 24, 108, 18, GOLD);
 
         // Relics Row
-        DrawText("Relics:", 24, 110, 16, SKYBLUE);
+        DrawText("Relics:", 24, 132, 15, SKYBLUE);
         if (player.relics.empty()) {
-            DrawText("None", 24 + MeasureText("Relics: ", 16), 110, 16, SKYBLUE);
+            DrawText("None", 24 + MeasureText("Relics: ", 15), 132, 15, SKYBLUE);
         } else {
-            int rx = 24 + MeasureText("Relics: ", 16);
+            int rx = 24 + MeasureText("Relics: ", 15);
             for (const auto& r : player.relics) {
-                DrawCircle(rx + 6, 118, 6, r.color);
-                DrawCircleLines(rx + 6, 118, 6, WHITE);
-                DrawText(r.name.c_str(), rx + 16, 110, 16, r.color);
-                rx += 16 + MeasureText(r.name.c_str(), 16) + 14;
+                DrawCircle(rx + 6, 139, 5.5f, r.color);
+                DrawCircleLines(rx + 6, 139, 5.5f, WHITE);
+                DrawText(r.name.c_str(), rx + 16, 132, 15, r.color);
+                rx += 16 + MeasureText(r.name.c_str(), 15) + 12;
             }
         }
 
@@ -3627,13 +5136,13 @@ public:
 
         // Trang bị đang đeo (HUD)
         for (int i = 0; i < 4; ++i) {
-            int hx = 24 + i * 36, hy = 138;
+            int hx = 24 + i * 36, hy = 156;
             Color rc = hasEquip[i] ? equipped[i].RarityColor() : Color{ 60, 68, 90, 255 };
             DrawRectangle(hx, hy, 30, 30, { 14, 18, 30, 210 });
             DrawRectangleLines(hx, hy, 30, 30, rc);
-            DrawItemIcon(i, { hx + 15.0f, hy + 15.0f }, 17.0f, hasEquip[i] ? rc : Color{ 70, 78, 100, 255 });
+            DrawItemIcon(i, { hx + 15.0f, hy + 15.0f }, 17.0f, hasEquip[i] ? rc : Color{ 70, 78, 100, 255 }, hasEquip[i] ? equipped[i].weaponType : 0);
         }
-        DrawText("[I] Gear", 24 + 4 * 36 + 4, 146, 14, { 150, 165, 200, 255 });
+        DrawText("[I] Gear & Skills", 24 + 4 * 36 + 4, 164, 14, { 150, 165, 200, 255 });
 
         // Thanh máu boss
         for (const auto& e : enemies) {
@@ -3675,21 +5184,42 @@ public:
             }
         }
 
-        // Skill Icons (Bottom Center)
-        DrawRectangle(1280 / 2 - 60, 720 - 70, 50, 50, { 30, 35, 48, 220 });
-        DrawText("DASH", 1280 / 2 - 54, 720 - 64, 12, YELLOW);
-        DrawText("RMB", 1280 / 2 - 50, 720 - 36, 12, GRAY);
-        if (player.dashTimer > 0) {
-            float pct = player.dashTimer / player.dashCooldown;
-            DrawRectangle(1280 / 2 - 60, (int)(720 - 70 + (1.0f - pct) * 50), 50, (int)(pct * 50), Fade(BLACK, 0.7f));
-        }
-
-        DrawRectangle(1280 / 2 + 10, 720 - 70, 50, 50, { 30, 35, 48, 220 });
-        DrawText("NOVA", 1280 / 2 + 16, 720 - 64, 12, SKYBLUE);
-        DrawText("Q / E", 1280 / 2 + 18, 720 - 36, 12, GRAY);
-        if (player.specialTimer > 0) {
-            float pct = player.specialTimer / player.specialCooldown;
-            DrawRectangle(1280 / 2 + 10, (int)(720 - 70 + (1.0f - pct) * 50), 50, (int)(pct * 50), Fade(BLACK, 0.7f));
+        // Thanh 5 ô kỹ năng ở giữa đáy màn hình: [PSV], [RMB] Dash, [Q] Skill 1, [E] Skill 2, [R] Nộ
+        {
+            const int slotW = 66, slotH = 66, gap = 10;
+            const int dockX0 = 1280 / 2 - (slotW * 5 + gap * 4) / 2;
+            const int dockY = 720 - 80;
+            struct SlotUI { const char* key; int iconKind; Color col; float cd; float maxCd; bool isUlt; bool ready; };
+            SlotUI slots[5] = {
+                { "PSV", 0, cd.color, 0.0f, 1.0f, false, true },
+                { "RMB", -1, YELLOW, player.dashTimer, player.dashCooldown, false, player.dashTimer <= 0.0f },
+                { "Q", 1, SKYBLUE, player.specialTimer, std::max(0.1f, player.specialCooldown), false, player.specialTimer <= 0.0f },
+                { "E", 2, { 110, 235, 175, 255 }, player.skill2Timer, std::max(0.1f, player.skill2Cooldown), false, player.skill2Timer <= 0.0f },
+                { "R", 3, ORANGE, 0.0f, 1.0f, true, rageReady }
+            };
+            for (int s = 0; s < 5; ++s) {
+                int sx = dockX0 + s * (slotW + gap);
+                const SlotUI& ui = slots[s];
+                DrawRectangle(sx, dockY, slotW, slotH, { 18, 22, 34, 230 });
+                if (ui.isUlt) {
+                    int fillH = (int)(slotH * ragePct);
+                    DrawRectangle(sx, dockY + slotH - fillH, slotW, fillH, Fade(ui.ready ? GOLD : ORANGE, ui.ready ? 0.35f : 0.22f));
+                }
+                Color border = ui.ready ? (ui.isUlt ? ((int)(GetTime() * 8.0f) % 2 == 0 ? GOLD : WHITE) : ui.col) : Color{ 60, 68, 90, 255 };
+                DrawRectangleLinesEx({ (float)sx, (float)dockY, (float)slotW, (float)slotH }, ui.ready && ui.isUlt ? 2.5f : 1.5f, border);
+                DrawSkillIcon(player.heroClass, ui.iconKind, { sx + slotW / 2.0f, dockY + 28.0f }, 36.0f, ui.ready ? ui.col : GRAY);
+                if (ui.cd > 0.0f) {
+                    float pct = std::min(1.0f, ui.cd / std::max(0.01f, ui.maxCd));
+                    DrawRectangle(sx, dockY + (int)((1.0f - pct) * slotH), slotW, (int)(pct * slotH), Fade(BLACK, 0.72f));
+                    const char* cdt = TextFormat("%.1f", ui.cd);
+                    DrawText(cdt, sx + slotW / 2 - MeasureText(cdt, 18) / 2, dockY + 20, 18, WHITE);
+                } else if (ui.isUlt && !ui.ready) {
+                    const char* rpt = TextFormat("%d%%", (int)player.rage);
+                    DrawText(rpt, sx + slotW / 2 - MeasureText(rpt, 13) / 2, dockY + 46, 13, GOLD);
+                }
+                DrawRectangle(sx + 2, dockY + 2, MeasureText(ui.key, 11) + 6, 14, { 10, 12, 20, 210 });
+                DrawText(ui.key, sx + 5, dockY + 3, 11, ui.ready ? WHITE : GRAY);
+            }
         }
 
         // Banner Toast
@@ -3729,14 +5259,16 @@ public:
         // ── Game Over Modal ──
         if (state == GAME_OVER) {
             DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.88f));
-            DrawText("YOU HAVE FALLEN", 1280 / 2 - 180, 180, 44, RED);
+            DrawText("YOU HAVE FALLEN", 1280 / 2 - 180, 160, 44, RED);
 
+            std::string st0 = std::string("Class: ") + kClasses[player.heroClass].name;
             std::string st1 = "Floor Reached: " + std::to_string(floor);
             std::string st2 = "Final Level: " + std::to_string(player.level);
             std::string st3 = "Enemies Slain: " + std::to_string(enemiesSlain);
             std::string st4 = "Gold Accumulated: " + std::to_string(player.gold);
             std::string st5 = "Best Record: Floor " + std::to_string(bestFloor) + (newRecord ? "  (NEW RECORD!)" : "");
 
+            DrawText(st0.c_str(), 1280 / 2 - 140, 226, 22, kClasses[player.heroClass].color);
             DrawText(st1.c_str(), 1280 / 2 - 140, 260, 22, RAYWHITE);
             DrawText(st2.c_str(), 1280 / 2 - 140, 295, 22, RAYWHITE);
             DrawText(st3.c_str(), 1280 / 2 - 140, 330, 22, RAYWHITE);
@@ -3752,7 +5284,7 @@ public:
 
             DrawRectangle(1280 / 2 - 130, 505, 260, 52, MAROON);
             DrawText("PLAY AGAIN (R)", 1280 / 2 - 75, 521, 22, WHITE);
-            const char* sanct = "S - Sanctuary: spend your Souls";
+            const char* sanct = "S - Sanctuary: spend your Souls      C - Change Class";
             DrawText(sanct, 1280 / 2 - MeasureText(sanct, 20) / 2, 574, 20, { 190, 150, 255, 255 });
         }
 
@@ -3760,6 +5292,7 @@ public:
         if (state == SETTINGS) DrawSettingsScreen();
         if (state == SHOP) DrawShopScreen();
         if (state == META) DrawMetaScreen();
+        if (state == CLASS_SELECT) DrawClassSelectScreen();
         if (state == TITLE) DrawTitleScreen();
         if (state == PAUSED) DrawPauseScreen();
 

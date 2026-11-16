@@ -36,7 +36,7 @@ static void ChooseUpgradeBot(Game& g) {
 static int gSkill = 2; // 2 = giỏi, 1 = trung bình, 0 = vụng về
 static void BotControl(Game& g) {
     auto& c = g.ctl;
-    c.active = true; c.external = true; c.attack = c.dash = c.nova = false; c.move = { 0, 0 };
+    c.active = true; c.external = true; c.attack = c.dash = c.nova = c.skill2 = c.ult = false; c.move = { 0, 0 };
     if (g.state == Game::LEVEL_UP) { ChooseUpgradeBot(g); return; }
     if (g.state != Game::PLAYING) return;
     Vector2 P = g.player.pos;
@@ -80,11 +80,11 @@ static void BotControl(Game& g) {
         Vector2 dirE = nd > 0.1f ? Vector2Normalize(toE) : Vector2{ 1, 0 };
         c.aim = dirE;
         bool dangerous = (near->type == BOSS || near->type == BRUTE || near->isWarden);
+        int wt = g.hasEquip[SLOT_WEAPON] ? g.equipped[SLOT_WEAPON].weaponType : kClasses[g.player.heroClass].startWeapon;
         float keep = 55.0f;
-        if (g.player.attackRate > 0) {
-            int wt = g.hasEquip[SLOT_WEAPON] ? g.equipped[SLOT_WEAPON].weaponType : 0;
-            keep = (wt == 3) ? 95.0f : (wt == 2 ? 70.0f : 55.0f);
-        }
+        if (wt == WP_BOW || wt == WP_STAFF) keep = 200.0f;
+        else if (wt == WP_SPEAR || wt == WP_SCYTHE) keep = 90.0f;
+        else if (wt == WP_AXE || wt == WP_HAMMER) keep = 70.0f;
         if (hpFrac < 0.35f && nd < 170.0f) {
             c.move = Vector2Negate(dirE); // rút lui
             if (nd < 80.0f && g.player.dashTimer <= 0) c.dash = true;
@@ -96,8 +96,10 @@ static void BotControl(Game& g) {
             c.move = Vector2Scale(perp, 0.5f);
             if (dangerous) c.move = Vector2Add(c.move, Vector2Scale(dirE, -0.3f));
         }
-        c.attack = nd < keep + 35.0f;
-        if (g.player.specialTimer <= 0 && (cnt190 >= 3 || (nd < 190.0f && hpFrac < 0.4f))) c.nova = true;
+        c.attack = nd < keep + 45.0f;
+        if (g.player.specialTimer <= 0 && nd < 280.0f) c.nova = true;
+        if (g.player.skill2Timer <= 0 && (cnt190 >= 2 || (nd < 190.0f && hpFrac < 0.6f))) c.skill2 = true;
+        if (g.player.rage >= g.player.maxRage && (cnt190 >= 2 || near->type == BOSS || near->isWarden || hpFrac < 0.5f)) c.ult = true;
         if (nd < 60.0f && hpFrac < 0.5f && g.player.dashTimer <= 0 && near->type == CHARGER) c.dash = true;
         haveTarget = true;
     }
@@ -156,8 +158,8 @@ static void BotControl(Game& g) {
     if (Vector2Length(c.move) > 1.0f) c.move = Vector2Normalize(c.move);
     if (gSkill < 2) {
         // người chơi kém hơn: không lướt/Nova đúng lúc, ngắm lệch, bỏ lỡ nhịp đánh
-        if (gSkill == 0) { c.dash = false; c.nova = false; }
-        else if (Rand01() < 0.5f) { c.dash = false; c.nova = false; }
+        if (gSkill == 0) { c.dash = false; c.nova = false; c.skill2 = false; c.ult = false; }
+        else if (Rand01() < 0.5f) { c.dash = false; c.nova = false; c.skill2 = false; c.ult = false; }
         float err = (gSkill == 0) ? 0.35f : 0.18f;
         float a = atan2f(c.aim.y, c.aim.x) + (Rand01() - 0.5f) * 2.0f * err;
         c.aim = { cosf(a), sinf(a) };
@@ -181,6 +183,7 @@ int main(int argc, char** argv) {
     for (int run = 0; run < runs; ++run) {
         srand(1000 + run * 7919);
         for (int i = 0; i < 8; ++i) g.meta[i] = std::min(metaLevel, kMeta[i].maxLevel);
+        g.selectedClass = run % 4;
         g.RestartRun();
         g.state = Game::PLAYING;
         g.bannerTimer = 0;
@@ -215,7 +218,7 @@ int main(int argc, char** argv) {
         rs.kills = g.enemiesSlain;
         all.push_back(rs);
         causes[rs.cause]++;
-        printf("run %2d: floor %2d, %5.0fs, kills %3d, lvl %2d, hp %.0f, cause %s\n", run, rs.floorReached, rs.seconds, rs.kills, g.player.level, g.player.maxHp, rs.cause.c_str());
+        printf("run %2d [%s]: floor %2d, %5.0fs, kills %3d, lvl %2d, hp %.0f, cause %s\n", run, kClasses[g.player.heroClass].name, rs.floorReached, rs.seconds, rs.kills, g.player.level, g.player.maxHp, rs.cause.c_str());
         fflush(stdout);
     }
     printf("\n=== summary over %d runs (meta level %d, skill %d, difficulty %d) ===\n", runs, metaLevel, gSkill, diff);
