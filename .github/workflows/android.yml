@@ -5,12 +5,48 @@ on:
     branches: [ main, claude/android ]
     paths:
       - 'StandaloneApp/**'
+      - 'GeometricDungeon.exe'
       - 'android/**'
       - '.github/workflows/android.yml'
   workflow_dispatch:
 
 jobs:
+  release-windows:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package Windows standalone release
+        run: |
+          mkdir -p dist
+          python3 -c '
+          import zipfile
+          with zipfile.ZipFile("dist/GeometricDungeon-Windows.zip", "w", zipfile.ZIP_DEFLATED) as z:
+              for f in ["GeometricDungeon.exe", "libraylib.dll", "libwinpthread-1.dll", "README.md"]:
+                  z.write(f)
+          '
+          cp GeometricDungeon.exe dist/GeometricDungeon.exe
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GeometricDungeon-Windows
+          path: dist/GeometricDungeon-Windows.zip
+
+      - name: Publish Windows release 'v2.0-latest'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete v2.0-latest --yes --cleanup-tag || true
+          gh release create v2.0-latest dist/GeometricDungeon-Windows.zip dist/GeometricDungeon.exe \
+            --latest --target "$GITHUB_SHA" \
+            --title "Geometric Dungeon v2.0 (Windows & Android)" \
+            --notes "Standalone release built from commit $GITHUB_SHA ($GITHUB_REF_NAME). Includes articulated graphics upgrade, 4 Hero Classes, 8 Weapons, 4-Skill system, Esc behavior fix, and 4-slot Save/Load with overwrite."
+
   build:
+    needs: release-windows
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -76,3 +112,4 @@ jobs:
             --prerelease --target "$GITHUB_SHA" \
             --title "Android APK (latest build)" \
             --notes "Debug-signed APK built from commit $GITHUB_SHA ($GITHUB_REF_NAME). Enable 'Install unknown apps' for your browser or file manager, then open the APK."
+          gh release upload v2.0-latest dist/GeometricDungeon-android.apk --clobber || true

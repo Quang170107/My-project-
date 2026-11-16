@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <sstream>
 #include <random>
+#include <ctime>
 
 // ── Audio Procedural Synthesizer ───────────────────────────────────────────
 struct SoundManager {
@@ -642,13 +643,31 @@ public:
     float screenShakeTimer = 0.0f;
     float screenShakeMag = 0.0f;
 
-    enum State { PLAYING, LEVEL_UP, GAME_OVER, TITLE, PAUSED, INVENTORY, SETTINGS, SHOP, META, CLASS_SELECT };
+    enum State { PLAYING, LEVEL_UP, GAME_OVER, TITLE, PAUSED, INVENTORY, SETTINGS, SHOP, META, CLASS_SELECT, SAVE_LOAD };
     State state = PLAYING;
     int selectedClass = 0;
     int classSel = 0;
     bool quitRequested = false;
     bool showHelp = false;
     State prevState = PLAYING;
+
+    struct SaveSlotInfo {
+        bool exists = false;
+        int heroClass = 0;
+        int floor = 1;
+        int level = 1;
+        int hp = 120, maxHp = 120;
+        int gold = 0;
+        int enemiesSlain = 0;
+        int weaponType = 0;
+        std::string weaponName = "Sword";
+        std::string timestamp = "";
+    };
+    SaveSlotInfo saveSlots[4];
+    State saveLoadReturn = TITLE;
+    int saveSlotSel = 0;
+    std::string saveStatusMsg = "";
+    float saveStatusTimer = 0.0f;
     EquipItem equipped[4];
     bool hasEquip[4] = { false, false, false, false };
     std::vector<ItemDrop> itemDrops;
@@ -765,6 +784,7 @@ public:
         screenRT = LoadRenderTexture(1280, 720);
         SetTextureFilter(screenRT.texture, TEXTURE_FILTER_BILINEAR);
         LoadSettings();
+        RefreshSaveSlots();
         BuildResList();
         ApplySettings();
         RestartRun();
@@ -1182,20 +1202,26 @@ public:
         return false;
     }
 
-    void AddRelic(RelicType t) {
-        if (HasRelic(t)) return;
+    static Relic MakeRelic(RelicType t) {
         Relic r;
         r.type = t;
         if (t == RELIC_LIGHTNING) { r.name = "Thunder Conduit"; r.symbol = "⚡"; r.color = SKYBLUE; }
         else if (t == RELIC_TOXIC) { r.name = "Toxic Fang"; r.symbol = "☣"; r.color = LIME; }
         else if (t == RELIC_FROST) { r.name = "Frost Core"; r.symbol = "❄"; r.color = RAYWHITE; }
-        else if (t == RELIC_AEGIS) { r.name = "Divine Aegis"; r.symbol = "🛡"; r.color = GOLD; player.shieldActive = true; }
+        else if (t == RELIC_AEGIS) { r.name = "Divine Aegis"; r.symbol = "🛡"; r.color = GOLD; }
         else if (t == RELIC_CHALICE) { r.name = "Blood Chalice"; r.symbol = "🩸"; r.color = RED; }
         else if (t == RELIC_COMBUSTION) { r.name = "Combustion Sigil"; r.symbol = "💥"; r.color = ORANGE; }
         else if (t == RELIC_PHOENIX) { r.name = "Phoenix Feather"; r.symbol = "F"; r.color = { 255, 140, 60, 255 }; }
         else if (t == RELIC_MIDAS) { r.name = "Midas Touch"; r.symbol = "G"; r.color = { 255, 235, 120, 255 }; }
         else if (t == RELIC_BERSERK) { r.name = "Berserker Mask"; r.symbol = "B"; r.color = { 255, 90, 150, 255 }; }
-        else if (t == RELIC_THORNS) { r.name = "Thorn Mail"; r.symbol = "T"; r.color = { 170, 120, 255, 255 }; }
+        else { r.name = "Thorn Mail"; r.symbol = "T"; r.color = { 170, 120, 255, 255 }; }
+        return r;
+    }
+
+    void AddRelic(RelicType t) {
+        if (HasRelic(t)) return;
+        Relic r = MakeRelic(t);
+        if (t == RELIC_AEGIS) player.shieldActive = true;
         player.relics.push_back(r);
         PlaySound(snd.sndLevelUp);
         ShowBanner("RELIC: " + r.name + " - " + RelicDesc(t), 3.5f);
@@ -1218,16 +1244,20 @@ public:
             UpdateEffects(dt);
             bannerTimer = 3.0f; // giữ thông báo tầng 1 cho đến khi bắt đầu chơi
             { int ua = HitButton(); if (ua) { HandleUiAction(ua); return; } }
+            if (showHelp) {
+                if (EscPressed() || IsKeyPressed(KEY_F1) || IsKeyPressed(KEY_H)) showHelp = false;
+                return;
+            }
+            if (IsKeyPressed(KEY_L)) { OpenSaveLoad(TITLE); return; }
             if (IsKeyPressed(KEY_O) || IsKeyPressed(KEY_F2)) { settingsReturn = TITLE; setSel = 0; state = SETTINGS; return; }
             if (IsKeyPressed(KEY_S)) { OpenSanctuary(TITLE); return; }
-            if (IsKeyPressed(KEY_F1) || IsKeyPressed(KEY_H)) showHelp = !showHelp;
+            if (IsKeyPressed(KEY_F1) || IsKeyPressed(KEY_H)) showHelp = true;
             else if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_DOWN) || PadPressed(GAMEPAD_BUTTON_MIDDLE_RIGHT)) {
                 showHelp = false;
                 classSel = selectedClass;
                 state = CLASS_SELECT;
                 PlaySound(snd.sndPotion);
             }
-            if (EscPressed()) quitRequested = true;
             return;
         }
         if (state == CLASS_SELECT) {
@@ -1235,15 +1265,24 @@ public:
             UpdateClassSelect();
             return;
         }
+        if (state == SAVE_LOAD) {
+            UpdateEffects(dt);
+            UpdateSaveLoad(dt);
+            return;
+        }
         if (state == PAUSED) {
             { int ua = HitButton(); if (ua) { HandleUiAction(ua); return; } }
-            if (IsKeyPressed(KEY_F1) || IsKeyPressed(KEY_H)) showHelp = !showHelp;
-            if (EscPressed() || IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ENTER) || PadPressed(GAMEPAD_BUTTON_MIDDLE_RIGHT) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) { showHelp = false; state = PLAYING; }
+            if (showHelp) {
+                if (EscPressed() || IsKeyPressed(KEY_F1) || IsKeyPressed(KEY_H)) showHelp = false;
+                return;
+            }
+            if (IsKeyPressed(KEY_F1) || IsKeyPressed(KEY_H)) { showHelp = true; return; }
+            if (EscPressed() || IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ENTER) || PadPressed(GAMEPAD_BUTTON_MIDDLE_RIGHT) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) { showHelp = false; state = PLAYING; return; }
+            if (IsKeyPressed(KEY_F5) || IsKeyPressed(KEY_V)) { OpenSaveLoad(PAUSED); return; }
             if (IsKeyPressed(KEY_R)) { showHelp = false; RestartRun(); }
             if (IsKeyPressed(KEY_C)) { showHelp = false; classSel = selectedClass; state = CLASS_SELECT; }
             if (IsKeyPressed(KEY_I)) { prevState = PAUSED; state = INVENTORY; }
             if (IsKeyPressed(KEY_O)) { settingsReturn = PAUSED; setSel = 0; state = SETTINGS; }
-            if (IsKeyPressed(KEY_Q)) quitRequested = true;
             return;
         }
         if (state == SETTINGS) {
@@ -1294,6 +1333,8 @@ public:
 
         if (state == GAME_OVER) {
             { int ua = HitButton(); if (ua) { HandleUiAction(ua); return; } }
+            if (EscPressed()) { state = TITLE; return; }
+            if (IsKeyPressed(KEY_L)) { OpenSaveLoad(GAME_OVER); return; }
             if (IsKeyPressed(KEY_S) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_LEFT)) { OpenSanctuary(GAME_OVER); return; }
             if (IsKeyPressed(KEY_C)) { classSel = selectedClass; state = CLASS_SELECT; return; }
             if (IsKeyPressed(KEY_R) || IsKeyPressed(KEY_SPACE) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) {
@@ -3058,23 +3099,24 @@ public:
     float EliteChance() const { return std::min(0.45f, 0.20f + std::max(0, floor - 8) * 0.015f); }
 
     // ── Nút bấm trên màn hình (dùng được cho chuột lẫn chạm) ──
-    enum UiAction { UI_NONE = 0, UI_START, UI_SANCT, UI_SETTINGS, UI_HELP, UI_QUIT, UI_RESUME, UI_EQUIP, UI_RESTART, UI_BACK, UI_CLOSE_HELP, UI_CLOSE_INV, UI_CHANGE_CLASS };
+    enum UiAction { UI_NONE = 0, UI_START, UI_SAVE_LOAD, UI_SANCT, UI_SETTINGS, UI_HELP, UI_QUIT, UI_RESUME, UI_EQUIP, UI_RESTART, UI_BACK, UI_CLOSE_HELP, UI_CLOSE_INV, UI_CHANGE_CLASS, UI_MAIN_MENU };
     struct UiBtn { Rectangle r; std::string label; int action; Color col; };
 
     std::vector<UiBtn> BuildButtons() {
         std::vector<UiBtn> b;
-        Color green = { 36, 104, 62, 255 }, blue = { 36, 60, 120, 255 }, purple = { 70, 50, 120, 255 }, red = { 120, 40, 50, 255 }, grey = { 44, 50, 72, 255 };
+        Color green = { 36, 104, 62, 255 }, teal = { 36, 92, 118, 255 }, blue = { 36, 60, 120, 255 }, purple = { 70, 50, 120, 255 }, red = { 120, 40, 50, 255 }, grey = { 44, 50, 72, 255 };
         switch (state) {
             case TITLE:
                 if (showHelp) {
                     b.push_back({ { 540, 650, 200, 44 }, "CLOSE", UI_CLOSE_HELP, grey });
                 } else {
-                    b.push_back({ { 470, 404, 340, 62 }, "CHOOSE HERO", UI_START, green });
-                    b.push_back({ { 470, 480, 166, 46 }, "SANCTUARY", UI_SANCT, purple });
-                    b.push_back({ { 644, 480, 166, 46 }, "SETTINGS", UI_SETTINGS, blue });
-                    b.push_back({ { 470, 538, 166, 40 }, "CONTROLS", UI_HELP, grey });
+                    b.push_back({ { 470, 392, 340, 56 }, "NEW GAME", UI_START, green });
+                    b.push_back({ { 470, 458, 340, 48 }, "LOAD GAME (4 SLOTS)", UI_SAVE_LOAD, teal });
+                    b.push_back({ { 470, 516, 166, 44 }, "SANCTUARY", UI_SANCT, purple });
+                    b.push_back({ { 644, 516, 166, 44 }, "SETTINGS", UI_SETTINGS, blue });
+                    b.push_back({ { 470, 570, 166, 40 }, "CONTROLS", UI_HELP, grey });
 #ifndef __ANDROID__
-                    b.push_back({ { 644, 538, 166, 40 }, "QUIT", UI_QUIT, red });
+                    b.push_back({ { 644, 570, 166, 40 }, "QUIT", UI_QUIT, red });
 #endif
                 }
                 break;
@@ -3082,28 +3124,29 @@ public:
                 if (showHelp) {
                     b.push_back({ { 540, 650, 200, 44 }, "CLOSE", UI_CLOSE_HELP, grey });
                 } else {
-                    float y = 236;
-                    b.push_back({ { 480, y, 320, 40 }, "RESUME", UI_RESUME, green }); y += 46;
-                    b.push_back({ { 480, y, 320, 40 }, "EQUIPMENT & SKILLS", UI_EQUIP, blue }); y += 46;
-                    b.push_back({ { 480, y, 320, 40 }, "CHANGE HERO", UI_CHANGE_CLASS, purple }); y += 46;
-                    b.push_back({ { 480, y, 320, 40 }, "SETTINGS", UI_SETTINGS, blue }); y += 46;
-                    b.push_back({ { 480, y, 320, 40 }, "RESTART RUN", UI_RESTART, purple }); y += 46;
-                    b.push_back({ { 480, y, 320, 40 }, "CONTROLS", UI_HELP, grey }); y += 46;
-#ifndef __ANDROID__
-                    b.push_back({ { 480, y, 320, 40 }, "QUIT GAME", UI_QUIT, red });
-#endif
+                    float y = 212;
+                    b.push_back({ { 480, y, 320, 38 }, "RESUME", UI_RESUME, green }); y += 43;
+                    b.push_back({ { 480, y, 320, 38 }, "SAVE / LOAD GAME", UI_SAVE_LOAD, teal }); y += 43;
+                    b.push_back({ { 480, y, 320, 38 }, "EQUIPMENT & SKILLS", UI_EQUIP, blue }); y += 43;
+                    b.push_back({ { 480, y, 320, 38 }, "CHANGE HERO", UI_CHANGE_CLASS, purple }); y += 43;
+                    b.push_back({ { 480, y, 320, 38 }, "SETTINGS", UI_SETTINGS, blue }); y += 43;
+                    b.push_back({ { 480, y, 320, 38 }, "RESTART RUN", UI_RESTART, purple }); y += 43;
+                    b.push_back({ { 480, y, 320, 38 }, "CONTROLS", UI_HELP, grey }); y += 43;
+                    b.push_back({ { 480, y, 320, 38 }, "MAIN MENU", UI_MAIN_MENU, red });
                 }
                 break;
             case GAME_OVER:
-                b.push_back({ { 510, 496, 260, 48 }, "PLAY AGAIN", UI_RESTART, red });
-                b.push_back({ { 510, 552, 260, 42 }, "CHANGE HERO", UI_CHANGE_CLASS, blue });
-                b.push_back({ { 510, 602, 260, 42 }, "SANCTUARY", UI_SANCT, purple });
+                b.push_back({ { 510, 496, 260, 44 }, "PLAY AGAIN", UI_RESTART, red });
+                b.push_back({ { 510, 548, 260, 40 }, "CHANGE HERO", UI_CHANGE_CLASS, blue });
+                b.push_back({ { 510, 596, 260, 40 }, "SANCTUARY", UI_SANCT, purple });
+                b.push_back({ { 510, 644, 260, 40 }, "LOAD SAVE", UI_SAVE_LOAD, teal });
                 break;
             case INVENTORY:
                 b.push_back({ { 1040, 622, 146, 40 }, "CLOSE", UI_CLOSE_INV, grey });
                 break;
             case META:
             case SHOP:
+            case SAVE_LOAD:
                 b.push_back({ { 30, 28, 150, 44 }, "< BACK", UI_BACK, grey });
                 break;
             default:
@@ -3126,16 +3169,18 @@ public:
     void HandleUiAction(int a) {
         switch (a) {
             case UI_START: showHelp = false; classSel = selectedClass; state = CLASS_SELECT; PlaySound(snd.sndPotion); break;
+            case UI_SAVE_LOAD: showHelp = false; OpenSaveLoad(state); break;
             case UI_CHANGE_CLASS: showHelp = false; classSel = selectedClass; state = CLASS_SELECT; PlaySound(snd.sndPotion); break;
             case UI_SANCT: OpenSanctuary(state == GAME_OVER ? GAME_OVER : TITLE); break;
             case UI_SETTINGS: settingsReturn = (state == PAUSED) ? PAUSED : TITLE; setSel = 0; state = SETTINGS; break;
             case UI_HELP: showHelp = true; break;
             case UI_CLOSE_HELP: showHelp = false; break;
             case UI_QUIT: quitRequested = true; break;
+            case UI_MAIN_MENU: showHelp = false; state = TITLE; break;
             case UI_RESUME: showHelp = false; state = PLAYING; break;
             case UI_EQUIP: prevState = PAUSED; state = INVENTORY; break;
             case UI_RESTART: showHelp = false; RestartRun(); break;
-            case UI_BACK: if (state == META) CloseSanctuary(); else if (state == SHOP) state = PLAYING; break;
+            case UI_BACK: if (state == META) CloseSanctuary(); else if (state == SHOP) state = PLAYING; else if (state == SAVE_LOAD) state = saveLoadReturn; break;
             case UI_CLOSE_INV: state = prevState; break;
             default: break;
         }
@@ -5344,6 +5389,429 @@ public:
         DrawText(foot, 1280 / 2 - MeasureText(foot, 15) / 2, 692, 15, { 150, 165, 200, 255 });
     }
 
+    // ── Hệ thống Lưu / Tải game (tối đa 4 slot, hỗ trợ ghi đè) ──
+    static std::string SaveFileName(int slot) {
+        return "save_slot_" + std::to_string(std::max(0, std::min(3, slot)) + 1) + ".sav";
+    }
+
+    void RefreshSaveSlots() {
+        for (int s = 0; s < 4; ++s) {
+            SaveSlotInfo info;
+            char* txt = LoadFileText(SaveFileName(s).c_str());
+            if (txt) {
+                std::istringstream in(txt);
+                UnloadFileText(txt);
+                std::string line;
+                int existsFlag = 0;
+                int hasW = 0;
+                while (std::getline(in, line)) {
+                    if (!line.empty() && line.back() == '\r') line.pop_back();
+                    size_t eq = line.find('=');
+                    if (eq == std::string::npos) continue;
+                    std::string k = line.substr(0, eq);
+                    std::string val = line.substr(eq + 1);
+                    if (k == "exists") existsFlag = atoi(val.c_str());
+                    else if (k == "player_heroClass") info.heroClass = std::max(0, std::min(3, atoi(val.c_str())));
+                    else if (k == "floor") info.floor = std::max(1, atoi(val.c_str()));
+                    else if (k == "player_level") info.level = std::max(1, atoi(val.c_str()));
+                    else if (k == "player_hp") info.hp = atoi(val.c_str());
+                    else if (k == "player_maxHp") info.maxHp = std::max(1, atoi(val.c_str()));
+                    else if (k == "player_gold") info.gold = atoi(val.c_str());
+                    else if (k == "enemiesSlain") info.enemiesSlain = atoi(val.c_str());
+                    else if (k == "hasEquip_0") hasW = atoi(val.c_str());
+                    else if (k == "equip_0_weaponType") info.weaponType = std::max(0, std::min(7, atoi(val.c_str())));
+                    else if (k == "equip_0_name") info.weaponName = val;
+                    else if (k == "timestamp") info.timestamp = val;
+                }
+                if (existsFlag == 1) {
+                    info.exists = true;
+                    if (!hasW || info.weaponName.empty()) {
+                        info.weaponType = kClasses[info.heroClass].startWeapon;
+                        info.weaponName = MakeStarterWeapon(info.weaponType).name;
+                    }
+                }
+            }
+            saveSlots[s] = info;
+        }
+    }
+
+    void DeleteSaveSlot(int slot) {
+        if (slot < 0 || slot >= 4 || !saveSlots[slot].exists) return;
+        std::string empty = "exists=0\n";
+        SaveFileText(SaveFileName(slot).c_str(), (char*)empty.c_str());
+        RefreshSaveSlots();
+        PlaySound(snd.sndHurt);
+        saveStatusMsg = "Cleared Slot " + std::to_string(slot + 1) + ".";
+        saveStatusTimer = 2.5f;
+    }
+
+    bool SaveGameToSlot(int slot) {
+        if (slot < 0 || slot >= 4) return false;
+        bool wasOccupied = saveSlots[slot].exists;
+        std::time_t now = std::time(nullptr);
+        std::tm* lt = std::localtime(&now);
+        char tbuf[32] = "Saved Run";
+        if (lt) std::strftime(tbuf, sizeof(tbuf), "%Y-%m-%d %H:%M", lt);
+
+        int roomCleared = (portalOpen && enemies.empty()) ? 1 : 0;
+        std::ostringstream o;
+        o << "exists=1\n"
+          << "timestamp=" << tbuf << "\n"
+          << "floor=" << floor << "\n"
+          << "enemiesSlain=" << enemiesSlain << "\n"
+          << "bestCombo=" << bestCombo << "\n"
+          << "bossesKilled=" << bossesKilled << "\n"
+          << "phoenixUsed=" << (phoenixUsed ? 1 : 0) << "\n"
+          << "roomCleared=" << roomCleared << "\n"
+          << "selectedClass=" << selectedClass << "\n"
+          << "player_heroClass=" << player.heroClass << "\n"
+          << "player_hp=" << player.hp << "\n"
+          << "player_maxHp=" << player.maxHp << "\n"
+          << "player_speed=" << player.speed << "\n"
+          << "player_baseDmg=" << player.baseDmg << "\n"
+          << "player_attackRate=" << player.attackRate << "\n"
+          << "player_dashCooldown=" << player.dashCooldown << "\n"
+          << "player_cdrUpgrades=" << player.cdrUpgrades << "\n"
+          << "player_critChance=" << player.critChance << "\n"
+          << "player_lifesteal=" << player.lifesteal << "\n"
+          << "player_armor=" << player.armor << "\n"
+          << "player_level=" << player.level << "\n"
+          << "player_xp=" << player.xp << "\n"
+          << "player_xpNext=" << player.xpNext << "\n"
+          << "player_gold=" << player.gold << "\n"
+          << "player_rage=" << player.rage << "\n"
+          << "player_igniteLevel=" << player.igniteLevel << "\n"
+          << "player_frostLevel=" << player.frostLevel << "\n"
+          << "player_shieldActive=" << (player.shieldActive ? 1 : 0) << "\n"
+          << "relicCount=" << (int)player.relics.size() << "\n";
+        for (size_t i = 0; i < player.relics.size(); ++i) {
+            o << "relic_" << i << "=" << (int)player.relics[i].type << "\n";
+        }
+        for (int i = 0; i < 4; ++i) {
+            o << "hasEquip_" << i << "=" << (hasEquip[i] ? 1 : 0) << "\n";
+            if (hasEquip[i]) {
+                o << "equip_" << i << "_name=" << equipped[i].name << "\n"
+                  << "equip_" << i << "_slot=" << equipped[i].slot << "\n"
+                  << "equip_" << i << "_rarity=" << equipped[i].rarity << "\n"
+                  << "equip_" << i << "_weaponType=" << equipped[i].weaponType << "\n"
+                  << "equip_" << i << "_damage=" << equipped[i].damage << "\n"
+                  << "equip_" << i << "_maxHp=" << equipped[i].maxHp << "\n"
+                  << "equip_" << i << "_armor=" << equipped[i].armor << "\n"
+                  << "equip_" << i << "_moveSpeed=" << equipped[i].moveSpeed << "\n"
+                  << "equip_" << i << "_attackRate=" << equipped[i].attackRate << "\n"
+                  << "equip_" << i << "_lifesteal=" << equipped[i].lifesteal << "\n"
+                  << "equip_" << i << "_crit=" << equipped[i].crit << "\n";
+            }
+        }
+        std::string payload = o.str();
+        SaveFileText(SaveFileName(slot).c_str(), (char*)payload.c_str());
+        RefreshSaveSlots();
+        PlaySound(snd.sndLevelUp);
+        saveStatusMsg = "Saved to Slot " + std::to_string(slot + 1) + (wasOccupied ? " (Overwritten)!" : "!");
+        saveStatusTimer = 2.8f;
+        return true;
+    }
+
+    bool LoadGameFromSlot(int slot) {
+        if (slot < 0 || slot >= 4 || !saveSlots[slot].exists) {
+            saveStatusMsg = "Slot is empty!";
+            saveStatusTimer = 2.0f;
+            PlaySound(snd.sndHurt);
+            return false;
+        }
+        char* txt = LoadFileText(SaveFileName(slot).c_str());
+        if (!txt) {
+            saveStatusMsg = "Failed to read save file!";
+            saveStatusTimer = 2.0f;
+            PlaySound(snd.sndHurt);
+            return false;
+        }
+        std::istringstream in(txt);
+        UnloadFileText(txt);
+
+        Player loadedP;
+        EquipItem loadedEq[4];
+        bool loadedHas[4] = { false, false, false, false };
+        int existsFlag = 0;
+        int loadedFloor = 1, loadedSlain = 0, loadedBestCombo = 0, loadedBosses = 0, loadedSelClass = 0;
+        bool loadedPhoenix = false;
+        int roomCleared = 0;
+        int relicCount = 0;
+        std::vector<int> relicTypes;
+
+        std::string line;
+        while (std::getline(in, line)) {
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            size_t eq = line.find('=');
+            if (eq == std::string::npos) continue;
+            std::string k = line.substr(0, eq);
+            std::string v = line.substr(eq + 1);
+            int iv = atoi(v.c_str());
+            float fv = (float)atof(v.c_str());
+
+            if (k == "exists") existsFlag = iv;
+            else if (k == "floor") loadedFloor = std::max(1, iv);
+            else if (k == "enemiesSlain") loadedSlain = std::max(0, iv);
+            else if (k == "bestCombo") loadedBestCombo = std::max(0, iv);
+            else if (k == "bossesKilled") loadedBosses = std::max(0, iv);
+            else if (k == "phoenixUsed") loadedPhoenix = (iv != 0);
+            else if (k == "roomCleared") roomCleared = iv;
+            else if (k == "selectedClass") loadedSelClass = std::max(0, std::min(3, iv));
+            else if (k == "player_heroClass") loadedP.heroClass = std::max(0, std::min(3, iv));
+            else if (k == "player_hp") loadedP.hp = fv;
+            else if (k == "player_maxHp") loadedP.maxHp = std::max(1.0f, fv);
+            else if (k == "player_speed") loadedP.speed = std::max(80.0f, fv);
+            else if (k == "player_baseDmg") loadedP.baseDmg = std::max(1.0f, fv);
+            else if (k == "player_attackRate") loadedP.attackRate = std::max(0.4f, fv);
+            else if (k == "player_dashCooldown") loadedP.dashCooldown = std::max(0.3f, fv);
+            else if (k == "player_cdrUpgrades") loadedP.cdrUpgrades = std::max(0, std::min(5, iv));
+            else if (k == "player_critChance") loadedP.critChance = std::max(0.0f, std::min(0.9f, fv));
+            else if (k == "player_lifesteal") loadedP.lifesteal = std::max(0.0f, std::min(0.5f, fv));
+            else if (k == "player_armor") loadedP.armor = std::max(0.0f, fv);
+            else if (k == "player_level") loadedP.level = std::max(1, iv);
+            else if (k == "player_xp") loadedP.xp = std::max(0, iv);
+            else if (k == "player_xpNext") loadedP.xpNext = std::max(10, iv);
+            else if (k == "player_gold") loadedP.gold = std::max(0, iv);
+            else if (k == "player_rage") loadedP.rage = std::max(0.0f, std::min(100.0f, fv));
+            else if (k == "player_igniteLevel") loadedP.igniteLevel = std::max(0, iv);
+            else if (k == "player_frostLevel") loadedP.frostLevel = std::max(0, iv);
+            else if (k == "player_shieldActive") loadedP.shieldActive = (iv != 0);
+            else if (k == "relicCount") relicCount = std::max(0, std::min(16, iv));
+            else if (k.compare(0, 6, "relic_") == 0) {
+                int rIdx = atoi(k.c_str() + 6);
+                if (rIdx >= 0 && rIdx < 16) {
+                    if ((int)relicTypes.size() <= rIdx) relicTypes.resize(rIdx + 1, -1);
+                    relicTypes[rIdx] = iv;
+                }
+            } else if (k.compare(0, 9, "hasEquip_") == 0) {
+                int ei = k[9] - '0';
+                if (ei >= 0 && ei < 4) loadedHas[ei] = (iv != 0);
+            } else if (k.compare(0, 6, "equip_") == 0 && k.size() > 8 && k[7] == '_') {
+                int ei = k[6] - '0';
+                std::string f = k.substr(8);
+                if (ei >= 0 && ei < 4) {
+                    if (f == "name") loadedEq[ei].name = v;
+                    else if (f == "slot") loadedEq[ei].slot = std::max(0, std::min(3, iv));
+                    else if (f == "rarity") loadedEq[ei].rarity = std::max(0, std::min(3, iv));
+                    else if (f == "weaponType") loadedEq[ei].weaponType = std::max(0, std::min(7, iv));
+                    else if (f == "damage") loadedEq[ei].damage = fv;
+                    else if (f == "maxHp") loadedEq[ei].maxHp = fv;
+                    else if (f == "armor") loadedEq[ei].armor = fv;
+                    else if (f == "moveSpeed") loadedEq[ei].moveSpeed = fv;
+                    else if (f == "attackRate") loadedEq[ei].attackRate = fv;
+                    else if (f == "lifesteal") loadedEq[ei].lifesteal = fv;
+                    else if (f == "crit") loadedEq[ei].crit = fv;
+                }
+            }
+        }
+
+        if (existsFlag != 1) {
+            saveStatusMsg = "Save slot is empty or invalid!";
+            saveStatusTimer = 2.0f;
+            PlaySound(snd.sndHurt);
+            return false;
+        }
+
+        loadedP.hp = std::max(1.0f, std::min(loadedP.maxHp, loadedP.hp));
+        loadedP.hpDisplay = loadedP.hp;
+        for (int i = 0; i < relicCount && i < (int)relicTypes.size(); ++i) {
+            int rt = relicTypes[i];
+            if (rt >= 0 && rt <= (int)RELIC_THORNS) loadedP.relics.push_back(MakeRelic((RelicType)rt));
+        }
+
+        player = loadedP;
+        for (int i = 0; i < 4; ++i) {
+            hasEquip[i] = loadedHas[i];
+            equipped[i] = loadedEq[i];
+        }
+        floor = loadedFloor;
+        enemiesSlain = loadedSlain;
+        bestCombo = loadedBestCombo;
+        bossesKilled = loadedBosses;
+        phoenixUsed = loadedPhoenix;
+        selectedClass = player.heroClass;
+        comboCount = 0;
+        comboTimer = 0.0f;
+        damagePulse = 0.0f;
+        hitStop = 0.0f;
+        newRecord = false;
+        (void)loadedSelClass;
+
+        BuildFloor();
+        player.pos = { 0, roomH / 2.0f - 90.0f };
+        player.hpDisplay = player.hp;
+        player.specialCooldown = Skill1MaxCd();
+        player.skill2Cooldown = Skill2MaxCd();
+        camera.target = player.pos;
+        if (roomCleared) {
+            enemies.clear();
+            pendingSpawns.clear();
+            portalOpen = true;
+        }
+        state = PLAYING;
+        PlaySound(snd.sndPortal);
+        ShowBanner("LOADED SLOT " + std::to_string(slot + 1) + " - FLOOR " + std::to_string(floor), 3.0f);
+        return true;
+    }
+
+    void OpenSaveLoad(State from) {
+        saveLoadReturn = from;
+        saveStatusMsg.clear();
+        saveStatusTimer = 0.0f;
+        RefreshSaveSlots();
+        state = SAVE_LOAD;
+        PlaySound(snd.sndCoin);
+    }
+
+    void UpdateSaveLoad(float dt) {
+        { int ua = HitButton(); if (ua) { HandleUiAction(ua); return; } }
+        if (saveStatusTimer > 0.0f) saveStatusTimer -= dt;
+        if (EscPressed() || IsKeyPressed(KEY_BACKSPACE) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) {
+            state = saveLoadReturn;
+            return;
+        }
+        if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_RIGHT)) saveSlotSel = (saveSlotSel + 1) % 4;
+        if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_LEFT)) saveSlotSel = (saveSlotSel + 3) % 4;
+        for (int i = 0; i < 4; ++i) if (IsKeyPressed(KEY_ONE + i)) saveSlotSel = i;
+
+        const int cardW = 280, gap = 18, x0 = (1280 - (cardW * 4 + gap * 3)) / 2, cy = 98, cardH = 505;
+        Vector2 m = GetMousePosition();
+        for (int i = 0; i < 4; ++i) {
+            Rectangle r = { (float)(x0 + i * (cardW + gap)), (float)cy, (float)cardW, (float)cardH };
+            const SaveSlotInfo& info = saveSlots[i];
+            if (CheckCollisionPointRec(m, r) && (GetMouseDelta().x != 0 || GetMouseDelta().y != 0)) saveSlotSel = i;
+
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(m, r)) {
+                saveSlotSel = i;
+                if (saveLoadReturn == PAUSED) {
+                    Rectangle saveBtn = { r.x + 16.0f, r.y + r.height - 96.0f, r.width - 32.0f, 38.0f };
+                    if (CheckCollisionPointRec(m, saveBtn)) { SaveGameToSlot(i); return; }
+                    if (info.exists) {
+                        Rectangle loadBtn = { r.x + 16.0f, r.y + r.height - 50.0f, r.width - 94.0f, 36.0f };
+                        Rectangle delBtn  = { r.x + r.width - 70.0f, r.y + r.height - 50.0f, 54.0f, 36.0f };
+                        if (CheckCollisionPointRec(m, loadBtn)) { LoadGameFromSlot(i); return; }
+                        if (CheckCollisionPointRec(m, delBtn)) { DeleteSaveSlot(i); return; }
+                    }
+                } else if (info.exists) {
+                    Rectangle loadBtn = { r.x + 16.0f, r.y + r.height - 54.0f, r.width - 94.0f, 40.0f };
+                    Rectangle delBtn  = { r.x + r.width - 70.0f, r.y + r.height - 54.0f, 54.0f, 40.0f };
+                    if (CheckCollisionPointRec(m, loadBtn)) { LoadGameFromSlot(i); return; }
+                    if (CheckCollisionPointRec(m, delBtn)) { DeleteSaveSlot(i); return; }
+                }
+            }
+        }
+
+        if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) {
+            if (saveLoadReturn == PAUSED) SaveGameToSlot(saveSlotSel);
+            else LoadGameFromSlot(saveSlotSel);
+        } else if (IsKeyPressed(KEY_L) && saveLoadReturn == PAUSED) {
+            LoadGameFromSlot(saveSlotSel);
+        } else if (IsKeyPressed(KEY_DELETE) || IsKeyPressed(KEY_X)) {
+            DeleteSaveSlot(saveSlotSel);
+        }
+    }
+
+    void DrawSaveLoadScreen() {
+        float t = (float)GetTime();
+        DrawRectangleGradientV(0, 0, 1280, 720, Fade({ 8, 12, 22, 255 }, 0.94f), Fade({ 14, 18, 32, 255 }, 0.92f));
+        const char* hdr = (saveLoadReturn == PAUSED) ? "SAVE & LOAD GAME (4 SLOTS)" : "LOAD SAVED GAME (4 SLOTS)";
+        OutlinedText(hdr, 1280 / 2 - MeasureText(hdr, 38) / 2, 26, 38, GOLD, { 70, 40, 10, 255 });
+
+        const int cardW = 280, gap = 18, x0 = (1280 - (cardW * 4 + gap * 3)) / 2, cy = 98, cardH = 505;
+        Vector2 m = GetMousePosition();
+        for (int i = 0; i < 4; ++i) {
+            const SaveSlotInfo& info = saveSlots[i];
+            int cx = x0 + i * (cardW + gap);
+            bool sel = (saveSlotSel == i);
+            Rectangle r = { (float)cx, (float)cy, (float)cardW, (float)cardH };
+            const ClassDef& cd = kClasses[std::max(0, std::min(3, info.heroClass))];
+            Color accent = info.exists ? cd.color : Color{ 95, 110, 140, 255 };
+
+            DrawRectangleRec(r, sel ? Color{ 26, 34, 56, 252 } : Color{ 16, 20, 34, 240 });
+            DrawRectangle(cx, cy, cardW, 42, Fade(accent, sel ? 0.35f : 0.18f));
+            DrawRectangleLinesEx(r, sel ? 3.0f : 1.5f, sel ? GOLD : Fade(accent, 0.6f));
+            DrawText(TextFormat("[%d] SLOT %d", i + 1, i + 1), cx + 14, cy + 11, 20, sel ? WHITE : accent);
+            const char* tag = info.exists ? "SAVED" : "EMPTY";
+            DrawText(tag, cx + cardW - 14 - MeasureText(tag, 14), cy + 14, 14, info.exists ? Color{ 120, 235, 150, 255 } : GRAY);
+
+            if (info.exists) {
+                Vector2 prev = { cx + cardW / 2.0f, (float)cy + 122.0f };
+                DrawCircleV(prev, 44.0f, Fade(accent, sel ? 0.18f : 0.09f));
+                DrawHeroModel(prev, info.heroClass, info.weaponType, { 0.9f, sinf(t * 2.0f + i) * 0.2f }, false, t * (sel ? 5.0f : 0.0f), sel, 0.35f, false, false, 0.0f, 0.0f);
+
+                int iy = cy + 190;
+                DrawText(cd.name, cx + cardW / 2 - MeasureText(cd.name, 20) / 2, iy, 20, cd.color);
+                DrawRectangle(cx + 16, iy + 32, cardW - 32, 138, { 12, 16, 28, 225 });
+                DrawRectangleLines(cx + 16, iy + 32, cardW - 32, 138, Fade(accent, 0.35f));
+                DrawText(TextFormat("Floor %d   -   Level %d", info.floor, info.level), cx + 26, iy + 42, 17, GOLD);
+                DrawText(TextFormat("HP: %d / %d", info.hp, info.maxHp), cx + 26, iy + 68, 16, { 245, 110, 120, 255 });
+                DrawText(TextFormat("Gold: %d   Slain: %d", info.gold, info.enemiesSlain), cx + 26, iy + 92, 16, RAYWHITE);
+                std::string wTxt = "Weapon: " + info.weaponName;
+                if ((int)wTxt.size() > 26) wTxt = wTxt.substr(0, 24) + "..";
+                DrawText(wTxt.c_str(), cx + 26, iy + 116, 15, SKYBLUE);
+                DrawText(info.timestamp.c_str(), cx + 26, iy + 142, 13, { 150, 165, 195, 255 });
+            } else {
+                DrawText("EMPTY SLOT", cx + cardW / 2 - MeasureText("EMPTY SLOT", 20) / 2, cy + 196, 20, { 110, 122, 150, 255 });
+                const char* sub = (saveLoadReturn == PAUSED) ? "Click SAVE HERE below" : "No saved run yet";
+                DrawText(sub, cx + cardW / 2 - MeasureText(sub, 15) / 2, cy + 230, 15, { 130, 145, 175, 255 });
+            }
+
+            if (saveLoadReturn == PAUSED) {
+                Rectangle saveBtn = { r.x + 16.0f, r.y + r.height - 96.0f, r.width - 32.0f, 38.0f };
+                bool hovS = CheckCollisionPointRec(m, saveBtn);
+                Color sCol = info.exists ? Color{ 160, 102, 24, 255 } : Color{ 34, 106, 62, 255 };
+                DrawRectangleRec(saveBtn, hovS ? Shade(sCol, 1.3f) : sCol);
+                DrawRectangleLinesEx(saveBtn, 2.0f, hovS ? WHITE : (info.exists ? GOLD : Color{ 110, 235, 145, 255 }));
+                const char* sLbl = info.exists ? "OVERWRITE SAVE" : "SAVE HERE";
+                DrawText(sLbl, (int)(saveBtn.x + saveBtn.width / 2) - MeasureText(sLbl, 17) / 2, (int)saveBtn.y + 10, 17, WHITE);
+
+                if (info.exists) {
+                    Rectangle loadBtn = { r.x + 16.0f, r.y + r.height - 50.0f, r.width - 94.0f, 36.0f };
+                    Rectangle delBtn  = { r.x + r.width - 70.0f, r.y + r.height - 50.0f, 54.0f, 36.0f };
+                    bool hovL = CheckCollisionPointRec(m, loadBtn);
+                    bool hovD = CheckCollisionPointRec(m, delBtn);
+                    DrawRectangleRec(loadBtn, hovL ? Color{ 48, 104, 165, 255 } : Color{ 34, 76, 124, 255 });
+                    DrawRectangleLinesEx(loadBtn, 1.6f, hovL ? WHITE : SKYBLUE);
+                    DrawText("LOAD", (int)(loadBtn.x + loadBtn.width / 2) - MeasureText("LOAD", 17) / 2, (int)loadBtn.y + 9, 17, WHITE);
+                    DrawRectangleRec(delBtn, hovD ? Color{ 155, 50, 62, 255 } : Color{ 110, 36, 46, 255 });
+                    DrawRectangleLinesEx(delBtn, 1.6f, hovD ? WHITE : Color{ 240, 120, 130, 255 });
+                    DrawText("DEL", (int)(delBtn.x + delBtn.width / 2) - MeasureText("DEL", 15) / 2, (int)delBtn.y + 10, 15, WHITE);
+                } else {
+                    Rectangle noBtn = { r.x + 16.0f, r.y + r.height - 50.0f, r.width - 32.0f, 36.0f };
+                    DrawRectangleRec(noBtn, { 28, 34, 50, 220 });
+                    DrawRectangleLinesEx(noBtn, 1.2f, { 60, 70, 95, 255 });
+                    DrawText("NO SAVE TO LOAD", (int)(noBtn.x + noBtn.width / 2) - MeasureText("NO SAVE TO LOAD", 14) / 2, (int)noBtn.y + 11, 14, { 110, 120, 145, 255 });
+                }
+            } else {
+                if (info.exists) {
+                    Rectangle loadBtn = { r.x + 16.0f, r.y + r.height - 54.0f, r.width - 94.0f, 40.0f };
+                    Rectangle delBtn  = { r.x + r.width - 70.0f, r.y + r.height - 54.0f, 54.0f, 40.0f };
+                    bool hovL = CheckCollisionPointRec(m, loadBtn);
+                    bool hovD = CheckCollisionPointRec(m, delBtn);
+                    DrawRectangleRec(loadBtn, hovL ? Color{ 44, 130, 82, 255 } : Color{ 32, 98, 60, 255 });
+                    DrawRectangleLinesEx(loadBtn, 2.0f, hovL ? WHITE : Color{ 120, 240, 160, 255 });
+                    DrawText("LOAD GAME", (int)(loadBtn.x + loadBtn.width / 2) - MeasureText("LOAD GAME", 18) / 2, (int)loadBtn.y + 11, 18, WHITE);
+                    DrawRectangleRec(delBtn, hovD ? Color{ 155, 50, 62, 255 } : Color{ 110, 36, 46, 255 });
+                    DrawRectangleLinesEx(delBtn, 1.6f, hovD ? WHITE : Color{ 240, 120, 130, 255 });
+                    DrawText("DEL", (int)(delBtn.x + delBtn.width / 2) - MeasureText("DEL", 15) / 2, (int)delBtn.y + 12, 15, WHITE);
+                } else {
+                    Rectangle noBtn = { r.x + 16.0f, r.y + r.height - 54.0f, r.width - 32.0f, 40.0f };
+                    DrawRectangleRec(noBtn, { 28, 34, 50, 220 });
+                    DrawRectangleLinesEx(noBtn, 1.2f, { 60, 70, 95, 255 });
+                    DrawText("EMPTY", (int)(noBtn.x + noBtn.width / 2) - MeasureText("EMPTY", 16) / 2, (int)noBtn.y + 12, 16, { 110, 120, 145, 255 });
+                }
+            }
+        }
+
+        if (saveStatusTimer > 0.0f && !saveStatusMsg.empty()) {
+            DrawText(saveStatusMsg.c_str(), 1280 / 2 - MeasureText(saveStatusMsg.c_str(), 24) / 2, 626, 24, GOLD);
+        }
+        const char* foot = (saveLoadReturn == PAUSED)
+            ? "1-4 / A-D: select slot     Enter: save/overwrite     L: load     Del/X: delete     Esc: back"
+            : "1-4 / A-D: select slot     Enter / Click: load game     Del/X: delete     Esc: back";
+        DrawText(foot, 1280 / 2 - MeasureText(foot, 16) / 2, 678, 16, { 150, 165, 200, 255 });
+    }
+
     // ── Màn hình tiêu đề / tạm dừng / hướng dẫn ──
     static void OutlinedText(const char* txt, int x, int y, int size, Color col, Color outline) {
         for (int ox = -2; ox <= 2; ox += 2)
@@ -5371,11 +5839,12 @@ public:
             { "Gamepad", "Sticks, RT/A atk, B dash, X Skill 1, Y Skill 2, LB Ult" },
             { "O / F2", "Settings (title and pause menu)" },
             { "S", "Sanctuary: permanent upgrades (title / game over)" },
-            { "M / Esc / F1", "Radar / Pause / Controls" },
+            { "F5 / L", "Save & Load Game (4 slots with overwrite)" },
+            { "M / Esc / F1", "Radar / Pause & Back / Controls" },
         };
-        for (int i = 0; i < 14; ++i) {
-            DrawText(rows[i][0], x + 36, y + 72 + i * 34, 19, SKYBLUE);
-            DrawText(rows[i][1], x + 340, y + 72 + i * 34, 19, RAYWHITE);
+        for (int i = 0; i < 15; ++i) {
+            DrawText(rows[i][0], x + 36, y + 70 + i * 32, 18, SKYBLUE);
+            DrawText(rows[i][1], x + 340, y + 70 + i * 32, 18, RAYWHITE);
         }
         DrawText("Clear a room, enter the portal. Hit enemies to build 100 Rage for [R] Ultimate!", x + 36, y + h - 42, 16, { 190, 200, 220, 255 });
     }
@@ -5403,8 +5872,8 @@ public:
         std::string prog = std::string(diffName) + "     Souls: " + std::to_string(souls) + "     Runs: " + std::to_string(runs);
         DrawText(prog.c_str(), 1280 / 2 - MeasureText(prog.c_str(), 20) / 2, 354, 20, { 190, 150, 255, 255 });
 #ifndef __ANDROID__
-        const char* hint = "Enter: choose hero    S: Sanctuary    O: Settings    F1: Controls    Esc: Quit";
-        DrawText(hint, 1280 / 2 - MeasureText(hint, 18) / 2, 620, 18, { 130, 145, 180, 255 });
+        const char* hint = "Enter: New Game    L: Load Save    S: Sanctuary    O: Settings    F1: Controls";
+        DrawText(hint, 1280 / 2 - MeasureText(hint, 18) / 2, 628, 18, { 130, 145, 180, 255 });
 #endif
     }
 
@@ -5412,9 +5881,9 @@ public:
         DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.72f));
         if (showHelp) { DrawHelpPanel(); return; }
         const char* t1 = "PAUSED";
-        OutlinedText(t1, 1280 / 2 - MeasureText(t1, 60) / 2, 140, 60, WHITE, { 20, 24, 40, 255 });
+        OutlinedText(t1, 1280 / 2 - MeasureText(t1, 56) / 2, 108, 56, WHITE, { 20, 24, 40, 255 });
         std::string info = std::string(kClasses[player.heroClass].name) + "   Floor " + std::to_string(floor) + "   Level " + std::to_string(player.level) + "   Slain " + std::to_string(enemiesSlain);
-        DrawText(info.c_str(), 1280 / 2 - MeasureText(info.c_str(), 20) / 2, 202, 20, SKYBLUE);
+        DrawText(info.c_str(), 1280 / 2 - MeasureText(info.c_str(), 20) / 2, 170, 20, SKYBLUE);
     }
 
     // ── Drawing ──
@@ -5940,6 +6409,7 @@ public:
         if (state == SHOP) DrawShopScreen();
         if (state == META) DrawMetaScreen();
         if (state == CLASS_SELECT) DrawClassSelectScreen();
+        if (state == SAVE_LOAD) DrawSaveLoadScreen();
         if (state == TITLE) DrawTitleScreen();
         if (state == PAUSED) DrawPauseScreen();
 
