@@ -594,7 +594,7 @@ static const MetaUpgrade kMeta[8] = {
 // ── Cài đặt (lưu vào settings.cfg cạnh file exe) ─────────────────────────
 struct Settings {
     int resW = 1280, resH = 720;
-    bool fullscreen = false;
+    int windowMode = 0;   // 0: Windowed, 1: Windowed Fullscreen (Borderless), 2: Fullscreen
     bool vsync = true;
     int fpsIndex = 1;     // chỉ số trong kFpsOptions
     bool showFps = false;
@@ -672,6 +672,7 @@ public:
     bool hasEquip[4] = { false, false, false, false };
     std::vector<ItemDrop> itemDrops;
     Settings settings;
+    int lastAppliedWinMode = -1, lastAppliedW = 0, lastAppliedH = 0;
     std::vector<int> resList;
     RenderTexture2D screenRT = { 0 };
     int setSel = 0;
@@ -1239,6 +1240,14 @@ public:
 
         // Hit-stop: khựng khung hình rất ngắn khi chí mạng
         if (hitStop > 0) { hitStop -= dt; return; }
+
+#ifndef __ANDROID__
+        if (IsKeyPressed(KEY_F11)) {
+            settings.windowMode = (settings.windowMode == 1) ? 0 : 1;
+            SaveSettings();
+            ApplySettings();
+        }
+#endif
 
         if (state == TITLE) {
             UpdateEffects(dt);
@@ -4566,7 +4575,8 @@ public:
             int v = atoi(line.substr(eq + 1).c_str());
             if (k == "resW") settings.resW = v;
             else if (k == "resH") settings.resH = v;
-            else if (k == "fullscreen") settings.fullscreen = v != 0;
+            else if (k == "windowMode") settings.windowMode = std::max(0, std::min(2, v));
+            else if (k == "fullscreen") settings.windowMode = (v == 1 ? 2 : (v == 2 ? 1 : 0));
             else if (k == "vsync") settings.vsync = v != 0;
             else if (k == "fpsIndex") settings.fpsIndex = std::max(0, std::min(4, v));
             else if (k == "showFps") settings.showFps = v != 0;
@@ -4589,7 +4599,7 @@ public:
 
     void SaveSettings() {
         std::ostringstream o;
-        o << "resW=" << settings.resW << "\nresH=" << settings.resH << "\nfullscreen=" << settings.fullscreen
+        o << "resW=" << settings.resW << "\nresH=" << settings.resH << "\nwindowMode=" << settings.windowMode
           << "\nvsync=" << settings.vsync << "\nfpsIndex=" << settings.fpsIndex << "\nshowFps=" << settings.showFps
           << "\nvibration=" << settings.vibration << "\nlighting=" << settings.lighting << "\nparticles=" << settings.particles
           << "\nvignette=" << settings.vignette << "\nvolume=" << settings.volume << "\ndifficulty=" << settings.difficulty
@@ -4618,8 +4628,28 @@ public:
 
     void ApplySettings() {
 #ifndef __ANDROID__
-        if (settings.fullscreen != IsWindowFullscreen()) ToggleFullscreen();
-        if (!settings.fullscreen) SetWindowSize(settings.resW, settings.resH);
+        if (lastAppliedWinMode != settings.windowMode || lastAppliedW != settings.resW || lastAppliedH != settings.resH) {
+            if (settings.windowMode != 2 && IsWindowFullscreen()) ToggleFullscreen();
+            if (settings.windowMode != 1 && IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE)) ToggleBorderlessWindowed();
+
+            if (settings.windowMode == 1) {
+                if (!IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE)) ToggleBorderlessWindowed();
+            } else if (settings.windowMode == 2) {
+                int mon = GetCurrentMonitor();
+                SetWindowSize(GetMonitorWidth(mon), GetMonitorHeight(mon));
+                if (!IsWindowFullscreen()) ToggleFullscreen();
+            } else {
+                SetWindowSize(settings.resW, settings.resH);
+                if (lastAppliedWinMode == 1 || lastAppliedWinMode == 2) {
+                    int mon = GetCurrentMonitor();
+                    int mw = GetMonitorWidth(mon), mh = GetMonitorHeight(mon);
+                    SetWindowPosition(std::max(0, (mw - settings.resW) / 2), std::max(0, (mh - settings.resH) / 2));
+                }
+            }
+            lastAppliedWinMode = settings.windowMode;
+            lastAppliedW = settings.resW;
+            lastAppliedH = settings.resH;
+        }
         if (settings.vsync) SetWindowState(FLAG_VSYNC_HINT); else ClearWindowState(FLAG_VSYNC_HINT);
 #endif
         SetTargetFPS(kFpsOptions[settings.fpsIndex]);
@@ -4640,7 +4670,7 @@ public:
                 settings.resH = kResOptions[resList[cur]][1];
                 break;
             }
-            case 1: settings.fullscreen = !settings.fullscreen; break;
+            case 1: settings.windowMode = (settings.windowMode + d + 3) % 3; break;
             case 2: settings.vsync = !settings.vsync; break;
             case 3: settings.fpsIndex = (settings.fpsIndex + d + 5) % 5; break;
             case 4: settings.showFps = !settings.showFps; break;
@@ -4658,8 +4688,8 @@ public:
         if (row <= 2) return "Auto";
 #endif
         switch (row) {
-            case 0: return settings.fullscreen ? "Native (fullscreen)" : std::to_string(settings.resW) + " x " + std::to_string(settings.resH);
-            case 1: return settings.fullscreen ? "ON" : "OFF";
+            case 0: return settings.windowMode == 1 ? "Desktop (Borderless)" : (settings.windowMode == 2 ? "Native (Fullscreen)" : std::to_string(settings.resW) + " x " + std::to_string(settings.resH));
+            case 1: return settings.windowMode == 0 ? "Windowed" : (settings.windowMode == 1 ? "Windowed Fullscreen" : "Fullscreen");
             case 2: return settings.vsync ? "ON" : "OFF";
             case 3: return kFpsOptions[settings.fpsIndex] == 0 ? "Unlimited" : std::to_string(kFpsOptions[settings.fpsIndex]);
             case 4: return settings.showFps ? "ON" : "OFF";
@@ -4705,7 +4735,7 @@ public:
         DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.86f));
         const char* title = "SETTINGS";
         OutlinedText(title, 1280 / 2 - MeasureText(title, 48) / 2, 70, 48, GOLD, { 90, 50, 10, 255 });
-        static const char* labels[11] = { "Resolution", "Fullscreen", "VSync", "FPS Limit", "Show FPS", "Vibration (shake + controller)", "Lighting", "Particles", "Vignette", "Volume", "Difficulty (next floors)" };
+        static const char* labels[11] = { "Resolution", "Display Mode", "VSync", "FPS Limit", "Show FPS", "Vibration (shake + controller)", "Lighting", "Particles", "Vignette", "Volume", "Difficulty (next floors)" };
         for (int i = 0; i < 12; ++i) {
             Rectangle r = { 330.0f, 138.0f + i * 36.0f, 620.0f, 32.0f };
             bool sel = (setSel == i);
@@ -4715,6 +4745,7 @@ public:
                 DrawText(labels[i], (int)r.x + 16, (int)r.y + 6, 20, sel ? WHITE : Color{ 190, 205, 235, 255 });
                 std::string v = SettingValue(i);
                 Color vc = (v == "ON") ? Color{ 120, 235, 140, 255 } : (v == "OFF" ? Color{ 255, 130, 130, 255 } : Color{ 255, 215, 90, 255 });
+                if (i == 1) vc = (settings.windowMode == 1) ? Color{ 110, 235, 195, 255 } : (settings.windowMode == 2 ? Color{ 120, 235, 140, 255 } : SKYBLUE);
                 int vw = MeasureText(v.c_str(), 20);
                 if (i == 10) vc = settings.difficulty == 0 ? Color{ 120, 235, 140, 255 } : (settings.difficulty == 2 ? Color{ 255, 120, 110, 255 } : Color{ 255, 215, 90, 255 });
                 DrawText(v.c_str(), (int)(r.x + r.width) - 40 - vw, (int)r.y + 6, 20, vc);
@@ -5837,7 +5868,7 @@ public:
             { "I", "Equipment, stats & full skill kit" },
             { "F", "Trade with the merchant (every 3rd floor)" },
             { "Gamepad", "Sticks, RT/A atk, B dash, X Skill 1, Y Skill 2, LB Ult" },
-            { "O / F2", "Settings (title and pause menu)" },
+            { "O / F2 / F11", "Settings / Windowed Fullscreen" },
             { "S", "Sanctuary: permanent upgrades (title / game over)" },
             { "F5 / L", "Save & Load Game (4 slots with overwrite)" },
             { "M / Esc / F1", "Radar / Pause & Back / Controls" },
