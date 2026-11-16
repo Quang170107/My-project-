@@ -218,35 +218,35 @@ struct SubclassDef {
 };
 
 static const SubclassDef kSubclasses[4][2] = {
-    { // KNIGHT
+    { // KNIGHT (Class weapon: Sword WP_SWORD)
         {
-            CLASS_KNIGHT, 1, "Holy Paladin", "Thanh Ky Si - Khien & Bua Than",
-            { 255, 215, 90, 255 }, { 120, 230, 255, 255 }, WP_HAMMER, "Sunforged Hammer",
+            CLASS_KNIGHT, 1, "Holy Paladin", "Thanh Ky Si - Thanh Kiem & Khien",
+            { 255, 215, 90, 255 }, { 120, 230, 255, 255 }, WP_SWORD, "Sunforged Holy Sword",
             35.0f, 4.0f, 3.0f, 0.0f, 0.20f, 0.05f, 0.05f,
             "Divine Sanctuary", "-20% dmg taken; every 4th hit smites 115px AoE & heals 6 HP",
             "Crusader Grand Slam", "Lunge, slam 2.4x DMG, Stun 1.5s & spawn 2.5s healing zone",
-            "Aegis of Dawn", "2.2x Holy Nova + 4.5s Barrier (+4 ARM, +25% SPD, block 1 hit)",
+            "Aegis of Dawn", "2.2x Holy Nova + 4.5s Barrier (+6 ARM, +30% SPD, block 1 hit)",
             "Judgment of Solaris", "4.2x Light Swords + 4.5s Sanctuary (1.1x ticks & heal)"
         },
         {
-            CLASS_KNIGHT, 2, "Dread Berserker", "Cuong Chien - Dai Riu Huyet Ma",
-            { 235, 65, 65, 255 }, { 255, 165, 50, 255 }, WP_AXE, "Bloodreaver Axe",
+            CLASS_KNIGHT, 2, "Dread Berserker", "Cuong Chien - Huyet Kiem Cuong Bao",
+            { 235, 65, 65, 255 }, { 255, 165, 50, 255 }, WP_SWORD, "Bloodreaver Greatsword",
             20.0f, 10.0f, 0.0f, 25.0f, 0.45f, 0.08f, 0.12f,
-            "Blood Frenzy", "Attacks fire Blood Waves; missing HP grants up to +40% ATK SPD",
+            "Blood Frenzy", "Sword swings fire Blood Waves; missing HP grants up to +40% ATK SPD",
             "Savage Cleave Leap", "Leap 110px, slam 2.5x crimson AoE, Burn & heal 10% Max HP",
             "Bloodboil Roar", "2.0x Blood Nova + Slow, +25 Rage & 4s Frenzy (+30% ATK/SPD)",
             "Cataclysmic Guillotine", "4.2x Crimson Quake + 4s Blood Vortex pulling & shredding foes"
         }
     },
-    { // ASSASSIN
+    { // ASSASSIN (Class weapon: Dagger WP_DAGGER)
         {
-            CLASS_ASSASSIN, 1, "Phantom Reaper", "Tu Than - Luoi Hai Doat Menh",
-            { 195, 90, 255, 255 }, { 100, 245, 210, 255 }, WP_SCYTHE, "Nightfall Scythe",
+            CLASS_ASSASSIN, 1, "Phantom Reaper", "Tu Than - Song Chu Doan Menh",
+            { 195, 90, 255, 255 }, { 100, 245, 210, 255 }, WP_DAGGER, "Nightfall Soulblades",
             25.0f, 8.0f, 1.5f, 15.0f, 0.25f, 0.08f, 0.10f,
             "Soul Harvest", "Crits deal 2.6x DMG; kills launch homing Soul Wisps & heal 4 HP",
-            "Death Spiral", "Hurl 6 piercing spectral scythes (1.35x DMG, Poison & Chill)",
+            "Death Spiral", "Hurl 6 piercing spectral blades (1.35x DMG, Poison & Chill)",
             "Reaper's Blink", "Blink 225px, 2.6x guaranteed-crit Soul Reap + Soul Shield",
-            "Wraith Hurricane", "4.0s Scythe Storm (1.05x slashes/0.18s & heal 2 HP per hit)"
+            "Wraith Hurricane", "4.0s Blade Storm (1.05x slashes/0.18s & heal 2 HP per hit)"
         },
         {
             CLASS_ASSASSIN, 2, "Ninja Trickster", "Nhan Gia - Song Dao Sam Chop",
@@ -258,12 +258,12 @@ static const SubclassDef kSubclasses[4][2] = {
             "Thousand Blades", "3.8s hyper-storm (+45% SPD, rapid slashes + 4-way shurikens)"
         }
     },
-    { // MAGE
+    { // MAGE (Class weapon: Staff WP_STAFF; Spellblade renders as Magic Sword!)
         {
-            CLASS_MAGE, 1, "Spellblade (Kiem Su)", "Kiem Su - Phap Su Kiem Phep",
-            { 85, 230, 255, 255 }, { 210, 110, 255, 255 }, WP_SWORD, "Astral Runeblade",
+            CLASS_MAGE, 1, "Spellblade (Kiem Su)", "Kiem Su - Gay Phep Hoa Kiem",
+            { 85, 230, 255, 255 }, { 210, 110, 255, 255 }, WP_STAFF, "Runeblade Staff (Sword)",
             32.0f, 8.0f, 2.5f, 25.0f, 0.55f, 0.10f, 0.06f,
-            "Enchanted Runeblade", "Magic Sword swings fire piercing Moonlight Waves; Shield +25% SPD",
+            "Enchanted Runeblade", "Staff channels as Magic Sword firing Moonlight Waves; Shield +25% SPD",
             "Dimensional Slash", "Dash-cut 115px (2.4x DMG) + fire 3 piercing Moonlight Waves",
             "Phantom Sword Ring", "1.9x Frost-Fire Nova (Stun 1.4s) + 3.2s orbiting Magic Swords",
             "Excalibur Astral Storm", "3.8x Astral Greatsword impact + 4s Sword Rain & +35% ATK SPD"
@@ -278,7 +278,7 @@ static const SubclassDef kSubclasses[4][2] = {
             "Cosmic Singularity", "4.2s giant Void Black Hole + meteors (1.75x) & +25% HP heal"
         }
     },
-    { // RANGER
+    { // RANGER (Class weapon: Bow WP_BOW)
         {
             CLASS_RANGER, 1, "Sniper Deadeye", "Than Tien - Cung Than Bach Phat",
             { 95, 240, 145, 255 }, { 255, 220, 85, 255 }, WP_BOW, "Windforce Longbow",
@@ -289,13 +289,13 @@ static const SubclassDef kSubclasses[4][2] = {
             "Solaris Arrow Tempest", "4.0s storm of sun-arrows (1.35x + Burn) & +45% ATK SPD"
         },
         {
-            CLASS_RANGER, 2, "Valkyrie Lancer", "Chien Than - Thuong Sam Set",
-            { 90, 215, 235, 255 }, { 255, 215, 90, 255 }, WP_SPEAR, "Thunderbolt Lance",
+            CLASS_RANGER, 2, "Tempest Valkyrie", "Chien Than - Cung Sam Set",
+            { 90, 215, 235, 255 }, { 255, 215, 90, 255 }, WP_BOW, "Thunderbolt Greatbow",
             30.0f, 8.0f, 2.5f, 25.0f, 0.35f, 0.08f, 0.08f,
-            "Storm Javelin", "Spear thrusts also hurl a piercing Lightning Javelin (1.1x DMG)",
-            "Thunder Charge", "Lunge 120px with Spear (2.3x DMG + Stun) & hurl 3 Javelins",
+            "Storm Arrow", "Every bow shot fires piercing Lightning Arrows with shockwave",
+            "Thunder Volley", "Fire 7 lightning arrows (1.35x AoE, pierce 3 & 0.8s Stun)",
             "Tempest Vault", "Drop 2.5x Shock Trap, leap back & gain Storm Shield + Haste",
-            "Gungnir Skyfall", "Rain Lightning Spears for 3.8s (1.35x AoE) + +35% ATK SPD"
+            "Gungnir Skyfall", "Rain Lightning Arrows for 3.8s (1.35x AoE) + +35% ATK SPD"
         }
     }
 };
@@ -613,7 +613,7 @@ static EquipItem MakeStarterWeapon(int weaponType) {
     return it;
 }
 
-static EquipItem GenerateItem(int floor) {
+static EquipItem GenerateItem(int floor, int forcedWeaponType = -1) {
     static const char* weaponNames[8] = { "Sword", "Dagger", "Axe", "Spear", "Hammer", "Scythe", "Bow", "Staff" };
     static const char* names[4][4] = {
         { "Sword", "Dagger", "Axe", "Spear" }, { "Plate", "Mail", "Vest", "Cuirass" },
@@ -647,7 +647,7 @@ static EquipItem GenerateItem(int floor) {
             break;
     }
     if (it.slot == SLOT_WEAPON) {
-        int wi = rand() % 8;
+        int wi = (forcedWeaponType >= 0 && forcedWeaponType < 8) ? forcedWeaponType : (rand() % 8);
         it.weaponType = wi;
         it.name = std::string(prefix[it.rarity][rand() % 4]) + " " + weaponNames[wi];
     } else {
@@ -914,7 +914,18 @@ public:
     const char* EDesc() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->eDesc : BaseClass().eDesc; }
     const char* RName() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->rName : BaseClass().rName; }
     const char* RDesc() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->rDesc : BaseClass().rDesc; }
-    int PreferredWeaponType() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->signatureWeapon : BaseClass().startWeapon; }
+    static int ClassWeaponType(int heroClass) {
+        int hc = std::max(0, std::min(3, heroClass));
+        return kClasses[hc].startWeapon; // Knight: Sword, Assassin: Dagger, Mage: Staff, Ranger: Bow
+    }
+    static int VisualWeaponType(int heroClass, int subClass, int itemWeaponType) {
+        (void)itemWeaponType;
+        int hc = std::max(0, std::min(3, heroClass));
+        if (hc == CLASS_MAGE && subClass == 1) return WP_SWORD; // Kiem Su: dung Gay nhung model la Kiem Phep
+        return ClassWeaponType(hc);
+    }
+    bool CanUseWeapon(int weaponType) const { return weaponType == ClassWeaponType(player.heroClass); }
+    int PreferredWeaponType() const { return ClassWeaponType(player.heroClass); }
     float CritMult() const { return player.heroClass == CLASS_ASSASSIN ? (player.subClass == 1 ? 2.6f : 2.4f) : 2.0f; }
 
     float SkillCdrMult() const {
@@ -2899,14 +2910,15 @@ public:
         player.skill2Timer = 0.0f;
         AddRage(30.0f);
 
-        // Rèn lại vũ khí hiện tại sang vũ khí trấn phái của nhánh phụ
+        // Rèn lại tên & chỉ số vũ khí trấn phái theo đúng vũ khí đặc trưng của class
+        int cw = ClassWeaponType(hc);
         if (hasEquip[SLOT_WEAPON]) {
-            equipped[SLOT_WEAPON].weaponType = sc.signatureWeapon;
+            equipped[SLOT_WEAPON].weaponType = cw;
             equipped[SLOT_WEAPON].name = std::string(equipped[SLOT_WEAPON].RarityName()) + " " + sc.weaponTitle;
             equipped[SLOT_WEAPON].damage += 4.0f;
             player.baseDmg += 4.0f;
         } else {
-            EquipItem w = MakeStarterWeapon(sc.signatureWeapon);
+            EquipItem w = MakeStarterWeapon(cw);
             w.name = sc.weaponTitle;
             int sold = 0;
             TryEquipItem(w, sold);
@@ -3723,13 +3735,14 @@ public:
             Diamond({ head.x + face * 0.5f, head.y + 0.5f }, 2.4f, 2.0f, { 255, 225, 95, 255 }, ink);
         }
 
-        // Vũ khí theo hướng ngắm
+        // Vũ khí theo hướng ngắm (Class quyết định model; Kiếm Sư dùng Gậy nhưng hiển thị model Kiếm Phép!)
+        int visWt = VisualWeaponType(heroClass, subClass, wt);
         bool enchanted = (subClass > 0 && ((heroClass == CLASS_MAGE && subClass == 1) || (heroClass == CLASS_RANGER && subClass == 2)));
         float a = atan2f(aimDir.y, aimDir.x);
         float sa = a + atkSweep;
         Vector2 dir = { cosf(sa), sinf(sa) };
         Vector2 hand = { body.x + dir.x * 16.0f, body.y + dir.y * 16.0f };
-        DrawWeaponModel(hand, dir, wt, t, enchanted);
+        DrawWeaponModel(hand, dir, visWt, t, enchanted);
 
         if (subClass == 1 || subClass == 2) {
             const SubclassDef& sc = kSubclasses[std::max(0, std::min(3, heroClass))][subClass - 1];
@@ -3774,10 +3787,11 @@ public:
         const bool moving = player.walkTimer > 0.01f && (IsKeyDown(KEY_W) || IsKeyDown(KEY_A) || IsKeyDown(KEY_S) || IsKeyDown(KEY_D)
                               || IsKeyDown(KEY_UP) || IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_RIGHT) || (ctl.active && Vector2Length(ctl.move) > 0.1f));
         int wt = hasEquip[SLOT_WEAPON] ? equipped[SLOT_WEAPON].weaponType : PreferredWeaponType();
+        int visWt = VisualWeaponType(player.heroClass, player.subClass, wt);
         float effRate = EffectiveAttackRate();
         float sinceAtk = (1.0f / std::max(0.1f, effRate)) - player.attackTimer;
         float off = 0.5f;
-        if (wt == WP_BOW || wt == WP_STAFF) off = 0.0f;
+        if (visWt == WP_BOW || visWt == WP_STAFF) off = 0.0f;
         else if (player.attackTimer > 0.0f && sinceAtk < 0.16f) off = Lerp(-1.25f, 1.25f, sinceAtk / 0.16f);
         DrawHeroModel(player.pos, player.heroClass, wt, aimDirDraw, player.facingLeft, player.walkTimer, moving, off, player.isInvuln, player.shieldActive, player.holyBuffTimer, player.ultActiveTimer, player.subClass, player.swordOrbitTimer);
     }
@@ -4192,10 +4206,10 @@ public:
         projectiles.push_back(sw);
     }
 
-    // Đòn đánh cơ bản theo 8 loại vũ khí + nội tại từng hệ nhân vật & nhánh phụ
+    // Đòn đánh cơ bản theo vũ khí đặc trưng từng class + hiệu ứng nhánh phụ
     void MeleeAttack(Vector2 aimDir) {
-        int wt = hasEquip[SLOT_WEAPON] ? equipped[SLOT_WEAPON].weaponType : PreferredWeaponType();
-        wt = std::max(0, std::min(7, wt));
+        int wt = ClassWeaponType(player.heroClass);
+        int visWt = VisualWeaponType(player.heroClass, player.subClass, wt);
         static const float wReach[8]  = { 45.0f, 38.0f, 40.0f, 0.0f, 46.0f, 26.0f, 20.0f, 20.0f };
         static const float wRadius[8] = { 75.0f, 64.0f, 98.0f, 0.0f, 85.0f, 92.0f, 0.0f,  0.0f  };
         static const float wDmg[8]    = { 1.00f, 0.85f, 1.35f, 1.10f, 1.55f, 1.20f, 0.95f, 1.15f };
@@ -4239,23 +4253,56 @@ public:
         SlashVisual sv;
         sv.pos = Vector2Add(player.pos, Vector2Scale(aimDir, 35.0f));
         sv.angle = atan2f(aimDir.y, aimDir.x) * RAD2DEG;
-        sv.kind = wt;
+        sv.kind = visWt;
         sv.color = (player.heroClass == CLASS_MAGE && player.subClass == 1) ? Color{ 85, 235, 255, 255 }
                  : (player.heroClass == CLASS_KNIGHT && player.subClass == 2) ? Color{ 255, 85, 75, 255 }
-                 : (eagleMark ? Color{ 85, 255, 165, 255 } : WHITE);
+                 : (player.heroClass == CLASS_RANGER && player.subClass == 2 ? Color{ 100, 240, 255, 255 }
+                 : (eagleMark ? Color{ 85, 255, 165, 255 } : WHITE));
         slashes.push_back(sv);
+
+        // Spellblade (Kiếm Sư): trang bị Gậy (WP_STAFF) nhưng thể hiện thành Kiếm Phép (model WP_SWORD), vừa chém gần vừa phóng kiếm khí nổ AoE
+        if (player.heroClass == CLASS_MAGE && player.subClass == 1) {
+            PlaySound(snd.sndSlash);
+            PlaySound(snd.sndShoot);
+            if (player.attackCounter % 3 == 0) {
+                float ba = atan2f(aimDir.y, aimDir.x);
+                for (int w = -1; w <= 1; w += 2) {
+                    float a = ba + w * 0.16f;
+                    FireSwordWave(player.pos, { cosf(a), sinf(a) }, player.baseDmg * wDmg[wt] * 1.05f, 600.0f, 3, { 125, 235, 255, 255 }, 14.0f, false);
+                    projectiles.back().splashRadius = 48.0f;
+                    projectiles.back().splashRatio = 0.45f;
+                }
+            } else {
+                FireSwordWave(player.pos, aimDir, player.baseDmg * wDmg[wt] * 1.10f, 580.0f, 3, { 95, 235, 255, 255 }, 13.5f, false);
+                projectiles.back().splashRadius = 52.0f;
+                projectiles.back().splashRatio = 0.50f;
+            }
+            Vector2 hitC = Vector2Add(player.pos, Vector2Scale(aimDir, 45.0f));
+            for (auto& e : enemies) {
+                if (e.hp <= 0) continue;
+                if (Vector2Distance(hitC, e.pos) <= 78.0f + e.radius) {
+                    bool isCrit = (Rand01() < std::min(0.85f, player.critChance));
+                    float dmg = player.baseDmg * wDmg[wt] * (isCrit ? critMul : 1.0f);
+                    Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
+                    DamageEnemy(e, dmg, kb, isCrit ? 220.0f : 150.0f, isCrit, true);
+                }
+            }
+            TriggerBarrelsInRadius(hitC, 85.0f, player.baseDmg * wDmg[wt]);
+            return;
+        }
 
         // Vũ khí tầm xa: Cung (6) và Trượng (7)
         if (wt == WP_BOW || wt == WP_STAFF) {
             PlaySound(snd.sndShoot);
             int count = (wt == WP_STAFF && player.heroClass == CLASS_MAGE && player.subClass == 2) ? 2 : 1;
             Vector2 perp = { -aimDir.y, aimDir.x };
+            bool isVal = (wt == WP_BOW && player.heroClass == CLASS_RANGER && player.subClass == 2);
             for (int c = 0; c < count; ++c) {
                 float off = (count == 2) ? (c == 0 ? -9.0f : 9.0f) : 0.0f;
                 Projectile p;
                 p.fromPlayer = true;
                 p.pos = Vector2Add(Vector2Add(player.pos, Vector2Scale(aimDir, 22.0f)), Vector2Scale(perp, off));
-                float spd = (wt == WP_BOW) ? (eagleMark ? 780.0f : (player.subClass == 1 ? 700.0f : 620.0f)) : (player.subClass == 2 ? 540.0f : 480.0f);
+                float spd = (wt == WP_BOW) ? (eagleMark ? 780.0f : (player.subClass >= 1 ? 700.0f : 620.0f)) : (player.subClass == 2 ? 540.0f : 480.0f);
                 p.vel = Vector2Scale(aimDir, spd);
                 float emMul = eagleMark ? (player.subClass == 1 ? 1.75f : 1.50f) : 1.0f;
                 p.damage = player.baseDmg * wDmg[wt] * emMul * (count == 2 ? 0.72f : 1.0f);
@@ -4266,9 +4313,10 @@ public:
                     bool isCrit = (Rand01() < std::min(0.85f, player.critChance + p.critBonus));
                     p.hasPreCrit = true;
                     p.preCrit = isCrit;
-                    p.pierce = eagleMark ? 99 : ((isCrit ? 1 : 0) + (player.heroClass == CLASS_RANGER && player.subClass == 1 ? 1 : 0));
+                    p.pierce = eagleMark ? 99 : ((isCrit ? 1 : 0) + (player.heroClass == CLASS_RANGER && player.subClass >= 1 ? 1 : 0));
+                    if (isVal) { p.splashRadius = 48.0f; p.splashRatio = 0.45f; }
                     p.radius = eagleMark ? 9.0f : 6.5f;
-                    p.color = eagleMark ? Color{ 85, 255, 165, 255 } : (isCrit ? GOLD : Color{ 225, 245, 145, 255 });
+                    p.color = eagleMark ? Color{ 85, 255, 165, 255 } : (isVal ? Color{ 100, 240, 255, 255 } : (isCrit ? GOLD : Color{ 225, 245, 145, 255 }));
                 } else {
                     p.pierce = eagleMark ? 99 : 0;
                     p.splashRadius = (count == 2) ? 62.0f : 52.0f;
@@ -4284,18 +4332,8 @@ public:
         }
 
         PlaySound(snd.sndSlash);
-        // Hiệu ứng phóng kiếm khí / phi tiêu / lao sấm theo class phụ ở đòn đánh thường
-        if (player.heroClass == CLASS_MAGE && player.subClass == 1) { // Spellblade (Kiem Su): Moonlight Sword Wave
-            if (player.attackCounter % 3 == 0) {
-                float ba = atan2f(aimDir.y, aimDir.x);
-                for (int w = -1; w <= 1; w += 2) {
-                    float a = ba + w * 0.16f;
-                    FireSwordWave(player.pos, { cosf(a), sinf(a) }, player.baseDmg * 1.10f, 600.0f, 3, { 125, 235, 255, 255 }, 14.0f, false);
-                }
-            } else {
-                FireSwordWave(player.pos, aimDir, player.baseDmg * 1.15f, 580.0f, 3, { 95, 235, 255, 255 }, 13.5f, false);
-            }
-        } else if (player.heroClass == CLASS_KNIGHT && player.subClass == 2) { // Dread Berserker: Blood Wave
+        // Hiệu ứng phóng kiếm khí / phi tiêu theo nhánh phụ cận chiến
+        if (player.heroClass == CLASS_KNIGHT && player.subClass == 2) { // Dread Berserker: Blood Wave
             FireSwordWave(player.pos, aimDir, player.baseDmg * 0.80f, 520.0f, 2, { 255, 75, 85, 255 }, 12.0f, true);
             AddRage(2.5f);
         } else if (player.heroClass == CLASS_ASSASSIN && player.subClass == 2) { // Ninja Trickster: Lightning Shuriken
@@ -4310,18 +4348,6 @@ public:
             sh.pierce = 1;
             sh.color = { 110, 235, 255, 255 };
             projectiles.push_back(sh);
-        } else if (player.heroClass == CLASS_RANGER && player.subClass == 2) { // Valkyrie Lancer: Lightning Javelin
-            Projectile jv;
-            jv.fromPlayer = true;
-            jv.kind = 1;
-            jv.pos = Vector2Add(player.pos, Vector2Scale(aimDir, 22.0f));
-            jv.vel = Vector2Scale(aimDir, 680.0f);
-            jv.damage = player.baseDmg * 1.10f;
-            jv.life = 1.4f;
-            jv.radius = 8.0f;
-            jv.pierce = 3;
-            jv.color = { 110, 240, 255, 255 };
-            projectiles.push_back(jv);
         }
 
         if (eagleMark) {
@@ -4581,41 +4607,31 @@ public:
             }
         } else {
             if (player.subClass == 2) {
-                // Valkyrie Lancer [Q]: Thunder Charge 120px (2.3x + Stun 1.0s) + 3 Lightning Javelins
-                Vector2 dest = Vector2Add(player.pos, Vector2Scale(aimDir, 120.0f));
-                dest.x = Clamp(dest.x, -bw, bw);
-                dest.y = Clamp(dest.y, -bh, bh);
-                ResolvePillars(dest, 15.0f);
-                ghosts.push_back({ player.pos, player.facingLeft, 0.25f, 0.25f });
-                player.pos = dest;
-                player.invulnTimer = std::max(player.invulnTimer, 0.32f);
+                // Tempest Valkyrie [Q]: Thunder Volley (7 mũi tên sét nổ AoE + choáng 0.8s quanh thân)
+                PlaySound(snd.sndShoot);
                 PlaySound(snd.sndSpecial);
-                Shake(0.22f, 5.5f);
-                Burst(dest, { 90, 235, 255, 255 }, 22, 300.0f, 0.5f);
-                SlashVisual sv; sv.pos = Vector2Add(dest, Vector2Scale(aimDir, 35.0f)); sv.angle = atan2f(aimDir.y, aimDir.x) * RAD2DEG; sv.kind = WP_SPEAR; sv.color = { 90, 235, 255, 255 };
-                slashes.push_back(sv);
-                NovaVisual nv; nv.pos = dest; nv.maxRadius = 145.0f; nv.timer = 0.26f; nv.maxTimer = 0.26f; nv.color = { 90, 235, 255, 255 };
+                Shake(0.18f, 4.5f);
+                NovaVisual nv; nv.pos = player.pos; nv.maxRadius = 135.0f; nv.timer = 0.25f; nv.maxTimer = 0.25f; nv.color = { 100, 240, 255, 255 };
                 novas.push_back(nv);
                 for (auto& e : enemies) {
-                    if (e.hp <= 0) continue;
-                    if (Vector2Distance(dest, e.pos) <= 145.0f + e.radius * 0.4f) {
-                        bool isCrit = (Rand01() < player.critChance);
-                        float dmg = player.baseDmg * 2.3f * (isCrit ? critMul : 1.0f);
-                        Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
-                        DamageEnemy(e, dmg, kb, 250.0f, isCrit, true);
-                        if (e.hp > 0) e.stunTimer = std::max(e.stunTimer, 1.0f);
+                    if (e.hp > 0 && Vector2Distance(player.pos, e.pos) <= 135.0f + e.radius) {
+                        e.stunTimer = std::max(e.stunTimer, 0.8f);
                     }
                 }
-                TriggerBarrelsInRadius(dest, 145.0f, player.baseDmg * 2.3f);
                 float baseAng = atan2f(aimDir.y, aimDir.x);
-                for (int i = -1; i <= 1; ++i) {
-                    float a = baseAng + i * 0.20f;
+                for (int i = -3; i <= 3; ++i) {
+                    float a = baseAng + i * 0.14f;
                     Vector2 d = { cosf(a), sinf(a) };
-                    Projectile jv; jv.fromPlayer = true; jv.kind = 1; jv.pos = Vector2Add(dest, Vector2Scale(d, 20.0f));
-                    jv.vel = Vector2Scale(d, 720.0f); jv.damage = player.baseDmg * 1.45f; jv.life = 1.5f; jv.radius = 8.5f; jv.pierce = 3;
-                    jv.color = { 100, 240, 255, 255 };
-                    projectiles.push_back(jv);
+                    Projectile p; p.fromPlayer = true; p.kind = 1;
+                    p.pos = Vector2Add(player.pos, Vector2Scale(d, 20.0f));
+                    p.vel = Vector2Scale(d, 720.0f);
+                    p.damage = player.baseDmg * 1.35f;
+                    p.life = 1.6f; p.radius = 8.0f; p.pierce = 3;
+                    p.splashRadius = 55.0f; p.splashRatio = 0.6f;
+                    p.color = { 100, 240, 255, 255 };
+                    projectiles.push_back(p);
                 }
+                Burst(Vector2Add(player.pos, Vector2Scale(aimDir, 20.0f)), { 100, 240, 255, 255 }, 16, 240.0f, 0.4f);
             } else {
                 // Ranger / Sniper Deadeye [Q]: Liên Xạ Tiễn (7 mũi tên / 9 mũi tên xuyên đốt)
                 PlaySound(snd.sndShoot);
@@ -5268,8 +5284,8 @@ public:
                 if (c.vault) { // kho báu: chắc chắn có trang bị hiếm trở lên (và một relic nếu còn)
                     GiveRandomRelic();
                     ItemDrop d;
-                    d.item = GenerateItem(floor + 1);
-                    for (int tries = 0; tries < 30 && d.item.rarity < 1; ++tries) d.item = GenerateItem(floor + 1);
+                    d.item = GenerateItem(floor + 1, ClassWeaponType(player.heroClass));
+                    for (int tries = 0; tries < 30 && d.item.rarity < 1; ++tries) d.item = GenerateItem(floor + 1, ClassWeaponType(player.heroClass));
                     d.pos = { c.pos.x, c.pos.y + 50.0f };
                     d.life = 90.0f;
                     d.phase = Rand01() * 6.0f;
@@ -5316,7 +5332,7 @@ public:
     void StockShop() {
         for (int i = 0; i < 4; ++i) {
             shopSlots[i] = ShopSlot();
-            shopSlots[i].item = GenerateItem(floor);
+            shopSlots[i].item = GenerateItem(floor, ClassWeaponType(player.heroClass));
             shopSlots[i].price = std::max(1, (int)roundf(ItemPrice(shopSlots[i].item) * (1.0f - 0.05f * meta[6])));
         }
         shopSlots[4] = ShopSlot();
@@ -5807,14 +5823,21 @@ public:
         player.critChance += sign * it.crit;
     }
 
-    // Mặc nếu mạnh hơn món đang đeo (món cũ được bán lấy vàng). Trả về false nếu không mặc.
+    // Mặc nếu mạnh hơn món đang đeo và đúng loại vũ khí của class (món cũ bán lấy vàng).
     bool TryEquipItem(const EquipItem& it, int& soldGold) {
         soldGold = 0;
         EquipItem item = it;
         const SubclassDef* sc = ActiveSubclass();
-        if (item.slot == SLOT_WEAPON && sc != nullptr) {
-            item.weaponType = sc->signatureWeapon;
-            item.name = std::string(item.RarityName()) + " " + sc->weaponTitle;
+        if (item.slot == SLOT_WEAPON) {
+            int cw = ClassWeaponType(player.heroClass);
+            if (!CanUseWeapon(item.weaponType)) {
+                item.weaponType = cw;
+                static const char* weaponNames[8] = { "Sword", "Dagger", "Axe", "Spear", "Hammer", "Scythe", "Bow", "Staff" };
+                item.name = std::string(item.RarityName()) + " " + weaponNames[cw];
+            }
+            if (sc != nullptr) {
+                item.name = std::string(item.RarityName()) + " " + sc->weaponTitle;
+            }
         }
         int s = item.slot;
         if (hasEquip[s]) {
@@ -5832,7 +5855,7 @@ public:
     void SpawnItemDrop(Vector2 pos) {
         ItemDrop d;
         d.pos = Vector2Add(pos, { (Rand01() - 0.5f) * 30.0f, (Rand01() - 0.5f) * 30.0f });
-        d.item = GenerateItem(floor);
+        d.item = GenerateItem(floor, ClassWeaponType(player.heroClass));
         d.life = 90.0f;
         d.phase = Rand01() * 6.0f;
         itemDrops.push_back(d);
@@ -6488,8 +6511,8 @@ public:
                 }
                 if (existsFlag == 1) {
                     info.exists = true;
+                    info.weaponType = ClassWeaponType(info.heroClass);
                     if (!hasW || info.weaponName.empty()) {
-                        info.weaponType = kClasses[info.heroClass].startWeapon;
                         info.weaponName = MakeStarterWeapon(info.weaponType).name;
                     }
                 }
@@ -6688,6 +6711,9 @@ public:
         for (int i = 0; i < 4; ++i) {
             hasEquip[i] = loadedHas[i];
             equipped[i] = loadedEq[i];
+        }
+        if (hasEquip[SLOT_WEAPON]) {
+            equipped[SLOT_WEAPON].weaponType = ClassWeaponType(player.heroClass);
         }
         floor = loadedFloor;
         enemiesSlain = loadedSlain;
@@ -6900,7 +6926,7 @@ public:
         const char* rows[][2] = {
             { "W A S D / Arrows", "Move" },
             { "Mouse", "Aim weapon & skills" },
-            { "Left Click / Space / J", "Basic Attack (8 weapon types)" },
+            { "Left Click / Space / J", "Basic Attack (Class-Exclusive Weapon)" },
             { "Right Click / Shift / K", "Dash (brief invulnerability)" },
             { "Q / U", "Class Skill 1" },
             { "E / L", "Class Skill 2" },
