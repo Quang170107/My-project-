@@ -116,6 +116,7 @@ inline int Game::VisualWeaponType(int heroClass, int subClass, int itemWeaponTyp
 inline float Game::SkillCdrMult() const {
     float mult = std::max(0.45f, 1.0f - 0.12f * player.cdrUpgrades);
     if (player.heroClass == CLASS_MAGE) mult *= (player.subClass == 2 ? 0.78f : 0.85f);
+    if (bloodlineTrait == 2) mult *= 0.90f; // Arcane Blood
     return mult;
 }
 
@@ -132,6 +133,7 @@ inline float Game::EffectiveAttackRate() const {
         else if (player.heroClass == CLASS_KNIGHT || player.heroClass == CLASS_MAGE) r *= 1.30f;
     }
     if (comboCount >= 10) r *= 1.20f; // Frenzy Overdrive
+    if (styleRank > 0) r *= (1.0f + 0.035f * styleRank);
     for (const auto& h : hazards) {
         if (h.kind == 3 && Vector2Distance(player.pos, h.pos) < h.radius) { r *= 1.25f; break; }
     }
@@ -149,8 +151,146 @@ inline float Game::EffectiveMoveSpeed() const {
     if (comboCount >= 10) s *= 1.18f; // Frenzy Overdrive
     if (player.frostSlowTimer > 0.0f) s *= 0.72f;
     if (surfaceUnlocked && hunger < 25.0f) s *= 0.90f;
+    if (bloodlineTrait == 1) s *= 1.06f; // Shadowstep
     s *= AgeSpeedMult();
     return s;
+}
+
+inline void Game::AddStyle(float pts) {
+    if (pts <= 0.0f) return;
+    styleDecayTimer = 3.2f;
+    stylePoints += pts;
+    while (stylePoints >= 100.0f && styleRank < 6) {
+        stylePoints -= 100.0f;
+        styleRank++;
+    }
+    if (styleRank >= 6) stylePoints = std::min(100.0f, stylePoints);
+}
+
+inline const char* Game::StyleRankLabel() const {
+    static const char* kLabels[7] = { "D", "C", "B", "A", "S", "SS", "SSS" };
+    return kLabels[std::max(0, std::min(6, styleRank))];
+}
+
+inline Color Game::StyleRankColor() const {
+    static const Color kCols[7] = {
+        { 145, 155, 175, 255 }, { 110, 215, 255, 255 }, { 115, 240, 150, 255 },
+        { 255, 220, 95, 255 },  { 255, 145, 55, 255 },  { 255, 75, 115, 255 }, { 235, 110, 255, 255 }
+    };
+    return kCols[std::max(0, std::min(6, styleRank))];
+}
+
+inline const char* Game::BloodlineTraitName() const {
+    switch (bloodlineTrait) {
+        case 0: return L("Dragonheart", "Long Huyết");
+        case 1: return L("Shadowstep", "Ảnh Bộ");
+        case 2: return L("Arcane Blood", "Ma Huyết");
+        default: return L("Sovereign", "Hoàng Tộc");
+    }
+}
+
+inline const char* Game::BloodlineTraitDesc() const {
+    switch (bloodlineTrait) {
+        case 0: return L("+8% Max HP, +5% Base DMG", "+8% Máu tối đa, +5% ST cơ bản");
+        case 1: return L("+6% Move Speed, +5% Crit", "+6% Tốc chạy, +5% Chí mạng");
+        case 2: return L("+10% Skill CDR, +15% Reaction DMG", "+10% Hồi chiêu, +15% ST Phản ứng");
+        default: return L("+15% Gold Gain, +2 Armor", "+15% Vàng nhặt, +2 Giáp");
+    }
+}
+
+inline void Game::TriggerElementalReaction(Enemy& e, int reactionKind, Vector2 pos) {
+    if (e.hp <= 0 || e.reactionCooldown > 0.0f) return;
+    e.reactionCooldown = 0.65f;
+    elementalReactionsCount++;
+    if (bountyActive && bountyKind == 1) bountyProgress++;
+    AddStyle(24.0f);
+    float reactMult = (bloodlineTrait == 2 ? 1.15f : 1.0f) * (HasDuoTempestFrost() ? 1.15f : 1.0f);
+    if (reactionKind == 0) { // MELT / TAN CHAY
+        float bd = player.baseDmg * 1.45f * reactMult;
+        e.hp -= bd;
+        e.burnTimer = std::max(0.0f, e.burnTimer - 0.8f);
+        NovaVisual nv; nv.pos = pos; nv.maxRadius = 90.0f; nv.timer = 0.30f; nv.maxTimer = 0.30f; nv.color = { 255, 165, 95, 255 };
+        novas.push_back(nv);
+        Burst(pos, { 255, 175, 100, 255 }, 14, 220.0f, 0.45f);
+        SpawnPopup({ pos.x, pos.y - 26.0f }, TextFormat(L("MELT! %d", "TAN CHẢY! %d"), (int)bd), { 255, 170, 75, 255 });
+    } else if (reactionKind == 1) { // OVERLOAD / QUA TAI
+        float bd = player.baseDmg * 1.35f * reactMult;
+        NovaVisual nv; nv.pos = pos; nv.maxRadius = 125.0f; nv.timer = 0.34f; nv.maxTimer = 0.34f; nv.color = { 255, 95, 195, 255 };
+        novas.push_back(nv);
+        Burst(pos, { 255, 100, 210, 255 }, 18, 280.0f, 0.45f);
+        Shake(0.14f, 4.0f);
+        for (auto& other : enemies) {
+            if (other.hp <= 0) continue;
+            float d = Vector2Distance(pos, other.pos);
+            if (d < 125.0f) {
+                other.hp -= bd;
+                Vector2 push = Vector2Normalize(Vector2Subtract(other.pos, pos));
+                other.pos = Vector2Add(other.pos, Vector2Scale(push, 24.0f));
+                if (&other != &e && other.hp <= 0) OnEnemyKilled(other);
+            }
+        }
+        SpawnPopup({ pos.x, pos.y - 26.0f }, TextFormat(L("OVERLOAD! %d", "QUÁ TẢI! %d"), (int)bd), { 255, 110, 220, 255 });
+    } else if (reactionKind == 2) { // VENOM SHOCK / DOC SET
+        float bd = player.baseDmg * 1.15f * reactMult;
+        e.hp -= bd;
+        NovaVisual nv; nv.pos = pos; nv.maxRadius = 135.0f; nv.timer = 0.30f; nv.maxTimer = 0.30f; nv.color = { 120, 245, 130, 255 };
+        novas.push_back(nv);
+        for (auto& other : enemies) {
+            if (&other != &e && other.hp > 0 && Vector2Distance(pos, other.pos) < 140.0f) {
+                other.hp -= bd * 0.65f;
+                other.poisonTimer = std::max(other.poisonTimer, 2.5f);
+                other.poisonDmg = std::max(other.poisonDmg, player.baseDmg * 0.25f);
+                if (other.hp <= 0) OnEnemyKilled(other);
+            }
+        }
+        SpawnPopup({ pos.x, pos.y - 26.0f }, TextFormat(L("VENOM SHOCK! %d", "ĐỘC SÉT! %d"), (int)bd), { 120, 255, 135, 255 });
+    } else { // SHATTER / PHA BANG
+        float bd = player.baseDmg * 1.25f * reactMult;
+        e.hp -= bd;
+        Burst(pos, { 150, 235, 255, 255 }, 16, 250.0f, 0.45f);
+        SpawnPopup({ pos.x, pos.y - 26.0f }, TextFormat(L("SHATTER! %d", "PHÁ BĂNG! %d"), (int)bd), { 155, 240, 255, 255 });
+    }
+    hitStop = std::max(hitStop, 0.024f);
+}
+
+inline void Game::TriggerPerfectDodge() {
+    perfectDodgeTimer = 0.40f;
+    nextHitCrit = true;
+    perfectDodgesCount++;
+    AddRage(14.0f);
+    AddStyle(35.0f);
+    player.specialTimer = std::max(0.0f, player.specialTimer - 1.2f);
+    player.skill2Timer = std::max(0.0f, player.skill2Timer - 1.2f);
+    player.skill3Timer = std::max(0.0f, player.skill3Timer - 1.2f);
+    player.skill4Timer = std::max(0.0f, player.skill4Timer - 1.2f);
+    ghosts.push_back({ player.pos, player.facingLeft, 0.45f, 0.45f });
+    NovaVisual nv; nv.pos = player.pos; nv.maxRadius = 78.0f; nv.timer = 0.28f; nv.maxTimer = 0.28f; nv.color = GOLD;
+    novas.push_back(nv);
+    Burst(player.pos, GOLD, 16, 240.0f, 0.45f);
+    SpawnPopup({ player.pos.x, player.pos.y - 34.0f }, L("PERFECT DODGE!", "NÉ HOÀN HẢO!"), GOLD);
+    PlaySound(snd.sndDash);
+}
+
+inline void Game::AcceptBloodPact() {
+    if (!hasBloodPact || bloodPactUsed) return;
+    bloodPactUsed = true;
+    curseStacks++;
+    float hpLoss = std::max(12.0f, roundf(player.maxHp * 0.14f));
+    player.maxHp = std::max(50.0f, player.maxHp - hpLoss);
+    player.hp = std::min(player.hp, player.maxHp);
+    player.baseDmg += 10.0f;
+    player.critChance = std::min(0.65f, player.critChance + 0.06f);
+    bossEssence++;
+    bool gotRelic = GiveRandomRelic();
+    AddStyle(40.0f);
+    PlaySound(snd.sndLevelUp);
+    Shake(0.25f, 6.0f);
+    Burst(bloodPactPos, { 220, 45, 75, 255 }, 28, 280.0f, 0.7f);
+    ShowBanner(gotRelic
+        ? L("BLOOD PACT SEALED: +Relic, +10 DMG, +6% Crit, +1 Essence (Enemies +8%)",
+            "GIAO ƯỚC MÁU: +Thánh Vật, +10 ST, +6% Chí Mạng, +1 Tinh Hoa (Quái +8%)")
+        : L("BLOOD PACT SEALED: +10 DMG, +6% Crit, +1 Essence (Enemies +8%)",
+            "GIAO ƯỚC MÁU: +10 ST, +6% Chí Mạng, +1 Tinh Hoa (Quái +8%)"), 3.8f);
 }
 
 inline void Game::AddRage(float amt) {
@@ -218,6 +358,25 @@ inline void Game::RestartRun() {
     bestCombo = 0;
     damagePulse = 0.0f;
     hitStop = 0.0f;
+    slowMoTimer = 0.0f;
+    perfectDodgeTimer = 0.0f;
+    nextHitCrit = false;
+    stylePoints = 0.0f;
+    styleRank = 0;
+    styleDecayTimer = 0.0f;
+    perfectDodgesCount = 0;
+    elementalReactionsCount = 0;
+    curseStacks = 0;
+    hasBloodPact = false;
+    bloodPactUsed = false;
+    bossEssence = 0;
+    for (int i = 0; i < 4; ++i) equipPlus[i] = 0;
+    bountyActive = false;
+    bountyProgress = 0;
+    bloodlineTrait = hc % 4;
+    if (bloodlineTrait == 0) { player.maxHp = roundf(player.maxHp * 1.08f); player.hp = player.maxHp; player.baseDmg = roundf(player.baseDmg * 1.05f); }
+    else if (bloodlineTrait == 1) { player.critChance += 0.05f; }
+    else if (bloodlineTrait == 3) { player.armor += 2.0f; }
     particles.clear();
     groundEffects.clear();
     for (int i = 0; i < 4; ++i) hasEquip[i] = false;
@@ -743,6 +902,28 @@ inline void Game::BuildFloor() {
         }
     }
 
+    // Đài Giao Ước Bóng Tối (Slay the Spire / Isaac risk-reward altar)
+    hasBloodPact = (!isBoss && !shopFloor && floorMod != MOD_TREASURE && floor >= 4 && (floor % 3 == 1 || floor % 5 == 4));
+    bloodPactUsed = false;
+    if (hasBloodPact) {
+        bloodPactPos = { (Rand01() < 0.5f ? 225.0f : -225.0f), 95.0f };
+        ResolvePillars(bloodPactPos, 40.0f);
+    }
+
+    // Yêu Tinh Vàng (Treasure Goblin) ở tầng 2+ (30% cơ hội)
+    if (!isBoss && !shopFloor && floor >= 2 && Rand01() < 0.30f) {
+        Enemy gob = BuildEnemy(CHASER, GetRandomSpawnPos());
+        gob.isGoldenGoblin = true;
+        gob.isElite = false;
+        gob.maxHp = 55.0f * HpMult();
+        gob.hp = gob.maxHp;
+        gob.speed = 235.0f;
+        gob.contactDmg = 0.0f;
+        gob.radius = 18.0f;
+        gob.escapeTimer = 18.0f;
+        enemies.push_back(gob);
+    }
+
     if (portalOpen) BuildPortalChoices();
 }
 
@@ -854,7 +1035,7 @@ inline void Game::SpawnPopup(Vector2 pos, const std::string& txt, Color col) {
     popups.push_back(p);
 }
 
-inline bool Game::HasRelic(RelicType t) {
+inline bool Game::HasRelic(RelicType t) const {
     for (const auto& r : player.relics) {
         if (r.type == t) return true;
     }
@@ -898,6 +1079,17 @@ inline void Game::Update(float dt) {
 
     // Hit-stop: khựng khung hình rất ngắn khi chí mạng
     if (hitStop > 0) { hitStop -= dt; return; }
+    if (slowMoTimer > 0.0f) { slowMoTimer -= dt; dt *= 0.35f; }
+    if (perfectDodgeTimer > 0.0f) perfectDodgeTimer -= dt;
+    if (styleDecayTimer > 0.0f) {
+        styleDecayTimer -= dt;
+    } else if (styleRank > 0 || stylePoints > 0.0f) {
+        stylePoints -= dt * 28.0f;
+        if (stylePoints < 0.0f) {
+            if (styleRank > 0) { styleRank--; stylePoints = 75.0f; }
+            else stylePoints = 0.0f;
+        }
+    }
 
     if (namingMode != 0) {
         UpdateEffects(dt);
@@ -1052,6 +1244,7 @@ inline void Game::Update(float dt) {
     // Toggle radar with M & cập nhật đồng hồ thời gian + tuổi
     if (IsKeyPressed(KEY_M)) showMiniMap = !showMiniMap;
     AdvanceTime(dt * 0.08f);
+    if (UpdateAging(dt)) return; // 1 năm trong game = 180 giây chơi thực tế
 
     // Player Timers
     if (player.dashTimer > 0) player.dashTimer -= dt;
@@ -1216,6 +1409,16 @@ inline void Game::Update(float dt) {
                 LeaveSurfaceRoomToTown();
                 return;
             }
+            // [T] tại Tổ Ấm: dẫn con theo / để con ở nhà
+            if (surfaceRoom == 3 && IsKeyPressed(KEY_T) && !children.empty()) {
+                int bestK = -1; float minKD = 95.0f;
+                for (size_t k = 0; k < children.size(); ++k) {
+                    float d = Vector2Distance(player.pos, HeirPosInHome((int)k));
+                    if (d < minKD) { minKD = d; bestK = (int)k; }
+                }
+                if (bestK >= 0) ToggleChildParty(bestK);
+                else ShowBanner(L("Walk up to a child and press [T] to bring them along.", "Lại gần một người con rồi nhấn [T] để dẫn theo."), 2.2f);
+            }
             if (interact) {
                 int bestAct = -1;
                 float bestD = 9999.0f;
@@ -1291,6 +1494,20 @@ inline void Game::Update(float dt) {
         player.dashDir = (Vector2Length(move) > 0.1f) ? move : aimDir;
         PlaySound(snd.sndDash);
         ghosts.push_back({ player.pos, player.facingLeft, 0.22f, 0.22f });
+        // Perfect Dodge (Né Hoàn Hảo) khi lướt sát đạn hoặc đòn quái
+        bool nearDanger = false;
+        for (const auto& pr : projectiles) {
+            if (!pr.fromPlayer && Vector2Distance(player.pos, pr.pos) < 80.0f) { nearDanger = true; break; }
+        }
+        if (!nearDanger) {
+            for (const auto& en : enemies) {
+                if (en.hp > 0 && Vector2Distance(player.pos, en.pos) < en.radius + 72.0f &&
+                    (en.isAttacking || (en.type == CHARGER && (en.chargeState == 1 || en.chargeState == 2)) || (en.type == BOMBER && en.fusing))) {
+                    nearDanger = true; break;
+                }
+            }
+        }
+        if (nearDanger) TriggerPerfectDodge();
         if (player.heroClass == CLASS_ASSASSIN && player.subClass == 2) {
             GroundEffect decoy;
             decoy.kind = 0;
@@ -1340,6 +1557,29 @@ inline void Game::Update(float dt) {
 
         if (e.hitFlash > 0) e.hitFlash -= dt;
         if (e.stunTimer > 0) e.stunTimer -= dt;
+        if (e.reactionCooldown > 0.0f) e.reactionCooldown -= dt;
+
+        // Golden Goblin: chạy trốn kèm tia sáng vàng, biến mất nếu hết giờ
+        if (e.isGoldenGoblin) {
+            e.escapeTimer -= dt;
+            if (Rand01() < 0.25f) Burst(e.pos, GOLD, 1, 70.0f, 0.35f);
+            if (e.escapeTimer <= 0.0f) {
+                Burst(e.pos, GOLD, 14, 180.0f, 0.5f);
+                SpawnPopup(e.pos, L("ESCAPED!", "CHẠY THOÁT!"), YELLOW);
+                e.hp = 0.0f;
+                continue;
+            }
+            Vector2 away = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
+            if (Vector2Length(away) < 0.1f) away = { 1.0f, 0.0f };
+            float wob = sinf((float)GetTime() * 6.0f) * 0.45f;
+            Vector2 runDir = { away.x * cosf(wob) - away.y * sinf(wob), away.x * sinf(wob) + away.y * cosf(wob) };
+            e.facingLeft = (runDir.x < 0.0f);
+            e.pos = Vector2Add(e.pos, Vector2Scale(runDir, e.speed * dt));
+            e.pos.x = Clamp(e.pos.x, -roomW / 2.0f + e.radius + 16.0f, roomW / 2.0f - e.radius - 16.0f);
+            e.pos.y = Clamp(e.pos.y, -roomH / 2.0f + e.radius + 16.0f, roomH / 2.0f - e.radius - 16.0f);
+            ResolvePillars(e.pos, e.radius);
+            continue;
+        }
 
         // Poison DoT
         if (e.poisonTimer > 0) {
@@ -1656,6 +1896,9 @@ inline void Game::Update(float dt) {
         }
     }
 
+    // ── Con cái theo cha rèn luyện ──
+    UpdatePartyChildren(dt);
+
     // ── Projectiles ──
     FlushSpawns();
     for (size_t i = 0; i < projectiles.size();) {
@@ -1689,6 +1932,13 @@ inline void Game::Update(float dt) {
                 DamagePlayer(p.damage);
                 hit = true;
             }
+            for (size_t ck = 0; !hit && ck < children.size(); ++ck) { // đạn quái trúng con
+                if (!children[ck].active) continue;
+                if (Vector2Distance(p.pos, children[ck].pos) < p.radius + 13.0f) {
+                    ChildTakeDamage((int)ck, p.damage);
+                    hit = true;
+                }
+            }
             if (!hit) { // cột đá che chắn đạn của quái
                 for (const auto& pl : pillars) {
                     if (Vector2Distance(p.pos, pl) < 27.0f + p.radius) { hit = true; Burst(p.pos, p.color, 3, 100.0f, 0.25f); break; }
@@ -1711,6 +1961,12 @@ inline void Game::Update(float dt) {
                 Enemy& e = enemies[ei];
                 if (e.hp <= 0 || (int)ei == p.hitMask) continue;
                 if (Vector2Distance(p.pos, e.pos) < p.radius + e.radius) {
+                    if (p.childOwner >= 0) { // đạn của con: sát thương riêng, không kích hoạt hiệu ứng của cha
+                        Vector2 ckb = Vector2Length(p.vel) > 0.1f ? Vector2Normalize(p.vel) : Vector2{ 1, 0 };
+                        ChildDamageEnemy(e, p.damage, p.childOwner, ckb);
+                        hit = true;
+                        break;
+                    }
                     float cc = std::min(0.85f, player.critChance + p.critBonus);
                     bool isCrit = p.hasPreCrit ? p.preCrit : (Rand01() < cc);
                     float critMul = CritMult();
@@ -1788,7 +2044,7 @@ inline void Game::Update(float dt) {
                     Burst(l.pos, GOLD, 3, 100.0f, 0.3f);
                     PlaySound(snd.sndCoin);
                 } else {
-                    player.xp += std::max(1, (int)roundf(l.value * xpMul));
+                    player.xp += std::max(1, (int)roundf(l.value * xpMul * (1.0f + 0.06f * styleRank)));
                     Burst(l.pos, SKYBLUE, 3, 100.0f, 0.3f);
                     PlaySound(snd.sndCoin);
                     while (player.level < kMaxPlayerLevel && player.xp >= player.xpNext) {
@@ -1805,7 +2061,8 @@ inline void Game::Update(float dt) {
                 }
             } else if (l.type == 1) { // Gold
                 int gVal = HasRelic(RELIC_MIDAS) ? (int)roundf(l.value * 1.5f) : l.value;
-                if (isNoble) gVal = (int)roundf(gVal * 1.25f);
+                float gMult = (isNoble ? 1.25f : 1.0f) * (1.0f + 0.06f * styleRank) * (bloodlineTrait == 3 ? 1.15f : 1.0f);
+                gVal = (int)roundf(gVal * gMult);
                 player.gold += gVal;
                 Burst(l.pos, GOLD, 4, 120.0f, 0.35f);
                 PlaySound(snd.sndCoin);
@@ -1978,6 +2235,14 @@ inline void Game::Update(float dt) {
         }
     }
 
+    // Đài Giao Ước Bóng Tối
+    if (hasBloodPact && !bloodPactUsed) {
+        float bd = Vector2Distance(player.pos, bloodPactPos);
+        if (bd < 86.0f && (IsKeyPressed(KEY_F) || IsKeyPressed(KEY_G) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_UP))) {
+            AcceptBloodPact();
+        }
+    }
+
     bool anyAlive = (aliveCount > 0) || !pendingSpawns.empty() || !wave2Spawns.empty();
     if (!anyAlive && !portalOpen) {
         portalOpen = true;
@@ -2131,6 +2396,10 @@ inline void Game::TriggerProjectileSplash(Vector2 pos, float baseSplashDmg, floa
 }
 
 inline void Game::DamageEnemy(Enemy& e, float dmg, Vector2 kb, float kbForce, bool isCrit, bool allowRage) {
+    if (nextHitCrit && !e.isGoldenGoblin) {
+        nextHitCrit = false;
+        if (!isCrit) { isCrit = true; dmg *= 1.65f; }
+    }
     if (e.type == CHARGER && e.chargeState == 3) dmg *= 1.5f; // choáng sau cú lao: dễ trúng đòn
     if (e.type == BOSS && e.bossKind == 1 && e.chargeState == 5) dmg *= 1.3f; // Colossus kiệt sức: nhận thêm sát thương
     if (e.stunTimer > 0.0f) dmg *= 1.20f; // Kẻ địch đang choáng nhận thêm 20% sát thương
@@ -2143,6 +2412,7 @@ inline void Game::DamageEnemy(Enemy& e, float dmg, Vector2 kb, float kbForce, bo
     e.hitFlash = 0.09f;
     Burst(e.pos, isCrit ? Color{ 255, 217, 51, 255 } : WHITE, isCrit ? 9 : 4, isCrit ? 230.0f : 160.0f, isCrit ? 0.4f : 0.28f);
     if (isCrit) hitStop = 0.035f;
+    AddStyle(isCrit ? 7.0f : 3.5f);
     if (allowRage) AddRage((isCrit ? 4.0f : 2.5f) + (comboCount >= 10 ? 1.5f : 0.0f));
 
     // Nội tại Sát Thủ: đòn chí mạng gây chảy máu/độc 2s
@@ -2151,26 +2421,34 @@ inline void Game::DamageEnemy(Enemy& e, float dmg, Vector2 kb, float kbForce, bo
         e.poisonDmg = std::max(e.poisonDmg, dmg * 0.18f);
     }
 
-    // Ember Edge / Frost Touch
+    // Ember Edge / Frost Touch & Elemental Reactions
+    float dotMult = HasDuoPlaguefire() ? 1.25f : 1.0f;
     if (player.igniteLevel > 0) {
         e.burnTimer = 3.0f;
-        e.burnDps = std::max(e.burnDps, player.baseDmg * 0.5f * player.igniteLevel);
+        e.burnDps = std::max(e.burnDps, player.baseDmg * 0.5f * player.igniteLevel * dotMult);
+        if (e.chillTimer > 0.0f || e.slowTimer > 0.0f) TriggerElementalReaction(e, 0, e.pos);
     }
     if (player.frostLevel > 0) {
-        e.slowTimer = 2.0f;
+        e.slowTimer = 2.0f + (HasDuoTempestFrost() ? 1.0f : 0.0f);
         e.slowFactor = std::max(0.4f, 1.0f - 0.15f * player.frostLevel);
+        if (e.burnTimer > 0.0f) TriggerElementalReaction(e, 0, e.pos);
+        else if (isCrit) TriggerElementalReaction(e, 3, e.pos);
     }
 
     // Relics on hit
     if (HasRelic(RELIC_FROST) && isCrit) {
-        e.chillTimer = 2.5f;
+        e.chillTimer = 2.5f + (HasDuoTempestFrost() ? 1.0f : 0.0f);
         PlaySound(snd.sndFreeze);
+        if (e.burnTimer > 0.0f) TriggerElementalReaction(e, 0, e.pos);
+        else TriggerElementalReaction(e, 3, e.pos);
     }
     if (HasRelic(RELIC_TOXIC)) {
         e.poisonTimer = 3.0f;
-        e.poisonDmg = dmg * 0.25f;
+        e.poisonDmg = dmg * 0.25f * dotMult;
     }
     if (HasRelic(RELIC_LIGHTNING)) {
+        if (e.burnTimer > 0.0f) TriggerElementalReaction(e, 1, e.pos);
+        else if (e.poisonTimer > 0.0f) TriggerElementalReaction(e, 2, e.pos);
         // Zap another nearby enemy
         for (auto& other : enemies) {
             if (&other != &e && other.hp > 0 && Vector2Distance(e.pos, other.pos) < 180.0f) {
@@ -2208,7 +2486,21 @@ inline void Game::OnEnemyKilled(Enemy& e) {
     if (comboCount > bestCombo) bestCombo = comboCount;
     comboTimer = 3.0f;
     PlaySound(snd.sndDeath);
+    AddStyle(e.type == BOSS ? 45.0f : (e.isElite || e.isWarden ? 20.0f : 11.0f));
     AddRage(e.type == BOSS ? 35.0f : (e.isElite || e.isWarden ? 15.0f : 6.0f));
+    if (e.isElite && bountyActive && bountyKind == 0) bountyProgress++;
+    if (e.isGoldenGoblin) {
+        int gobGold = 120 + floor * 12;
+        player.gold += gobGold;
+        bool ess = (Rand01() < 0.55f);
+        if (ess) bossEssence++;
+        if (bountyActive && bountyKind == 2) bountyProgress++;
+        SpawnItemDrop(e.pos);
+        Burst(e.pos, GOLD, 36, 320.0f, 0.7f);
+        SpawnPopup(e.pos, TextFormat("+%dG!", gobGold), GOLD);
+        ShowBanner(ess ? L("GOLDEN GOBLIN SLAIN! +GOLD, +GEAR, +1 BOSS ESSENCE!", "HẠ YÊU TINH VÀNG! +VÀNG, +TRANG BỊ, +1 TINH HOA!")
+                       : L("GOLDEN GOBLIN SLAIN! +GOLD & TREASURE GEAR!", "HẠ YÊU TINH VÀNG! +VÀNG & TRANG BỊ HIẾM!"), 3.2f);
+    }
     if (royalQuestActive && !isNoble && !(e.type == SPLITTER && e.splitLevel > 0)) {
         royalQuestKills++;
         if (e.type == BOSS) royalQuestBosses++;
@@ -2265,7 +2557,15 @@ inline void Game::OnEnemyKilled(Enemy& e) {
         ShowBanner("WARDEN BRUTE DEFEATED!");
         hitStop = 0.08f;
     }
-    if (e.type == BOSS) { hitStop = 0.12f; bossesKilled++; }
+    if (e.type == BOSS) {
+        hitStop = 0.10f;
+        slowMoTimer = 0.42f;
+        bossesKilled++;
+        int ess = (floor >= 15 ? 2 : 1);
+        bossEssence += ess;
+        if (bountyActive && bountyKind == 2) bountyProgress++;
+        SpawnPopup({ e.pos.x, e.pos.y - 36.0f }, TextFormat(L("+%d BOSS ESSENCE", "+%d TINH HOA TRÙM"), ess), GOLD);
+    }
     loots.push_back({ 0, e.pos, (e.type == BOSS ? 150 : (e.isWarden ? 90 : (e.isElite ? 35 : (e.isMinion ? 5 : 15)))), 20.0f });
     {
         float dropChance = (e.type == BOSS || e.isWarden) ? 1.0f : (e.isElite ? 0.30f : 0.12f) + 0.02f * meta[5];
@@ -2300,6 +2600,7 @@ inline void Game::OnEnemyKilled(Enemy& e) {
     if (e.type == BOSS) {
         GiveRandomRelic();
     }
+    GrantPartyXp(e); // con theo cha rèn luyện nhận EXP
     if (e.isElite && e.eliteAffix == 3) { // MOLTEN: rơi bom nham thạch
         GroundEffect bomb;
         bomb.kind = 4;
@@ -2350,7 +2651,7 @@ inline bool Game::DamagePlayer(float dmg) {
         return false;
     }
 
-    float effArmor = EffectiveArmor();
+    float effArmor = EffectiveArmor() + (HasDuoImmortalBastion() ? 3.0f : 0.0f);
     float effDmg = dmg * 100.0f / (100.0f + effArmor * 10.0f);
     if (player.heroClass == CLASS_KNIGHT) effDmg *= (player.subClass == 1 ? 0.80f : 0.85f);
     if (player.heroClass == CLASS_ASSASSIN && player.ultActiveTimer > 0.0f) effDmg *= 0.50f;
@@ -2358,6 +2659,8 @@ inline bool Game::DamagePlayer(float dmg) {
     effDmg = std::max(1.0f, effDmg);
     player.hp = std::max(0.0f, player.hp - effDmg);
     comboCount = 0;
+    if (styleRank > 0) { styleRank--; stylePoints = 35.0f; }
+    else stylePoints = 0.0f;
     damagePulse = std::min(1.0f, 0.45f + effDmg / 60.0f);
     player.invulnTimer = 0.45f;
     PlaySound(snd.sndHurt);

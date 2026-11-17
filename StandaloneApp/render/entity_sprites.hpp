@@ -18,6 +18,24 @@ inline void Game::DrawEnemyBody(const Enemy& e) {
     else if (e.type == BOSS) base = (e.bossKind == 1) ? (e.enraged ? Color{ 205, 62, 30, 255 } : Color{ 165, 78, 44, 255 }) : (e.enraged ? Color{ 150, 40, 70, 255 } : Color{ 88, 46, 142, 255 });
     else if (e.type == BOMBER) base = { 255, 140, 38, 255 };
     else if (e.type == CHARGER) base = { 205, 120, 66, 255 };
+    if (e.isGoldenGoblin) base = { 255, 210, 55, 255 };
+
+    if (e.isGoldenGoblin) {
+        float bob = sinf(t * 14.0f) * 3.0f;
+        DrawCircle((int)c.x, (int)c.y, r + 10.0f, Fade(GOLD, 0.22f + 0.12f * sinf(t * 8.0f)));
+        DrawEllipse((int)c.x, (int)c.y + r * 0.9f, r * 0.9f, r * 0.35f, { 0, 0, 0, 110 });
+        // Túi vàng trên lưng
+        DrawCircle((int)(c.x - face * r * 0.55f), (int)(c.y - 2.0f + bob), r * 0.65f, { 215, 155, 35, 255 });
+        DrawCircleLines((int)(c.x - face * r * 0.55f), (int)(c.y - 2.0f + bob), r * 0.65f, GOLD);
+        // Thân & mũ chóp Yêu Tinh Vàng
+        DrawCircle((int)c.x, (int)(c.y + bob), r * 0.78f, base);
+        DrawCircleLines((int)c.x, (int)(c.y + bob), r * 0.78f, WHITE);
+        Tri({ c.x - r * 0.6f, c.y - r * 0.4f + bob }, { c.x + r * 0.6f, c.y - r * 0.4f + bob }, { c.x, c.y - r * 1.45f + bob }, { 255, 235, 110, 255 });
+        Eye({ c.x + face * 4.5f, c.y - 1.5f + bob }, 2.6f, 2.6f, look, { 60, 35, 10, 255 });
+        const char* gTag = TextFormat("%.0fs", std::max(0.0f, e.escapeTimer));
+        DrawText(gTag, (int)c.x - MeasureText(gTag, 13) / 2, (int)(c.y - r * 2.1f), 13, GOLD);
+        return;
+    }
 
     bool bomberBlink = false;
     // Bomber cháy ngòi: rung lắc, phồng lên, nháy đỏ, vòng cảnh báo bán kính nổ

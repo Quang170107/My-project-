@@ -150,6 +150,7 @@ inline bool Game::SaveGameToSlot(int slot) {
     }
     for (int i = 0; i < 4; ++i) {
         o << "hasEquip_" << i << "=" << (hasEquip[i] ? 1 : 0) << "\n";
+        o << "equipPlus_" << i << "=" << equipPlus[i] << "\n";
         if (hasEquip[i]) {
             o << "equip_" << i << "_name=" << equipped[i].name << "\n"
               << "equip_" << i << "_slot=" << equipped[i].slot << "\n"
@@ -164,6 +165,16 @@ inline bool Game::SaveGameToSlot(int slot) {
               << "equip_" << i << "_crit=" << equipped[i].crit << "\n";
         }
     }
+    o << "bossEssence=" << bossEssence << "\n"
+      << "curseStacks=" << curseStacks << "\n"
+      << "bloodlineTrait=" << bloodlineTrait << "\n"
+      << "bountyActive=" << (bountyActive ? 1 : 0) << "\n"
+      << "bountyKind=" << bountyKind << "\n"
+      << "bountyProgress=" << bountyProgress << "\n"
+      << "bountyTarget=" << bountyTarget << "\n"
+      << "bountyRewardGold=" << bountyRewardGold << "\n"
+      << "perfectDodgesCount=" << perfectDodgesCount << "\n"
+      << "elementalReactionsCount=" << elementalReactionsCount << "\n";
     std::string payload = o.str();
     SaveFileText(SaveFileName(slot).c_str(), (char*)payload.c_str());
     RefreshSaveSlots();
@@ -204,6 +215,10 @@ inline bool Game::LoadGameFromSlot(int slot) {
     bool lSpUnlocked[4] = { false, false, false, false };
     int lNextFloor = 11, lRations = 2, lGen = 1, lHouseTier = 0, lRqKills = 0, lRqBosses = 0, lSpouseIdx = -1, lSurfaceRoom = 0;
     int lSpQuest = 0, lDay = 1, lAge = 18;
+    int lBossEssence = 0, lCurse = 0, lBloodline = 0, lBountyKind = 0, lBountyProg = 0, lBountyTgt = 6, lBountyGold = 200;
+    int lPerfDodges = 0, lReactCnt = 0;
+    bool lBountyActive = false;
+    int lEquipPlus[4] = { 0, 0, 0, 0 };
     float lTimeOfDay = 8.5f;
     Vector2 lTownRet = { 0.0f, 220.0f };
     float lHunger = 100.0f, lLegHp = 0.0f, lLegDmg = 0.0f, lLegArm = 0.0f, lLegSpd = 0.0f;
@@ -258,6 +273,20 @@ inline bool Game::LoadGameFromSlot(int slot) {
         else if (k == "surfaceTownReturnY") lTownRet.y = fv;
         else if (k == "nextDungeonFloor") lNextFloor = std::max(1, iv);
         else if (k == "hunger") lHunger = Clamp(fv, 0.0f, 100.0f);
+        else if (k == "bossEssence") lBossEssence = std::max(0, iv);
+        else if (k == "curseStacks") lCurse = std::max(0, iv);
+        else if (k == "bloodlineTrait") lBloodline = std::max(0, std::min(3, iv));
+        else if (k == "bountyActive") lBountyActive = (iv != 0);
+        else if (k == "bountyKind") lBountyKind = std::max(0, std::min(2, iv));
+        else if (k == "bountyProgress") lBountyProg = std::max(0, iv);
+        else if (k == "bountyTarget") lBountyTgt = std::max(1, iv);
+        else if (k == "bountyRewardGold") lBountyGold = std::max(0, iv);
+        else if (k == "perfectDodgesCount") lPerfDodges = std::max(0, iv);
+        else if (k == "elementalReactionsCount") lReactCnt = std::max(0, iv);
+        else if (k.rfind("equipPlus_", 0) == 0) {
+            int ei = atoi(k.c_str() + 10);
+            if (ei >= 0 && ei < 4) lEquipPlus[ei] = std::max(0, std::min(5, iv));
+        }
         else if (k == "foodRations") lRations = std::max(0, iv);
         else if (k == "generation") lGen = std::max(1, iv);
         else if (k == "heroGivenName") lHeroName = v;
@@ -398,6 +427,17 @@ inline bool Game::LoadGameFromSlot(int slot) {
     timeOfDay = lTimeOfDay;
     dayCount = lDay;
     heroAge = lAge;
+    bossEssence = lBossEssence;
+    curseStacks = lCurse;
+    bloodlineTrait = lBloodline;
+    bountyActive = lBountyActive;
+    bountyKind = lBountyKind;
+    bountyProgress = lBountyProg;
+    bountyTarget = lBountyTgt;
+    bountyRewardGold = lBountyGold;
+    perfectDodgesCount = lPerfDodges;
+    elementalReactionsCount = lReactCnt;
+    for (int i = 0; i < 4; ++i) equipPlus[i] = lEquipPlus[i];
     legacyHp = lLegHp;
     legacyDmg = lLegDmg;
     legacyArmor = lLegArm;

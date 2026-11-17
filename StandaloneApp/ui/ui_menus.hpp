@@ -156,8 +156,11 @@ inline void Game::DrawInventory() {
     DrawRectangleLines(px, py, pw, ph, GOLD);
     std::string title = std::string(L("EQUIPMENT & SKILLS  -  ", "TRANG BỊ & KỸ NĂNG  -  ")) + HeroTitle() + "  [" + CurrentLevelTitle() + "]";
     DrawText(title.c_str(), 1280 / 2 - MeasureText(title.c_str(), 26) / 2, py + 12, 26, CurrentLevelTitleColor());
-    std::string lvSub = TextFormat(L("Level %d / %d%s", "Cấp %d / %d%s"), player.level, kMaxPlayerLevel, player.level >= kMaxPlayerLevel ? L(" (MAX LEVEL)", " (CẤP TỐI ĐA)") : "");
-    DrawText(lvSub.c_str(), 1280 / 2 - MeasureText(lvSub.c_str(), 14) / 2, py + 41, 14, player.level >= kMaxPlayerLevel ? GOLD : SKYBLUE);
+    std::string lvSub = TextFormat(L("Level %d / %d%s   |   Bloodline: %s (%s)",
+                                     "Cấp %d / %d%s   |   Huyết Mạch: %s (%s)"),
+                                   player.level, kMaxPlayerLevel, player.level >= kMaxPlayerLevel ? L(" (MAX)", " (TỐI ĐA)") : "",
+                                   BloodlineTraitName(), BloodlineTraitDesc());
+    DrawText(lvSub.c_str(), 1280 / 2 - MeasureText(lvSub.c_str(), 13) / 2, py + 41, 13, player.level >= kMaxPlayerLevel ? GOLD : SKYBLUE);
 
     const char* slotNames[4] = { L("WEAPON", "VŨ KHÍ"), L("ARMOR", "ÁO GIÁP"), L("BOOTS", "GIÀY"), L("RING", "NHẪN") };
     int cw = 266, gap = 14, cx0 = px + (pw - (cw * 4 + gap * 3)) / 2, cy = py + 60, ch = 196;
@@ -171,7 +174,8 @@ inline void Game::DrawInventory() {
         if (hasEquip[i]) {
             DrawCircleV({ (float)cx + cw / 2.0f, (float)cy + 56 }, 28.0f, Fade(rc, 0.18f));
             DrawItemIcon(i, { (float)cx + cw / 2.0f, (float)cy + 56 }, 44.0f, rc, equipped[i].weaponType);
-            DrawText(equipped[i].name.c_str(), cx + 12, cy + 92, 16, rc);
+            std::string eqTitle = equipped[i].name + (equipPlus[i] > 0 ? (" +" + std::to_string(equipPlus[i])) : "");
+            DrawText(eqTitle.c_str(), cx + 12, cy + 92, 16, rc);
             DrawText(equipped[i].RarityName(), cx + 12, cy + 111, 12, Fade(rc, 0.8f));
             auto lines = equipped[i].StatLines();
             for (size_t k = 0; k < lines.size(); ++k) DrawText(lines[k].c_str(), cx + 12, cy + 129 + (int)k * 16, 14, RAYWHITE);
@@ -203,15 +207,20 @@ inline void Game::DrawInventory() {
     } else {
         snprintf(buf, sizeof(buf), "%.0f / %.0f / %.0f / %.0fs", Skill1MaxCd(), Skill2MaxCd(), Skill3MaxCd(), Skill4MaxCd()); stat(2, 2, L("Q/E/C/V CD", "Hồi Q/E/C/V"), buf);
     }
-    std::string extra = std::string(L("Rage: ", "Nộ: ")) + std::to_string((int)player.rage) + "/100   "
-                      + L("Ember Lv", "Lửa Cấp ") + std::to_string(player.igniteLevel) + "   "
-                      + L("Frost Lv", "Băng Cấp ") + std::to_string(player.frostLevel);
-    DrawText(extra.c_str(), px + pw - 32 - MeasureText(extra.c_str(), 14), sy + 2, 14, { 150, 165, 200, 255 });
+    std::string extra = std::string(L("Essence: ", "Tinh Hoa: ")) + std::to_string(bossEssence) + "   "
+                      + L("Reactions: ", "Phản Ứng: ") + std::to_string(elementalReactionsCount) + "   "
+                      + L("Ember ", "Lửa ") + std::to_string(player.igniteLevel) + "  "
+                      + L("Frost ", "Băng ") + std::to_string(player.frostLevel);
+    DrawText(extra.c_str(), px + pw - 32 - MeasureText(extra.c_str(), 13), sy + 2, 13, { 165, 195, 235, 255 });
+    std::string duoStr = "";
+    if (HasDuoTempestFrost()) duoStr += L(" [Tempest Frost]", " [Bão Băng Sét]");
+    if (HasDuoPlaguefire()) duoStr += L(" [Plaguefire]", " [Độc Hỏa]");
+    if (HasDuoImmortalBastion()) duoStr += L(" [Immortal Bastion]", " [Pháo Đài Bất Tử]");
     std::string dynInfo = std::string(L("Gen ", "Đời ")) + std::to_string(generation)
                         + " | " + (isNoble ? L("NOBLE", "QUÝ TỘC") : L("Commoner", "Thường Dân"))
                         + " | " + HouseName(houseTier)
                         + " | " + L("Spouse: ", "Vợ: ") + SpouseName(hasSpouse ? spouseIdx : -1)
-                        + " | " + L("Heirs: ", "Con: ") + std::to_string((int)children.size());
+                        + duoStr;
     DrawText(dynInfo.c_str(), px + 230, sy + 2, 13, isNoble ? GOLD : Color{ 195, 225, 195, 255 });
 
     // Bộ kỹ năng của Class (4) hoặc Nhánh Phụ (6)

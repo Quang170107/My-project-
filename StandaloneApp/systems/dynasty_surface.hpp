@@ -762,6 +762,67 @@ inline void Game::BuyNobleTitleDirect() {
                  "SẮC PHONG QUÝ TỘC THÀNH CÔNG! (+Chỉ số, +25% Vàng, Giảm giá 30-50%)"), 4.0f);
 }
 
+inline void Game::ReforgeEquipSlot(int s) {
+    if (s < 0 || s >= 4 || !hasEquip[s]) {
+        ShowBanner(L("No gear equipped in that slot!", "Chưa mặc trang bị ở ô này!"), 2.0f);
+        return;
+    }
+    if (equipPlus[s] >= 5) {
+        ShowBanner(L("Equipment already at +5 Max Enhancement!", "Trang bị đã đạt cường hóa tối đa +5!"), 2.2f);
+        return;
+    }
+    int goldCost = MealPrice(90 + equipPlus[s] * 70);
+    int essCost = (equipPlus[s] >= 2) ? 1 : 0;
+    if (player.gold < goldCost || bossEssence < essCost) {
+        ShowBanner(TextFormat(L("Need %dG%s to reinforce!", "Cần %d Vàng%s để cường hóa!"),
+                              goldCost, essCost > 0 ? L(" + 1 Boss Essence", " + 1 Tinh Hoa Trùm") : ""), 2.4f);
+        PlaySound(snd.sndHurt);
+        return;
+    }
+    player.gold -= goldCost;
+    bossEssence -= essCost;
+    ApplyItem(equipped[s], -1.0f);
+    if (equipped[s].damage > 0) equipped[s].damage = roundf(equipped[s].damage * 1.22f + 1.0f);
+    if (equipped[s].maxHp > 0) equipped[s].maxHp = roundf(equipped[s].maxHp * 1.22f + 3.0f);
+    if (equipped[s].armor > 0) equipped[s].armor = R1(equipped[s].armor * 1.22f + 0.5f);
+    if (equipped[s].attackRate > 0) equipped[s].attackRate = R1(equipped[s].attackRate * 1.12f + 0.05f);
+    if (equipped[s].crit > 0) equipped[s].crit = std::min(0.35f, equipped[s].crit + 0.02f);
+    equipPlus[s]++;
+    ApplyItem(equipped[s], 1.0f);
+    AdvanceTime(1.0f);
+    PlaySound(snd.sndLevelUp);
+    Burst(player.pos, GOLD, 24, 240.0f, 0.6f);
+    ShowBanner(TextFormat(L("FORGED %s TO +%d!", "CƯỜNG HÓA %s LÊN +%d THÀNH CÔNG!"),
+                          equipped[s].name.c_str(), equipPlus[s]), 3.0f);
+}
+
+inline void Game::AcceptOrClaimBounty() {
+    if (!bountyActive) {
+        bountyActive = true;
+        bountyKind = rand() % 3;
+        bountyProgress = 0;
+        bountyTarget = (bountyKind == 0) ? 8 : (bountyKind == 1 ? 12 : 1);
+        bountyRewardGold = (bountyKind == 2) ? 280 : 210;
+        PlaySound(snd.sndSpecial);
+        ShowBanner(L("ACCEPTED TAVERN BOUNTY! Check Tavern / HUD for progress.",
+                     "ĐÃ NHẬN LỆNH TRUY NÃ QUÁN TRỌ! Hoàn thành để nhận Vàng & Tinh Hoa!"), 3.0f);
+        return;
+    }
+    if (bountyProgress >= bountyTarget) {
+        player.gold += bountyRewardGold;
+        int ess = (bountyKind == 2) ? 2 : 1;
+        bossEssence += ess;
+        bountyActive = false;
+        bountyProgress = 0;
+        PlaySound(snd.sndLevelUp);
+        Burst(player.pos, GOLD, 28, 250.0f, 0.65f);
+        ShowBanner(TextFormat(L("BOUNTY CLAIMED: +%dG & +%d Boss Essence!",
+                                "TRẢ TRUY NÃ THÀNH CÔNG: +%d Vàng & +%d Tinh Hoa Trùm!"), bountyRewardGold, ess), 3.4f);
+    } else {
+        ShowBanner(TextFormat(L("Bounty Progress: %d / %d", "Tiến độ Truy Nã: %d / %d"), bountyProgress, bountyTarget), 2.2f);
+    }
+}
+
 inline void Game::SuccessionToChild(int childIdx, bool forced) {
     if (childIdx < 0 || childIdx >= (int)children.size()) return;
     if (!forced && children[childIdx].age < (float)kChildAdultAge) {
@@ -796,6 +857,7 @@ inline void Game::SuccessionToChild(int childIdx, bool forced) {
 
     generation++;
     heroGivenName = heir.name;
+    bloodlineTrait = heir.heroClass % 4;
     legacyHp += heir.bonusHp;
     legacyDmg += heir.bonusDmg;
     legacyArmor += heir.bonusArmor;

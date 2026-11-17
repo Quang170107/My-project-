@@ -2,16 +2,20 @@
 #include "../game.hpp"
 
 inline int Game::SurfaceOptionCount() const {
-    if (surfaceBuilding == 0) return 4;
-    if (surfaceBuilding == 1) return 3;
+    if (surfaceBuilding == 0) return 5;
+    if (surfaceBuilding == 1) return 4;
     if (surfaceBuilding == 2) return hasSpouse ? (1 + (int)children.size()) : 4;
     return 2;
 }
 
 inline void Game::TriggerSurfaceOption(int tab, int opt) {
-    if (tab == 0) BuyMeal(opt);
-    else if (tab == 1) BuyHouseUpgrade(opt + 1);
-    else if (tab == 2) {
+    if (tab == 0) {
+        if (opt < 4) BuyMeal(opt);
+        else AcceptOrClaimBounty();
+    } else if (tab == 1) {
+        if (opt < 3) BuyHouseUpgrade(opt + 1);
+        else ReforgeEquipSlot(0);
+    } else if (tab == 2) {
         if (!hasSpouse) TryMarrySpouse(opt);
         else if (opt == 0) TryHaveChild();
         else SuccessionToChild(opt - 1);
@@ -54,16 +58,16 @@ inline void Game::UpdateSurfaceUi() {
         }
     }
     if (surfaceBuilding == 0) {
-        for (int i = 0; i < 4; ++i) {
-            Rectangle r = { 120.0f, 186.0f + i * 96.0f, 1040.0f, 84.0f };
+        for (int i = 0; i < 5; ++i) {
+            Rectangle r = { 120.0f, 184.0f + i * 84.0f, 1040.0f, 74.0f };
             if (CheckCollisionPointRec(m, r)) {
                 if (GetMouseDelta().x != 0 || GetMouseDelta().y != 0) surfaceSel = i;
                 if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { surfaceSel = i; TriggerSurfaceOption(0, i); return; }
             }
         }
     } else if (surfaceBuilding == 1) {
-        for (int i = 0; i < 3; ++i) {
-            Rectangle r = { 120.0f, 186.0f + i * 124.0f, 1040.0f, 110.0f };
+        for (int i = 0; i < 4; ++i) {
+            Rectangle r = { 120.0f, 184.0f + i * 102.0f, 1040.0f, 92.0f };
             if (CheckCollisionPointRec(m, r)) {
                 if (GetMouseDelta().x != 0 || GetMouseDelta().y != 0) surfaceSel = i;
                 if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { surfaceSel = i; TriggerSurfaceOption(1, i); return; }
@@ -89,7 +93,16 @@ inline void Game::UpdateSurfaceUi() {
                 OpenFamilyTree(SURFACE_UI);
                 return;
             }
+            if (IsKeyPressed(KEY_T) && surfaceSel >= 1 && surfaceSel - 1 < (int)children.size()) {
+                ToggleChildParty(surfaceSel - 1);
+                return;
+            }
             for (size_t i = 0; i < children.size(); ++i) {
+                Rectangle trB = { 120.0f + 1040.0f - 546.0f, 326.0f + i * 88.0f + 16.0f, 118.0f, 44.0f };
+                if (CheckCollisionPointRec(m, trB) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                    ToggleChildParty((int)i);
+                    return;
+                }
                 Rectangle renB = { 120.0f + 1040.0f - 418.0f, 326.0f + i * 88.0f + 16.0f, 118.0f, 44.0f };
                 if (CheckCollisionPointRec(m, renB) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
                     if (!ctl.external && !IsWindowState(FLAG_WINDOW_HIDDEN) && gFontLoaded) {
@@ -139,10 +152,11 @@ inline void Game::DrawSurfaceUi() {
     // Thanh trạng thái nhanh trên đầu bảng
     DrawRectangle(100, 140, 1080, 32, { 12, 16, 28, 240 });
     std::string info = std::string(L("Gold: ", "Vàng: ")) + std::to_string(player.gold)
+                     + "  |  " + L("Essence: ", "Tinh Hoa: ") + std::to_string(bossEssence)
                      + "  |  " + L("Hunger: ", "Độ No: ") + std::to_string((int)ceilf(hunger)) + "/100"
-                     + "  |  " + HouseName(houseTier)
-                     + "  |  " + TextFormat(L("Day %d %s (%s)  Age %d", "Ngày %d - %s (%s) - Tuổi %d"), dayCount, ClockString().c_str(), TimePhaseName(), heroAge);
-    DrawText(info.c_str(), 120, 148, 15, GOLD);
+                     + "  |  " + BloodlineTraitName()
+                     + "  |  " + TextFormat(L("Day %d %s  Age %d", "Ngày %d %s  Tuổi %d"), dayCount, ClockString().c_str(), heroAge);
+    DrawText(info.c_str(), 116, 148, 14, GOLD);
 
     if (surfaceBuilding == 0) {
         struct MealRow { const char* nameEn; const char* nameVi; const char* descEn; const char* descVi; int baseCost; Color col; };
@@ -153,23 +167,43 @@ inline void Game::DrawSurfaceUi() {
             { "Dungeon Ration Pack (x2)", "Túi Lương Khô Hầm Ngục (x2)", "Stores +2 portable Rations. Press [H] anywhere to eat (+45 Hunger & +25% HP)", "Tích +2 Lương Khô mang đi. Nhấn [H] mọi lúc (+45 No & +25% Máu)", 25, { 125, 235, 155, 255 } }
         };
         for (int i = 0; i < 4; ++i) {
-            Rectangle r = { 120.0f, 186.0f + i * 96.0f, 1040.0f, 84.0f };
+            Rectangle r = { 120.0f, 184.0f + i * 84.0f, 1040.0f, 74.0f };
             bool sel = (surfaceSel == i);
             int price = MealPrice(meals[i].baseCost);
             bool afford = player.gold >= price;
             DrawRectangleRec(r, sel ? Color{ 34, 42, 68, 252 } : Color{ 20, 26, 44, 240 });
             DrawRectangleLinesEx(r, sel ? 2.5f : 1.2f, sel ? GOLD : Fade(meals[i].col, 0.55f));
-            DrawText(L(meals[i].nameEn, meals[i].nameVi), (int)r.x + 22, (int)r.y + 14, 22, meals[i].col);
-            DrawText(L(meals[i].descEn, meals[i].descVi), (int)r.x + 22, (int)r.y + 46, 15, RAYWHITE);
-            Rectangle b = { r.x + r.width - 190.0f, r.y + 20.0f, 168.0f, 44.0f };
+            DrawText(L(meals[i].nameEn, meals[i].nameVi), (int)r.x + 22, (int)r.y + 10, 20, meals[i].col);
+            DrawText(L(meals[i].descEn, meals[i].descVi), (int)r.x + 22, (int)r.y + 40, 14, RAYWHITE);
+            Rectangle b = { r.x + r.width - 190.0f, r.y + 15.0f, 168.0f, 44.0f };
             DrawRectangleRec(b, afford ? Color{ 34, 96, 56, 255 } : Color{ 82, 32, 38, 255 });
             DrawRectangleLinesEx(b, 1.5f, afford ? Color{ 120, 240, 150, 255 } : Color{ 240, 120, 130, 255 });
             std::string pTxt = std::to_string(price) + L(" G", " Vàng");
-            DrawText(pTxt.c_str(), (int)(b.x + b.width / 2) - MeasureText(pTxt.c_str(), 19) / 2, (int)b.y + 12, 19, afford ? WHITE : Color{ 255, 175, 175, 255 });
+            DrawText(pTxt.c_str(), (int)(b.x + b.width / 2) - MeasureText(pTxt.c_str(), 18) / 2, (int)b.y + 12, 18, afford ? WHITE : Color{ 255, 175, 175, 255 });
+        }
+        // Bảng Truy Nã Quán Trọ (Option 4)
+        {
+            Rectangle r = { 120.0f, 184.0f + 4 * 84.0f, 1040.0f, 74.0f };
+            bool sel = (surfaceSel == 4);
+            bool ready = bountyActive && bountyProgress >= bountyTarget;
+            Color bCol = ready ? Color{ 120, 245, 150, 255 } : SKYBLUE;
+            DrawRectangleRec(r, sel ? Color{ 34, 42, 68, 252 } : Color{ 20, 26, 44, 240 });
+            DrawRectangleLinesEx(r, sel ? 2.5f : 1.2f, sel ? GOLD : Fade(bCol, 0.6f));
+            const char* bTitle = !bountyActive ? L("TAVERN BOUNTY BOARD: Accept Hunt Contract", "BẢNG TRUY NÃ QUÁN TRỌ: Nhận Lệnh Săn Thưởng")
+                                               : (ready ? L("BOUNTY COMPLETE! Claim Gold & Boss Essence", "HOÀN THÀNH TRUY NÃ! Nhận Vàng & Tinh Hoa Trùm")
+                                                        : TextFormat(L("ACTIVE BOUNTY (%d / %d) - Hunt in Dungeon", "ĐANG TRUY NÃ (%d / %d) - Săn Dưới Hầm Ngục"), bountyProgress, bountyTarget));
+            DrawText(bTitle, (int)r.x + 22, (int)r.y + 10, 20, bCol);
+            DrawText(L("Earn Gold & Boss Essence to reinforce your weapons at Housing Guild!", "Kiếm Vàng & Tinh Hoa Trùm để Cường Hóa vũ khí tại Phường Gia Trang!"),
+                     (int)r.x + 22, (int)r.y + 40, 14, RAYWHITE);
+            Rectangle b = { r.x + r.width - 190.0f, r.y + 15.0f, 168.0f, 44.0f };
+            DrawRectangleRec(b, ready ? Color{ 34, 110, 62, 255 } : Color{ 38, 58, 96, 255 });
+            DrawRectangleLinesEx(b, 1.5f, bCol);
+            const char* btnL = !bountyActive ? L("ACCEPT", "NHẬN LỆNH") : (ready ? L("CLAIM!", "NHẬN THƯỞNG") : L("IN PROGRESS", "ĐANG LÀM"));
+            DrawText(btnL, (int)(b.x + b.width / 2) - MeasureText(btnL, 16) / 2, (int)b.y + 14, 16, WHITE);
         }
     } else if (surfaceBuilding == 1) {
         for (int t = 1; t <= 3; ++t) {
-            Rectangle r = { 120.0f, 186.0f + (t - 1) * 124.0f, 1040.0f, 110.0f };
+            Rectangle r = { 120.0f, 184.0f + (t - 1) * 102.0f, 1040.0f, 92.0f };
             bool sel = (surfaceSel == t - 1);
             bool owned = (houseTier >= t);
             bool nextTier = (houseTier + 1 == t);
@@ -178,17 +212,41 @@ inline void Game::DrawSurfaceUi() {
             Color hc = owned ? Color{ 115, 240, 155, 255 } : (nextTier ? GOLD : GRAY);
             DrawRectangleRec(r, sel ? Color{ 32, 42, 68, 252 } : Color{ 20, 26, 44, 240 });
             DrawRectangleLinesEx(r, sel ? 2.5f : 1.2f, sel ? GOLD : Fade(hc, 0.55f));
-            DrawText(HouseName(t), (int)r.x + 24, (int)r.y + 16, 24, hc);
-            DrawText(L(kHouses[t].descEn, kHouses[t].descVi), (int)r.x + 24, (int)r.y + 54, 16, RAYWHITE);
+            DrawText(HouseName(t), (int)r.x + 24, (int)r.y + 10, 22, hc);
+            DrawText(L(kHouses[t].descEn, kHouses[t].descVi), (int)r.x + 24, (int)r.y + 40, 14, RAYWHITE);
             DrawText(TextFormat(L("Total Bonus: +%d Max HP   +%d Damage   Up to %d Children", "Tổng Cộng: +%d Máu Tối Đa   +%d Sát Thương   Tối đa %d Con"),
-                (int)kHouses[t].hpBonus, (int)kHouses[t].dmgBonus, kHouses[t].maxKids), (int)r.x + 24, (int)r.y + 80, 14, SKYBLUE);
+                (int)kHouses[t].hpBonus, (int)kHouses[t].dmgBonus, kHouses[t].maxKids), (int)r.x + 24, (int)r.y + 64, 13, SKYBLUE);
 
-            Rectangle b = { r.x + r.width - 230.0f, r.y + 30.0f, 206.0f, 48.0f };
+            Rectangle b = { r.x + r.width - 230.0f, r.y + 22.0f, 206.0f, 46.0f };
             const char* bTxt = owned ? L("OWNED", "ĐÃ SỞ HỮU") : (nextTier ? TextFormat(L("BUY %d G", "MUA %d VÀNG"), price) : L("REQUIRES PREV TIER", "CẦN CẤP TRƯỚC"));
             Color bFill = owned ? Color{ 28, 72, 48, 255 } : (afford ? Color{ 38, 102, 62, 255 } : Color{ 64, 34, 42, 255 });
             DrawRectangleRec(b, bFill);
             DrawRectangleLinesEx(b, 1.5f, hc);
-            DrawText(bTxt, (int)(b.x + b.width / 2) - MeasureText(bTxt, 17) / 2, (int)b.y + 15, 17, WHITE);
+            DrawText(bTxt, (int)(b.x + b.width / 2) - MeasureText(bTxt, 16) / 2, (int)b.y + 14, 16, WHITE);
+        }
+        // Lò Rèn Cường Hóa Vũ Khí +1..+5 (Option 3)
+        {
+            Rectangle r = { 120.0f, 184.0f + 3 * 102.0f, 1040.0f, 92.0f };
+            bool sel = (surfaceSel == 3);
+            int plus = equipPlus[0];
+            int goldCost = MealPrice(90 + plus * 70);
+            int essCost = (plus >= 2) ? 1 : 0;
+            bool canForge = hasEquip[0] && plus < 5 && player.gold >= goldCost && bossEssence >= essCost;
+            Color fc = (plus >= 5) ? Color{ 120, 245, 150, 255 } : Color{ 255, 185, 95, 255 };
+            DrawRectangleRec(r, sel ? Color{ 32, 42, 68, 252 } : Color{ 20, 26, 44, 240 });
+            DrawRectangleLinesEx(r, sel ? 2.5f : 1.2f, sel ? GOLD : Fade(fc, 0.65f));
+            DrawText(TextFormat(L("BLACKSMITH FORGE: Reinforce %s (+%d -> +%d)", "LÒ RÈN THẦN BÍ: Cường Hóa %s (+%d -> +%d)"),
+                                hasEquip[0] ? equipped[0].name.c_str() : L("Weapon", "Vũ Khí"), plus, std::min(5, plus + 1)),
+                     (int)r.x + 24, (int)r.y + 12, 20, fc);
+            DrawText(L("+22% Weapon Stats per level! Requires Gold (+1 Boss Essence for +3 and above).",
+                       "+22% Chỉ số Vũ Khí mỗi cấp! Cần Vàng (từ +3 trở lên cần thêm 1 Tinh Hoa Trùm)."),
+                     (int)r.x + 24, (int)r.y + 48, 14, RAYWHITE);
+            Rectangle b = { r.x + r.width - 230.0f, r.y + 22.0f, 206.0f, 46.0f };
+            const char* bTxt = (plus >= 5) ? L("MAX +5", "TỐI ĐA +5")
+                                           : TextFormat(essCost > 0 ? L("FORGE %dG + 1E", "RÈN %dV + 1TH") : L("FORGE %d G", "RÈN %d VÀNG"), goldCost);
+            DrawRectangleRec(b, canForge ? Color{ 98, 68, 28, 255 } : Color{ 56, 36, 42, 255 });
+            DrawRectangleLinesEx(b, 1.5f, fc);
+            DrawText(bTxt, (int)(b.x + b.width / 2) - MeasureText(bTxt, 16) / 2, (int)b.y + 14, 16, WHITE);
         }
     } else if (surfaceBuilding == 2) {
         if (!hasSpouse) {

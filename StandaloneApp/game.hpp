@@ -130,6 +130,26 @@ public:
     std::vector<Mote> motes;
     float damagePulse = 0.0f;   // viền màn hình nhấp đỏ khi bị đau
     float hitStop = 0.0f;       // khựng khung hình ngắn khi chí mạng
+    float slowMoTimer = 0.0f;   // làm chậm thời gian khi hạ Trùm / Né Hoàn Hảo
+    float perfectDodgeTimer = 0.0f;
+    bool nextHitCrit = false;
+    float stylePoints = 0.0f;
+    int styleRank = 0;          // 0:D, 1:C, 2:B, 3:A, 4:S, 5:SS, 6:SSS
+    float styleDecayTimer = 0.0f;
+    int perfectDodgesCount = 0;
+    int elementalReactionsCount = 0;
+    int curseStacks = 0;
+    bool hasBloodPact = false;
+    bool bloodPactUsed = false;
+    Vector2 bloodPactPos = { 0.0f, 0.0f };
+    int bossEssence = 0;
+    int equipPlus[4] = { 0, 0, 0, 0 };
+    bool bountyActive = false;
+    int bountyKind = 0;         // 0: Elites, 1: Elemental Reactions, 2: Boss / Golden Goblin
+    int bountyProgress = 0;
+    int bountyTarget = 6;
+    int bountyRewardGold = 200;
+    int bloodlineTrait = 0;     // 0: Dragonheart, 1: Shadowstep, 2: Arcane Blood, 3: Sovereign
     int bestCombo = 0;
     Vector2 aimDirDraw = { 1, 0 };
     RenderTexture2D lightmap = { 0 };
@@ -441,7 +461,7 @@ public:
 
     void SpawnPopup(Vector2 pos, const std::string& txt, Color col);
 
-    bool HasRelic(RelicType t);
+    bool HasRelic(RelicType t) const;
 
     static Relic MakeRelic(RelicType t);
 
@@ -518,9 +538,23 @@ public:
     float DiffHp() const { return settings.difficulty == 0 ? 0.90f : (settings.difficulty == 2 ? 1.20f : 1.0f); }
     float DiffDmg() const { return settings.difficulty == 0 ? 0.75f : (settings.difficulty == 2 ? 1.20f : 1.0f); }
     float DiffSouls() const { return settings.difficulty == 0 ? 0.75f : (settings.difficulty == 2 ? 1.5f : 1.0f); }
-    float HpMult() const { return (1.0f + (floor - 1) * 0.15f + std::max(0, floor - 8) * 0.14f) * DiffHp(); }
-    float DmgMult() const { return (1.0f + (floor - 1) * 0.10f + std::max(0, floor - 8) * 0.11f) * DiffDmg(); }
+    float HpMult() const { return (1.0f + (floor - 1) * 0.15f + std::max(0, floor - 8) * 0.14f) * DiffHp() * (1.0f + curseStacks * 0.08f); }
+    float DmgMult() const { return (1.0f + (floor - 1) * 0.10f + std::max(0, floor - 8) * 0.11f) * DiffDmg() * (1.0f + curseStacks * 0.08f); }
     float EliteChance() const { return std::min(0.45f, 0.20f + std::max(0, floor - 8) * 0.015f); }
+
+    void AddStyle(float pts);
+    const char* StyleRankLabel() const;
+    Color StyleRankColor() const;
+    void TriggerElementalReaction(Enemy& e, int reactionKind, Vector2 pos);
+    void TriggerPerfectDodge();
+    void AcceptBloodPact();
+    void ReforgeEquipSlot(int slot);
+    void AcceptOrClaimBounty();
+    const char* BloodlineTraitName() const;
+    const char* BloodlineTraitDesc() const;
+    bool HasDuoTempestFrost() const { return HasRelic(RELIC_LIGHTNING) && HasRelic(RELIC_FROST); }
+    bool HasDuoPlaguefire() const { return HasRelic(RELIC_TOXIC) && HasRelic(RELIC_COMBUSTION); }
+    bool HasDuoImmortalBastion() const { return HasRelic(RELIC_AEGIS) && HasRelic(RELIC_CHALICE); }
 
     // ── Nút bấm trên màn hình (dùng được cho chuột lẫn chạm) ──
     enum UiAction { UI_NONE = 0, UI_START, UI_SAVE_LOAD, UI_SANCT, UI_SETTINGS, UI_HELP, UI_QUIT, UI_RESUME, UI_EQUIP, UI_RESTART, UI_BACK, UI_CLOSE_HELP, UI_CLOSE_INV, UI_CHANGE_CLASS, UI_MAIN_MENU, UI_FAMILY_TREE, UI_CONTINUE_HEIR, UI_SURFACE_RETURN };

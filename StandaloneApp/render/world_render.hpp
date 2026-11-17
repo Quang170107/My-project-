@@ -305,6 +305,7 @@ inline void Game::RenderLightmap() {
     if (hasTrialTotem && !trialUsed) AddLight(trialPos, 170.0f, { 255, 195, 70, 255 }, 0.55f);
     if (hasCaptiveEvent && !inSurface) AddLight(captivePos, 210.0f, kSpouses[std::max(0, std::min(3, captiveSpouseIdx))].dressCol, captiveRescued ? 0.35f : 0.65f);
     if (hasShrine && !shrineUsed) AddLight({ shrinePos.x, shrinePos.y - 40.0f }, 190.0f, { 255, 50, 80, 255 }, 0.55f + 0.1f * sinf(shrinePulse));
+    if (hasBloodPact && !bloodPactUsed) AddLight({ bloodPactPos.x, bloodPactPos.y - 28.0f }, 175.0f, { 215, 35, 70, 255 }, 0.50f + 0.12f * sinf((float)GetTime() * 4.0f));
     for (const auto& pr : projectiles) AddLight(pr.pos, pr.kind == 4 ? 130.0f : 80.0f, pr.color, pr.kind == 4 ? 0.85f : 0.7f);
     for (const auto& ge : groundEffects) AddLight(ge.pos, ge.radius * 1.15f + 40.0f, ge.color, 0.55f);
     for (const auto& nv : novas) {
@@ -635,10 +636,24 @@ inline void Game::DrawSurfaceFamilyHomeRoom(const BiomeColors& biome, float tm) 
             bool nearH = Vector2Distance(player.pos, hp) < 85.0f;
             int hc = std::max(0, std::min(3, ch.heroClass));
             Color cc = kClasses[hc].color;
-            DrawCircleLines((int)hp.x, (int)hp.y + 6, 30.0f, Fade(nearH ? GOLD : cc, 0.72f));
-            DrawHeroModel(hp, hc, ClassWeaponType(hc), { -0.8f, 0.2f }, true, tm * 2.5f + k, true, 0.2f, false, false, 0.0f, 0.0f, 0, 0.0f);
-            std::string sub = TextFormat(L("[F] REST IN PEACE (%s +%dHP)  |  [N] Rename", "[F] AN NGHỈ - KẾ THỪA  |  [N] Đổi Tên"), ClassDisplayName(hc), (int)ch.bonusHp);
-            DrawSurfacePrompt({ hp.x, hp.y + 26.0f }, ch.name.c_str(), sub.c_str(), cc, nearH);
+            DrawCircleLines((int)hp.x, (int)hp.y + 6, 30.0f, Fade(nearH ? GOLD : (ch.inParty ? Color{ 120, 245, 170, 255 } : cc), 0.72f));
+            {
+                float sc = Clamp(0.45f + ch.age / 18.0f * 0.55f, 0.45f, 1.0f); // con lớn dần theo tuổi
+                rlPushMatrix();
+                rlTranslatef(hp.x, hp.y, 0.0f);
+                rlScalef(sc, sc, 1.0f);
+                DrawHeroModel({ 0.0f, 0.0f }, hc, ClassWeaponType(hc), { -0.8f, 0.2f }, true, tm * 2.5f + k, true, 0.2f, false, false, 0.0f, 0.0f, 0, 0.0f);
+                rlPopMatrix();
+            }
+            std::string title = TextFormat(L("%s - Age %d - Lv%d", "%s - %d tuổi - Lv%d"), ch.name.c_str(), ChildAgeYears(ch), ch.level);
+            std::string ripPart = (ch.age >= (float)kChildAdultAge)
+                ? std::string(L("[F] Rest in Peace", "[F] An Nghỉ - Kế Thừa"))
+                : std::string(TextFormat(L("Inherit at %d", "Kế thừa khi %d tuổi"), kChildAdultAge));
+            std::string trainPart = (ch.injuredTimer > 0.0f) ? std::string(TextFormat(L("Wounded %ds", "Dưỡng thương %ds"), (int)ceilf(ch.injuredTimer)))
+                : (ch.age < (float)kChildTrainAge) ? std::string(TextFormat(L("Train at %d", "Rèn luyện khi %d tuổi"), kChildTrainAge))
+                : (ch.inParty ? std::string(L("[T] Stay Home", "[T] Ở Nhà")) : std::string(L("[T] Bring to Dungeon", "[T] Dẫn Theo")));
+            std::string sub = ripPart + "  |  " + trainPart + "  |  " + L("[N] Rename", "[N] Đổi Tên");
+            DrawSurfacePrompt({ hp.x, hp.y + 26.0f }, title.c_str(), sub.c_str(), ch.inParty ? Color{ 120, 245, 170, 255 } : cc, nearH);
         }
     }
     DrawSurfaceExitDoor(SurfaceInteriorExitPos());
@@ -910,6 +925,29 @@ inline void Game::Draw() {
         }
     }
 
+    // Đài Giao Ước Bóng Tối
+    if (hasBloodPact) {
+        float bx = bloodPactPos.x, by = bloodPactPos.y;
+        float tm = (float)GetTime();
+        DrawEllipse((int)bx, (int)by + 24, 28, 9, { 0, 0, 0, 105 });
+        if (!bloodPactUsed) {
+            DrawCircle((int)bx, (int)by + 4, 38.0f, Fade({ 190, 25, 65, 255 }, 0.14f + 0.06f * sinf(tm * 4.0f)));
+            DrawCircleLines((int)bx, (int)by + 4, 38.0f, { 225, 55, 95, 255 });
+        }
+        DrawRectangle((int)bx - 16, (int)by - 16, 32, 34, bloodPactUsed ? Color{ 55, 48, 58, 255 } : Color{ 82, 26, 44, 255 });
+        DrawRectangleLines((int)bx - 16, (int)by - 16, 32, 34, bloodPactUsed ? GRAY : Color{ 255, 95, 130, 255 });
+        if (!bloodPactUsed) {
+            Diamond({ bx, by - 28.0f + sinf(tm * 3.5f) * 3.0f }, 8.0f, 12.0f, { 255, 65, 110, 255 }, GOLD);
+            const char* pLbl = L("[F] BLOOD PACT (-14% MaxHP -> Relic & +10 DMG)", "[F] GIAO ƯỚC MÁU (-14% Máu -> Thánh Vật & +10 ST)");
+            if (Vector2Distance(player.pos, bloodPactPos) < 110.0f) {
+                DrawText(pLbl, (int)bx - MeasureText(pLbl, 14) / 2, (int)by + 30, 14, { 255, 145, 165, 255 });
+            } else {
+                const char* sLbl = L("DARK PACT", "GIAO ƯỚC");
+                DrawText(sLbl, (int)bx - MeasureText(sLbl, 13) / 2, (int)by + 30, 13, { 220, 105, 125, 255 });
+            }
+        }
+    }
+
     // Sự kiện ngẫu nhiên trong Hầm Ngục: Lồng Giam Cứu Người Đẹp (mở khóa Cưới Vợ)
     if (hasCaptiveEvent) {
         float tm = (float)GetTime();
@@ -1155,6 +1193,7 @@ inline void Game::Draw() {
         float tm = (float)GetTime();
         DrawPolyLinesEx(player.pos, 6, 30.0f + sinf(tm * 12.0f) * 2.0f, tm * 120.0f, 2.2f, Fade(ORANGE, 0.78f));
     }
+    DrawPartyChildren(); // con cái theo cha rèn luyện
     DrawEllipse((int)player.pos.x, (int)player.pos.y + 16, 20, 8, { 0, 0, 0, 100 }); // Shadow
     DrawPlayerSprite();
     if (CurrentTitleTier() >= 1 || inSurface) {
@@ -1288,6 +1327,33 @@ inline void Game::Draw() {
         }
     }
 
+    // Style Rank Badge (D..SSS), Perfect Dodge / Next Crit & Boss Essence / Bounty
+    if (!inSurface) {
+        Color sCol = StyleRankColor();
+        DrawRectangle(1280 - 240, 218, 218, 44, { 14, 18, 30, 210 });
+        DrawRectangleLines(1280 - 240, 218, 218, 44, sCol);
+        DrawText(StyleRankLabel(), 1280 - 228, 224, 28, sCol);
+        DrawText(TextFormat(L("STYLE  +%d%% ATK  +%d%% LOOT", "PHONG ĐỘ  +%d%% ĐÁNH  +%d%% RƠI"),
+                            (int)roundf(styleRank * 3.5f), styleRank * 6),
+                 1280 - 180, 224, 12, RAYWHITE);
+        DrawRectangle(1280 - 180, 244, 146, 8, { 28, 34, 52, 255 });
+        DrawRectangle(1280 - 180, 244, (int)(146.0f * Clamp(stylePoints / 100.0f, 0.0f, 1.0f)), 8, sCol);
+        int hyRight = 268;
+        if (nextHitCrit) {
+            DrawText(L("SHADOW CRIT READY!", "SẴN SÀNG CHÍ MẠNG!"), 1280 - 240, hyRight, 14, GOLD);
+            hyRight += 18;
+        }
+        if (bossEssence > 0) {
+            DrawText(TextFormat(L("Boss Essence: %d", "Tinh Hoa Trùm: %d"), bossEssence), 1280 - 240, hyRight, 13, { 235, 165, 255, 255 });
+            hyRight += 17;
+        }
+        if (bountyActive) {
+            const char* bDesc = (bountyKind == 0) ? L("Elites", "Tinh Anh") : (bountyKind == 1 ? L("Reactions", "Phản Ứng") : L("Boss/Goblin", "Trùm/Yêu Tinh"));
+            DrawText(TextFormat(L("Bounty (%s): %d/%d", "Truy Nã (%s): %d/%d"), bDesc, bountyProgress, bountyTarget),
+                     1280 - 240, hyRight, 13, (bountyProgress >= bountyTarget) ? Color{ 120, 245, 150, 255 } : SKYBLUE);
+        }
+    }
+
     // Trang bị đang đeo (HUD)
     for (int i = 0; i < 4; ++i) {
         int hx = 24 + i * 36, hy = 156 + yOff;
@@ -1297,6 +1363,16 @@ inline void Game::Draw() {
         DrawItemIcon(i, { hx + 15.0f, hy + 15.0f }, 17.0f, hasEquip[i] ? rc : Color{ 70, 78, 100, 255 }, hasEquip[i] ? equipped[i].weaponType : 0);
     }
     DrawText(L("[I] Gear & Skills   [Y] Family Tree", "[I] Đồ & Kỹ Năng   [Y] Gia Phả"), 24 + 4 * 36 + 4, 164 + yOff, 14, { 150, 165, 200, 255 });
+
+    // Tuổi & tiến độ năm (1 năm = 3 phút) + Đoàn con theo rèn luyện
+    {
+        int ay = 192 + yOff;
+        std::string ageTxt = TextFormat(L("AGE %d  %s  (%s)", "TUỔI %d  %s  (%s)"), heroAge, AgeStageName(), AgeEffectText().c_str());
+        DrawText(ageTxt.c_str(), 24, ay, 12, AgeStageColor());
+        DrawRectangle(24, ay + 15, 236, 5, { 26, 30, 46, 230 });
+        DrawRectangle(24, ay + 15, (int)(236.0f * YearProgress()), 5, AgeStageColor());
+        DrawPartyHud(ay + 26);
+    }
 
     if (touchMode && state == PLAYING) DrawTouchControls();
 

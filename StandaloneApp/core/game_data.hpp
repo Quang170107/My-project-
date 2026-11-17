@@ -435,6 +435,9 @@ struct Enemy {
     int splitLevel = 0;        // Splitter: 0 = bản lớn, 1 = mảnh nhỏ
     float summonTimer = 3.0f;  // Summoner: đếm ngược triệu hồi; Colossus: đếm số đòn
     int bossKind = 0;          // 0 = Void Sovereign, 1 = Molten Colossus
+    bool isGoldenGoblin = false; // Yêu Tinh Vàng chạy trốn rơi kho báu
+    float reactionCooldown = 0.0f; // Hồi chiêu phản ứng nguyên tố trên mục tiêu
+    float escapeTimer = 18.0f; // Thời gian trước khi Yêu Tinh Vàng biến mất
 };
 
 struct Projectile {
