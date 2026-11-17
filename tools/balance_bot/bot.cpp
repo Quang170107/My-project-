@@ -36,7 +36,7 @@ static void ChooseUpgradeBot(Game& g) {
 static int gSkill = 2; // 2 = giỏi, 1 = trung bình, 0 = vụng về
 static void BotControl(Game& g) {
     auto& c = g.ctl;
-    c.active = true; c.external = true; c.attack = c.dash = c.nova = c.skill2 = c.ult = false; c.move = { 0, 0 };
+    c.active = true; c.external = true; c.attack = c.dash = c.nova = c.skill2 = c.skill3 = c.skill4 = c.ult = false; c.move = { 0, 0 };
     if (g.state == Game::LEVEL_UP) { ChooseUpgradeBot(g); return; }
     if (g.state != Game::PLAYING) return;
     Vector2 P = g.player.pos;
@@ -99,6 +99,10 @@ static void BotControl(Game& g) {
         c.attack = nd < keep + 45.0f;
         if (g.player.specialTimer <= 0 && nd < 280.0f) c.nova = true;
         if (g.player.skill2Timer <= 0 && (cnt190 >= 2 || (nd < 190.0f && hpFrac < 0.6f))) c.skill2 = true;
+        if (g.player.subClass != 0) {
+            if (g.player.skill3Timer <= 0 && nd < 320.0f) c.skill3 = true;
+            if (g.player.skill4Timer <= 0 && (cnt190 >= 2 || nd < 220.0f)) c.skill4 = true;
+        }
         if (g.player.rage >= g.player.maxRage && (cnt190 >= 2 || near->type == BOSS || near->isWarden || hpFrac < 0.5f)) c.ult = true;
         if (nd < 60.0f && hpFrac < 0.5f && g.player.dashTimer <= 0 && near->type == CHARGER) c.dash = true;
         haveTarget = true;

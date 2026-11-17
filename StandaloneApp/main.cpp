@@ -263,12 +263,18 @@ struct SubclassDef {
     float bonusAtkRate;
     float bonusCrit;
     float bonusLifesteal;
+    float cCooldown;
+    float vCooldown;
     const char* passiveName;
     const char* passiveDesc;
     const char* qName;
     const char* qDesc;
     const char* eName;
     const char* eDesc;
+    const char* cName;
+    const char* cDesc;
+    const char* vName;
+    const char* vDesc;
     const char* rName;
     const char* rDesc;
 };
@@ -278,19 +284,23 @@ static const SubclassDef kSubclasses[4][2] = {
         {
             CLASS_KNIGHT, 1, "Holy Paladin", "Thanh Ky Si - Thanh Kiem & Khien",
             { 255, 215, 90, 255 }, { 120, 230, 255, 255 }, WP_SWORD, "Sunforged Holy Sword",
-            35.0f, 4.0f, 3.0f, 0.0f, 0.20f, 0.05f, 0.05f,
+            35.0f, 4.0f, 3.0f, 0.0f, 0.20f, 0.05f, 0.05f, 8.0f, 10.0f,
             "Divine Sanctuary", "-20% dmg taken; every 4th hit smites 115px AoE & heals 6 HP",
             "Crusader Grand Slam", "Lunge, slam 2.4x DMG, Stun 1.5s & spawn 2.5s healing zone",
             "Aegis of Dawn", "2.2x Holy Nova + 4.5s Barrier (+6 ARM, +30% SPD, block 1 hit)",
+            "Consecrated Hammer", "Throw 3 piercing holy hammers (2.1x DMG, Stun 1.2s) & heal 8% HP",
+            "Heavenly Chains", "210px radiant chain pull nova (2.3x DMG + Burn) & +15 Rage",
             "Judgment of Solaris", "4.2x Light Swords + 4.5s Sanctuary (1.1x ticks & heal)"
         },
         {
             CLASS_KNIGHT, 2, "Dread Berserker", "Cuong Chien - Huyet Kiem Cuong Bao",
             { 235, 65, 65, 255 }, { 255, 165, 50, 255 }, WP_SWORD, "Bloodreaver Greatsword",
-            20.0f, 10.0f, 0.0f, 25.0f, 0.45f, 0.08f, 0.12f,
+            20.0f, 10.0f, 0.0f, 25.0f, 0.45f, 0.08f, 0.12f, 7.5f, 9.5f,
             "Blood Frenzy", "Sword swings fire Blood Waves; missing HP grants up to +40% ATK SPD",
             "Savage Cleave Leap", "Leap 110px, slam 2.5x crimson AoE, Burn & heal 10% Max HP",
             "Bloodboil Roar", "2.0x Blood Nova + Slow, +25 Rage & 4s Frenzy (+30% ATK/SPD)",
+            "Crimson Eruption", "Erupt 3 blood geysers forward (2.4x AoE + Burn) & heal 12% HP",
+            "Gore Whirlwind", "Fire 8 piercing Blood Waves all around (1.85x) + 2.5s Haste",
             "Cataclysmic Guillotine", "4.2x Crimson Quake + 4s Blood Vortex pulling & shredding foes"
         }
     },
@@ -298,19 +308,23 @@ static const SubclassDef kSubclasses[4][2] = {
         {
             CLASS_ASSASSIN, 1, "Phantom Reaper", "Tu Than - Song Chu Doan Menh",
             { 195, 90, 255, 255 }, { 100, 245, 210, 255 }, WP_DAGGER, "Nightfall Soulblades",
-            25.0f, 8.0f, 1.5f, 15.0f, 0.25f, 0.08f, 0.10f,
+            25.0f, 8.0f, 1.5f, 15.0f, 0.25f, 0.08f, 0.10f, 7.5f, 9.5f,
             "Soul Harvest", "Crits deal 2.6x DMG; kills launch homing Soul Wisps & heal 4 HP",
             "Death Spiral", "Hurl 6 piercing spectral blades (1.35x DMG, Poison & Chill)",
             "Reaper's Blink", "Blink 225px, 2.6x guaranteed-crit Soul Reap + Soul Shield",
+            "Wraith Swarm", "Launch 6 homing Soul Wisps (1.35x DMG + Poison/Slow) & heal 18 HP",
+            "Graveyard Scythe", "185px spectral scythe sweep (2.8x Crit + Freeze 1.4s) & +20 Rage",
             "Wraith Hurricane", "4.0s Blade Storm (1.05x slashes/0.18s & heal 2 HP per hit)"
         },
         {
             CLASS_ASSASSIN, 2, "Ninja Trickster", "Nhan Gia - Song Dao Sam Chop",
             { 255, 75, 150, 255 }, { 110, 235, 255, 255 }, WP_DAGGER, "Stormfang Daggers",
-            15.0f, 6.0f, 0.5f, 35.0f, 0.65f, 0.12f, 0.05f,
+            15.0f, 6.0f, 0.5f, 35.0f, 0.65f, 0.12f, 0.05f, 7.0f, 9.0f,
             "Shadow Clonejutsu", "Attacks throw lightning shurikens; Dash drops explosive decoy",
             "Tempest Shurikens", "Throw 8 lightning shurikens (1.25x DMG, pierce 2 & mini-stun)",
             "Lightning Mirage", "Blink 230px, drop 2.2x explosive clone & 2.4x crit slash",
+            "Caltrop Storm", "Drop 3 electric caltrop traps (1.9x AoE + Slow) + 5 shurikens",
+            "Thunder Flash Slash", "Lightning dash-cut 180px (2.7x Crit + Stun 1.1s) & reset Dash",
             "Thousand Blades", "3.8s hyper-storm (+45% SPD, rapid slashes + 4-way shurikens)"
         }
     },
@@ -318,19 +332,23 @@ static const SubclassDef kSubclasses[4][2] = {
         {
             CLASS_MAGE, 1, "Spellblade (Kiem Su)", "Kiem Su - Gay Phep Hoa Kiem",
             { 85, 230, 255, 255 }, { 210, 110, 255, 255 }, WP_STAFF, "Runeblade Staff (Sword)",
-            32.0f, 8.0f, 2.5f, 25.0f, 0.55f, 0.10f, 0.06f,
+            32.0f, 8.0f, 2.5f, 25.0f, 0.55f, 0.10f, 0.06f, 7.0f, 9.5f,
             "Enchanted Runeblade", "Staff channels as Magic Sword firing Moonlight Waves; Shield +25% SPD",
             "Dimensional Slash", "Dash-cut 115px (2.4x DMG) + fire 3 piercing Moonlight Waves",
             "Phantom Sword Ring", "1.9x Frost-Fire Nova (Stun 1.4s) + 3.2s orbiting Magic Swords",
+            "Moonlight Cross Cut", "Cross-slash (2.3x DMG) firing 5 Moonlight Waves + Arcane Shield",
+            "Astral Sword Array", "Call down 6 Astral Swords (2.1x AoE + Burn) & +18 Rage",
             "Excalibur Astral Storm", "3.8x Astral Greatsword impact + 4s Sword Rain & +35% ATK SPD"
         },
         {
             CLASS_MAGE, 2, "Archmage", "Dai Phap Su - Quyen Truong Nguyen To",
             { 165, 105, 255, 255 }, { 255, 180, 70, 255 }, WP_STAFF, "Archon Grand Staff",
-            18.0f, 11.0f, 1.0f, 10.0f, 0.35f, 0.08f, 0.05f,
+            18.0f, 11.0f, 1.0f, 10.0f, 0.35f, 0.08f, 0.05f, 7.5f, 10.0f,
             "Elemental Overload", "Twin explosive staff bolts; skills fire 5 homing missiles +10 Rage",
             "Twin Meteor Comets", "Launch 2 blazing comets (2.3x AoE each + heavy Burn)",
             "Absolute Zero Nova", "215px Blizzard blast (1.9x DMG, Freeze 1.8s) + 6 ice shards",
+            "Chain Tempest Orb", "3 storm orbs (1.9x AoE) + chain lightning on 6 foes (Stun 0.9s)",
+            "Arcane Cataclysm", "Solar-arcane pillar (2.6x AoE + 3s burn zone) & 6 homing missiles",
             "Cosmic Singularity", "4.2s giant Void Black Hole + meteors (1.75x) & +25% HP heal"
         }
     },
@@ -338,19 +356,23 @@ static const SubclassDef kSubclasses[4][2] = {
         {
             CLASS_RANGER, 1, "Sniper Deadeye", "Than Tien - Cung Than Bach Phat",
             { 95, 240, 145, 255 }, { 255, 220, 85, 255 }, WP_BOW, "Windforce Longbow",
-            18.0f, 10.0f, 0.5f, 20.0f, 0.45f, 0.14f, 0.05f,
+            18.0f, 10.0f, 0.5f, 20.0f, 0.45f, 0.14f, 0.05f, 7.0f, 9.5f,
             "Hawk's Execution", "Every 2nd shot is a 1.75x piercing Wind Shot; arrows +1 pierce",
             "Starlight Barrage", "Fire a 9-arrow piercing fan (1.2x DMG each + Burn)",
             "Cluster Snare Vault", "Drop 2.8x stun-mine, vault back 140px & +35% ATK SPD 2.5s",
+            "AP Railshot", "Hyper rail arrow (3.0x Crit, infinite pierce + 80px blast)",
+            "Flare & Camouflage", "6 flare arrows (1.7x AoE) + 1.5s Invuln & 3.0s Haste",
             "Solaris Arrow Tempest", "4.0s storm of sun-arrows (1.35x + Burn) & +45% ATK SPD"
         },
         {
             CLASS_RANGER, 2, "Tempest Valkyrie", "Chien Than - Cung Sam Set",
             { 90, 215, 235, 255 }, { 255, 215, 90, 255 }, WP_BOW, "Thunderbolt Greatbow",
-            30.0f, 8.0f, 2.5f, 25.0f, 0.35f, 0.08f, 0.08f,
+            30.0f, 8.0f, 2.5f, 25.0f, 0.35f, 0.08f, 0.08f, 7.5f, 9.5f,
             "Storm Arrow", "Every bow shot fires piercing Lightning Arrows with shockwave",
             "Thunder Volley", "Fire 7 lightning arrows (1.35x AoE, pierce 3 & 0.8s Stun)",
             "Tempest Vault", "Drop 2.5x Shock Trap, leap back & gain Storm Shield + Haste",
+            "Valkyrie Spear", "Hurl 3 lightning javelins (2.1x AoE, pierce 4) + Storm Shield",
+            "Eye of Hurricane", "200px shockwave (2.2x + Stun 1.1s), 8 storm arrows & +20 Rage",
             "Gungnir Skyfall", "Rain Lightning Arrows for 3.8s (1.35x AoE) + +35% ATK SPD"
         }
     }
@@ -366,6 +388,10 @@ struct ClassTextVi {
     const char* qDesc;
     const char* eName;
     const char* eDesc;
+    const char* cName;
+    const char* cDesc;
+    const char* vName;
+    const char* vDesc;
     const char* rName;
     const char* rDesc;
 };
@@ -376,6 +402,7 @@ static const ClassTextVi kClassesVi[4] = {
         "Khiên Bất Khuất", "Giảm 15% sát thương; bị đánh +8 Nộ & nổ xung kích; đòn thứ 5 hồi 4 HP",
         "Xung Kích Khiên", "Lướt húc gây 1.9x sát thương & Làm choáng 1.2s",
         "Thánh Quang Xung", "Nổ 1.8x ST + Giáp Thánh 3.5s (+4 Giáp, +25% Tốc Đánh, chặn 1 đòn)",
+        "", "", "", "",
         "Phán Quyết Thiên Đường", "3.5x Đại Kiếm Ánh Sáng + Choáng, vùng thánh 4s (0.85x & hồi 4% HP/s)"
     },
     {
@@ -383,6 +410,7 @@ static const ClassTextVi kClassesVi[4] = {
         "Động Lực Tử Thần", "Chí mạng gây 2.4x ST + Độc; hạ gục hồi 50% Dash & +25% Tốc Chạy 2s",
         "Phi Tiêu Bóng Tối", "Phóng 5 phi tiêu xuyên thấu (1.1x ST, Độc & Làm chậm)",
         "Ám Tập", "Dịch chuyển 210px, thả bom khói & chém chắc chắn chí mạng 2.2x",
+        "", "", "", "",
         "Vũ Điệu Tử Thần", "3.5s Bão Kiếm (+35% Tốc Chạy, -50% ST nhận, chém 0.85x/0.2s)"
     },
     {
@@ -390,6 +418,7 @@ static const ClassTextVi kClassesVi[4] = {
         "Cộng Hưởng Ma Pháp", "Giảm 15% hồi chiêu; tung Q/E/R bắn 3 tia dẫn đường & +6 Nộ",
         "Cầu Lửa Hủy Diệt", "Cầu lửa nổ diện rộng 135px gây 2.3x ST & Thiêu đốt",
         "Vòng Băng Giá", "Vụ nổ băng 185px gây 1.5x ST, Đóng băng 1.3s & Làm chậm",
+        "", "", "", "",
         "Thiên Thạch Hư Không", "3.8s Hố Đen hút quái & mưa 12 thiên thạch (1.5x ST/cái)"
     },
     {
@@ -397,6 +426,7 @@ static const ClassTextVi kClassesVi[4] = {
         "Dấu Ấn Đại Bàng", "Mỗi đòn thứ 3 bắn Tên Gió xuyên thấu 1.5x ST (+10% Chí mạng)",
         "Liên Xạ Tiễn", "Bắn quạt 7 mũi tên (1.0x ST mỗi tên) đẩy lùi kẻ địch",
         "Bẫy Nổ & Nhào Lộn", "Đặt bẫy nổ (2.4x AoE + Làm chậm) & lộn ngược lùi về",
+        "", "", "", "",
         "Mưa Tên Phượng Hoàng", "3.6s bão 16 mũi tên lửa (1.15x + Thiêu đốt) & +35% Tốc Đánh"
     }
 };
@@ -408,6 +438,8 @@ static const ClassTextVi kSubclassesVi[4][2] = {
             "Thánh Vực Bảo Hộ", "Giảm 20% ST nhận vào; đòn thứ 4 giáng thánh 115px & hồi 6 HP",
             "Thiên Phạt Đại Chấn", "Lướt đập 2.4x ST, Choáng 1.5s & tạo Thánh Vực hồi máu 2.5s",
             "Khiên Bình Minh", "Nổ 2.2x ST + Giáp Thánh 4.5s (+6 Giáp, +30% Tốc Đánh, chặn 1 đòn)",
+            "Búa Thánh Phán Quyết", "Ném 3 búa thánh xuyên thấu (2.1x ST, Choáng 1.2s) & hồi 8% Máu",
+            "Xiềng Xích Thiên Đường", "210px xích quang kéo quái tụ lại (2.3x ST + Đốt) & +15 Nộ",
             "Phán Quyết Solaris", "4.2x Thánh Kiếm + 4.5s Thánh Vực (1.1x ST & hồi máu liên tục)"
         },
         {
@@ -415,6 +447,8 @@ static const ClassTextVi kSubclassesVi[4][2] = {
             "Huyết Cuồng Nộ", "Chém phóng Huyết Kiếm Khí; máu càng thấp tốc đánh càng tăng (+40%)",
             "Nhảy Chém Cuồng Bạo", "Nhảy 110px đập vùng máu 2.5x ST, Thiêu đốt & hồi 10% Máu Tối Đa",
             "Tiếng Gầm Sôi Máu", "Nổ máu 2.0x ST + Làm chậm, +25 Nộ & Cuồng Nộ 4s (+30% Tốc)",
+            "Huyết Địa Chấn", "Bùng 3 cột huyết nham phía trước (2.4x AoE + Đốt) & hồi 12% Máu",
+            "Cơn Lốc Xé Xác", "Phóng 8 Huyết Kiếm Khí tỏa tròn (1.85x ST) + Tăng Tốc 2.5s",
             "Chém Đầu Tận Thế", "4.2x Địa Chấn Đỏ + 4s Xoáy Máu hút và xé nát kẻ địch"
         }
     },
@@ -424,6 +458,8 @@ static const ClassTextVi kSubclassesVi[4][2] = {
             "Thu Hoạch Linh Hồn", "Chí mạng 2.6x ST; hạ gục thả Tinh Linh truy đuổi & hồi 4 HP",
             "Vòng Xoáy Tử Thần", "Phóng 6 lưỡi dao linh hồn xuyên 3 mục tiêu (1.35x ST, Độc & Băng)",
             "Tử Thần Dịch Chuyển", "Biến 225px, chém 2.6x chắc chắn chí mạng & tạo Khiên Linh Hồn",
+            "Bầy Oan Hồn", "Thả 6 Tinh Linh dẫn đường (1.35x ST + Độc/Chậm) & hồi 18 HP",
+            "Lưỡi Hái Tử Địa", "Quét lưỡi hái 185px (2.8x Chí Mạng + Đóng Băng 1.4s) & +20 Nộ",
             "Cơn Lốc Oan Hồn", "4.0s Bão Đoạt Hồn (1.05x ST/0.18s & hồi 2 HP mỗi nhát trúng)"
         },
         {
@@ -431,6 +467,8 @@ static const ClassTextVi kSubclassesVi[4][2] = {
             "Ảo Ảnh Phân Thân", "Mỗi đòn đánh phóng kèm phi tiêu sét; Dash để lại bẫy phân thân nổ",
             "Bão Phi Tiêu Sấm", "Ném 8 phi tiêu sấm sét (1.25x ST, xuyên 2 & choáng nhẹ)",
             "Lôi Ảnh Huyễn Thuật", "Biến 230px, thả phân thân nổ 2.2x & chém chí mạng 2.4x",
+            "Mưa Chông Điện", "Rải 3 bẫy chông điện (1.9x AoE + Chậm) & ném 5 phi tiêu sét",
+            "Lôi Thiểm Nhất Trảm", "Lướt sét chém 180px (2.7x Chí Mạng + Choáng 1.1s) & hồi ngay Dash",
             "Nghìn Lưỡi Đao", "3.8s siêu bão kiếm (+45% Tốc Chạy, chém cực nhanh + 4 hướng tiêu)"
         }
     },
@@ -440,6 +478,8 @@ static const ClassTextVi kSubclassesVi[4][2] = {
             "Ma Kiếm Phù Văn", "Cầm Gậy hóa model Kiếm Phép chém phóng Kiếm Khí Ánh Trăng nổ AoE",
             "Trảm Không Gian", "Lướt chém 115px (2.4x ST) + phóng 3 Kiếm Khí Ánh Trăng + Khiên",
             "Vòng Kiếm Hồn", "Nổ băng-lửa 1.9x (Choáng 1.4s) + 3.2s Kiếm Hồn bay chém xung quanh",
+            "Thập Tự Ánh Trăng", "Chém thập tự (2.3x ST) phóng 5 Kiếm Khí Ánh Trăng + Khiên Phép",
+            "Kiếm Trận Tinh Tú", "Triệu 6 Thần Kiếm giáng xuống quanh mục tiêu (2.1x AoE) & +18 Nộ",
             "Thần Kiếm Excalibur", "3.8x Đại Kiếm Tinh Tú + 4s Mưa Kiếm Phép & +35% Tốc Đánh"
         },
         {
@@ -447,6 +487,8 @@ static const ClassTextVi kSubclassesVi[4][2] = {
             "Quá Tải Nguyên Tố", "Bắn song cầu phép nổ; dùng chiêu bắn 5 tia dẫn đường & +10 Nộ",
             "Song Thiên Thạch", "Phóng 2 sao chổi lửa khổng lồ (2.3x AoE mỗi quả + Thiêu đốt)",
             "Băng Giá Tuyệt Đối", "Nổ bão tuyết 215px (1.9x ST, Đóng băng 1.8s) + 6 mảnh băng",
+            "Cầu Sấm Liên Hoàn", "Phóng 3 cầu sấm (1.9x AoE) + giật sét lan 6 mục tiêu (Choáng 0.9s)",
+            "Cột Sáng Hủy Diệt", "Giáng Cột Quang Ám (2.6x AoE + vùng đốt 3s) & 6 tia dẫn đường",
             "Kỳ Dị Vũ Trụ", "4.2s Hố Đen Khổng Lồ + mưa thiên thạch (1.75x) & hồi 25% Máu"
         }
     },
@@ -456,6 +498,8 @@ static const ClassTextVi kSubclassesVi[4][2] = {
             "Ưng Nhãn Hành Quyết", "Mỗi phát thứ 2 bắn Tên Gió 1.75x xuyên thấu; tên thường +1 xuyên",
             "Liên Hoàn Tinh Tú", "Bắn quạt 9 mũi tên xuyên 2 mục tiêu (1.2x ST + Thiêu đốt)",
             "Mìn Chùm & Lộn Ngược", "Đặt mìn choáng 2.8x ST, lộn lùi 140px & +35% Tốc Đánh 2.5s",
+            "Tiễn Xuyên Phá", "Bắn Tên Siêu Thanh 3.0x Chí Mạng xuyên toàn bộ & nổ 80px",
+            "Pháo Sáng & Ẩn Thân", "Bắn 6 tên pháo sáng (1.7x AoE) + 1.5s Bất Tử & Tăng Tốc 3s",
             "Bão Tên Thái Dương", "4.0s mưa 22 mũi tên mặt trời (1.35x + Đốt) & +45% Tốc Đánh"
         },
         {
@@ -463,6 +507,8 @@ static const ClassTextVi kSubclassesVi[4][2] = {
             "Mũi Tên Bão Táp", "Cung bắn ra Tên Sét xuyên thấu & nổ xung kích diện rộng",
             "Loạt Tên Lôi Đình", "Bắn 7 mũi tên sét nổ AoE (1.35x ST, xuyên 3 & Choáng 0.8s)",
             "Nhảy Bão Sấm", "Đặt bẫy điện 2.5x ST, lộn về & nhận Khiên Bão + Tăng Tốc",
+            "Lao Sấm Valkyrie", "Phóng 3 ngọn Lao Sét xuyên 4 mục tiêu (2.1x AoE) + Khiên Sấm",
+            "Tâm Bão Lôi Đình", "Sóng sét 200px (2.2x ST + Choáng 1.1s), 8 tên sét & +20 Nộ",
             "Lôi Tiễn Gungnir", "3.8s Mưa Tên Sét từ bầu trời (1.35x AoE) & +35% Tốc Đánh"
         }
     }
@@ -496,6 +542,10 @@ struct Player {
     float specialCooldown = 5.5f;
     float skill2Timer = 0.0f;
     float skill2Cooldown = 7.0f;
+    float skill3Timer = 0.0f;
+    float skill3Cooldown = 7.5f;
+    float skill4Timer = 0.0f;
+    float skill4Cooldown = 9.5f;
     float rage = 0.0f;
     float maxRage = 100.0f;
     float ultActiveTimer = 0.0f;
@@ -582,6 +632,7 @@ struct Projectile {
     bool applyBurn = false;
     bool applySlow = false;
     bool applyPoison = false;
+    bool applyStun = false;
     bool hasPreCrit = false;
     bool preCrit = false;
     float critBonus = 0.0f;
@@ -1113,7 +1164,7 @@ public:
         bool active = false;
         Vector2 move = { 0, 0 };
         Vector2 aim = { 1, 0 };
-        bool attack = false, dash = false, nova = false, skill2 = false, ult = false;
+        bool attack = false, dash = false, nova = false, skill2 = false, skill3 = false, skill4 = false, ult = false;
         bool external = false; // true: bot mô phỏng đang điều khiển, bỏ qua tay cầm
     };
     ControlOverride ctl;
@@ -1290,6 +1341,26 @@ public:
         if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].eDesc : kSubclasses[hc][player.subClass - 1].eDesc;
         return settings.language == 1 ? kClassesVi[hc].eDesc : kClasses[hc].eDesc;
     }
+    const char* CName() const {
+        int hc = std::max(0, std::min(3, player.heroClass));
+        if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].cName : kSubclasses[hc][player.subClass - 1].cName;
+        return "";
+    }
+    const char* CDesc() const {
+        int hc = std::max(0, std::min(3, player.heroClass));
+        if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].cDesc : kSubclasses[hc][player.subClass - 1].cDesc;
+        return "";
+    }
+    const char* VName() const {
+        int hc = std::max(0, std::min(3, player.heroClass));
+        if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].vName : kSubclasses[hc][player.subClass - 1].vName;
+        return "";
+    }
+    const char* VDesc() const {
+        int hc = std::max(0, std::min(3, player.heroClass));
+        if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].vDesc : kSubclasses[hc][player.subClass - 1].vDesc;
+        return "";
+    }
     const char* RName() const {
         int hc = std::max(0, std::min(3, player.heroClass));
         if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].rName : kSubclasses[hc][player.subClass - 1].rName;
@@ -1330,6 +1401,14 @@ public:
     }
     float Skill1MaxCd() const { return kClasses[std::max(0, std::min(3, player.heroClass))].qCooldown * SkillCdrMult(); }
     float Skill2MaxCd() const { return kClasses[std::max(0, std::min(3, player.heroClass))].eCooldown * SkillCdrMult(); }
+    float Skill3MaxCd() const {
+        const SubclassDef* sc = ActiveSubclass();
+        return (sc ? sc->cCooldown : 7.5f) * SkillCdrMult();
+    }
+    float Skill4MaxCd() const {
+        const SubclassDef* sc = ActiveSubclass();
+        return (sc ? sc->vCooldown : 9.5f) * SkillCdrMult();
+    }
     float EffectiveArmor() const { return player.armor + (player.holyBuffTimer > 0.0f ? (player.subClass == 1 ? 6.0f : 4.0f) : 0.0f); }
     float EffectiveAttackRate() const {
         float r = player.attackRate;
@@ -1409,6 +1488,8 @@ public:
         player.critChance = cd.baseCrit;
         player.specialCooldown = Skill1MaxCd();
         player.skill2Cooldown = Skill2MaxCd();
+        player.skill3Cooldown = Skill3MaxCd();
+        player.skill4Cooldown = Skill4MaxCd();
         player.pos = { 0, 240 };
         // Nâng cấp vĩnh viễn từ Thánh địa
         player.maxHp += 10.0f * meta[0];
@@ -1952,6 +2033,8 @@ public:
         player.critChance = cd.baseCrit;
         player.specialCooldown = Skill1MaxCd();
         player.skill2Cooldown = Skill2MaxCd();
+        player.skill3Cooldown = Skill3MaxCd();
+        player.skill4Cooldown = Skill4MaxCd();
         player.gold = keepGold;
         player.relics = keepRelics;
         for (const auto& r : player.relics) if (r.type == RELIC_AEGIS) player.shieldActive = true;
@@ -2512,7 +2595,7 @@ public:
                     Vector2 mp = GetMousePosition();
                     float cw = 450.0f, gap = 36.0f, sx = 1280 / 2.0f - (cw * 2 + gap) / 2.0f;
                     for (int i = 0; i < 2; ++i) {
-                        Rectangle cr = { sx + i * (cw + gap), 130.0f, cw, 515.0f };
+                        Rectangle cr = { sx + i * (cw + gap), 116.0f, cw, 554.0f };
                         if (CheckCollisionPointRec(mp, cr)) { ChooseSubclass(i + 1); return; }
                     }
                 }
@@ -2554,6 +2637,8 @@ public:
         if (player.dashTimer > 0) player.dashTimer -= dt;
         if (player.specialTimer > 0) player.specialTimer -= dt;
         if (player.skill2Timer > 0) player.skill2Timer -= dt;
+        if (player.skill3Timer > 0) player.skill3Timer -= dt;
+        if (player.skill4Timer > 0) player.skill4Timer -= dt;
         if (player.attackTimer > 0) player.attackTimer -= dt;
         if (player.invulnTimer > 0) player.invulnTimer -= dt;
         if (player.holyBuffTimer > 0) player.holyBuffTimer -= dt;
@@ -2669,6 +2754,8 @@ public:
         bool attackHeld = ctl.active ? ctl.attack : (IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsKeyDown(KEY_SPACE) || IsKeyDown(KEY_J));
         bool skill1Pressed = ctl.active ? ctl.nova : (IsKeyPressed(KEY_Q) || IsKeyPressed(KEY_U));
         bool skill2Pressed = ctl.active ? ctl.skill2 : (IsKeyPressed(KEY_E) || IsKeyPressed(KEY_L));
+        bool skill3Pressed = ctl.active ? ctl.skill3 : (IsKeyPressed(KEY_C) || IsKeyPressed(KEY_Z));
+        bool skill4Pressed = ctl.active ? ctl.skill4 : (IsKeyPressed(KEY_V) || IsKeyPressed(KEY_X));
         bool ultPressed = ctl.active ? ctl.ult : (IsKeyPressed(KEY_R) || IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE));
 
         if (dashPressed && player.dashTimer <= 0) {
@@ -2704,6 +2791,12 @@ public:
         // Skill 2 (E / L)
         if (skill2Pressed && player.skill2Timer <= 0) {
             CastSkill2(aimDir, move);
+        }
+
+        // Kỹ năng Nhánh Phụ 3 [C/Z] & 4 [V/X] (mở khóa khi Chuyển Chức Lv.5)
+        if (player.subClass != 0) {
+            if (skill3Pressed && player.skill3Timer <= 0.0f) CastSkill3(aimDir);
+            if (skill4Pressed && player.skill4Timer <= 0.0f) CastSkill4(aimDir, move);
         }
 
         // Ultimate / Rage Skill (R / MMB)
@@ -3108,6 +3201,9 @@ public:
                         if (p.applyPoison) {
                             e.poisonTimer = std::max(e.poisonTimer, 2.5f);
                             e.poisonDmg = std::max(e.poisonDmg, dmg * 0.22f);
+                        }
+                        if (p.applyStun && e.hp > 0) {
+                            e.stunTimer = std::max(e.stunTimer, 1.2f);
                         }
                         if (player.lifesteal > 0.0f && player.hp < player.maxHp) {
                             float rawHl = dmg * std::min(LifestealCap() + 0.05f, player.lifesteal);
@@ -3818,8 +3914,12 @@ public:
         player.lifesteal = std::min(LifestealCap() + 0.05f * LifestealScale(), player.lifesteal + sc.bonusLifesteal * LifestealScale());
         player.specialCooldown = Skill1MaxCd();
         player.skill2Cooldown = Skill2MaxCd();
+        player.skill3Cooldown = Skill3MaxCd();
+        player.skill4Cooldown = Skill4MaxCd();
         player.specialTimer = 0.0f;
         player.skill2Timer = 0.0f;
+        player.skill3Timer = 0.0f;
+        player.skill4Timer = 0.0f;
         AddRage(30.0f);
 
         // Rèn lại tên & chỉ số vũ khí trấn phái theo đúng vũ khí đặc trưng của class
@@ -3869,8 +3969,12 @@ public:
             player.cdrUpgrades = std::min(5, player.cdrUpgrades + 1);
             player.specialCooldown = Skill1MaxCd();
             player.skill2Cooldown = Skill2MaxCd();
+            player.skill3Cooldown = Skill3MaxCd();
+            player.skill4Cooldown = Skill4MaxCd();
             player.specialTimer = std::min(player.specialTimer, player.specialCooldown);
             player.skill2Timer = std::min(player.skill2Timer, player.skill2Cooldown);
+            player.skill3Timer = std::min(player.skill3Timer, player.skill3Cooldown);
+            player.skill4Timer = std::min(player.skill4Timer, player.skill4Cooldown);
         }
         else if (up == UP_IGNITE) { player.igniteLevel++; }
         else if (up == UP_FROST) { player.frostLevel++; }
@@ -4918,6 +5022,8 @@ public:
         ctl.dash = dashEdge;
         ctl.nova = novaEdge;
         ctl.skill2 = skill2Edge;
+        ctl.skill3 = false;
+        ctl.skill4 = false;
         ctl.ult = ultEdge;
     }
 
@@ -4997,7 +5103,7 @@ public:
     void PollGamepad() {
         if (ctl.external) return;
         ctl.active = false;
-        ctl.attack = ctl.dash = ctl.nova = ctl.skill2 = ctl.ult = false;
+        ctl.attack = ctl.dash = ctl.nova = ctl.skill2 = ctl.skill3 = ctl.skill4 = ctl.ult = false;
         ctl.move = { 0, 0 };
         if (!IsGamepadAvailable(0)) return;
         auto dz = [](float v) { return fabsf(v) < 0.2f ? 0.0f : v; };
@@ -5761,6 +5867,400 @@ public:
             else if (player.subClass == 2) { player.shieldActive = true; player.hasteTimer = std::max(player.hasteTimer, 3.5f); }
             PlaySound(snd.sndDash);
             Burst(trap.pos, trap.color, 14, 180.0f, 0.4f);
+        }
+    }
+
+    // ── Kỹ năng Nhánh Phụ 3 [C / Z] ──
+    void CastSkill3(Vector2 aimDir) {
+        if (player.subClass == 0) return;
+        player.skill3Cooldown = Skill3MaxCd();
+        player.skill3Timer = player.skill3Cooldown;
+        float critMul = CritMult();
+        float baseAng = atan2f(aimDir.y, aimDir.x);
+
+        if (player.heroClass == CLASS_KNIGHT) {
+            if (player.subClass == 1) {
+                // Holy Paladin: Búa Thánh Phán Quyết — Ném 3 búa thánh xuyên thấu (2.1x ST, Choáng 1.2s) & hồi 8% Máu
+                PlaySound(snd.sndSpecial);
+                Shake(0.22f, 5.0f);
+                for (int i = -1; i <= 1; ++i) {
+                    float a = baseAng + i * 0.24f;
+                    Projectile hm;
+                    hm.fromPlayer = true; hm.kind = 6;
+                    hm.pos = Vector2Add(player.pos, { cosf(a) * 20.0f, sinf(a) * 20.0f });
+                    hm.vel = { cosf(a) * 520.0f, sinf(a) * 520.0f };
+                    hm.damage = player.baseDmg * 2.1f; hm.life = 1.4f; hm.radius = 15.0f;
+                    hm.pierce = 3; hm.splashRadius = 55.0f; hm.splashRatio = 0.45f;
+                    hm.applyStun = true; hm.color = GOLD;
+                    projectiles.push_back(hm);
+                }
+                float hl = std::max(5.0f, roundf(player.maxHp * 0.08f));
+                player.hp = std::min(player.maxHp, player.hp + hl);
+                SpawnPopup({ player.pos.x, player.pos.y - 26.0f }, "+" + std::to_string((int)hl), GREEN);
+                Burst(player.pos, GOLD, 16, 220.0f, 0.45f);
+            } else {
+                // Dread Berserker: Huyết Địa Chấn — 3 cột huyết nham tiến tới (2.4x AoE + Đốt) & hồi 12% Máu
+                PlaySound(snd.sndSpecial);
+                Shake(0.28f, 6.5f);
+                const Color bCol = { 245, 55, 65, 255 };
+                for (int k = 1; k <= 3; ++k) {
+                    Vector2 cPos = Vector2Add(player.pos, Vector2Scale(aimDir, 85.0f * k));
+                    NovaVisual nv; nv.pos = cPos; nv.maxRadius = 95.0f; nv.timer = 0.30f; nv.maxTimer = 0.30f; nv.color = bCol;
+                    novas.push_back(nv);
+                    Burst(cPos, bCol, 18, 250.0f, 0.5f);
+                    for (auto& e : enemies) {
+                        if (e.hp <= 0) continue;
+                        if (Vector2Distance(cPos, e.pos) <= 95.0f + e.radius * 0.5f) {
+                            bool isCrit = (Rand01() < player.critChance);
+                            float dmg = player.baseDmg * 2.4f * (isCrit ? critMul : 1.0f);
+                            Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, cPos));
+                            DamageEnemy(e, dmg, kb, 210.0f, isCrit, true);
+                            if (e.hp > 0) { e.burnTimer = std::max(e.burnTimer, 3.0f); e.burnDps = std::max(e.burnDps, player.baseDmg * 0.65f); }
+                        }
+                    }
+                    TriggerBarrelsInRadius(cPos, 95.0f, player.baseDmg * 2.4f);
+                }
+                float hl = std::max(6.0f, roundf(player.maxHp * 0.12f));
+                player.hp = std::min(player.maxHp, player.hp + hl);
+                SpawnPopup({ player.pos.x, player.pos.y - 26.0f }, "+" + std::to_string((int)hl), GREEN);
+            }
+        } else if (player.heroClass == CLASS_ASSASSIN) {
+            if (player.subClass == 1) {
+                // Phantom Reaper: Bầy Oan Hồn — Thả 6 Tinh Linh dẫn đường (1.35x ST + Độc/Chậm) & hồi 18 HP
+                PlaySound(snd.sndShoot);
+                Shake(0.14f, 3.0f);
+                const Color sCol = { 195, 90, 255, 255 };
+                for (int i = 0; i < 6; ++i) {
+                    float a = baseAng + (i - 2.5f) * 0.45f;
+                    Projectile w;
+                    w.fromPlayer = true; w.kind = 5;
+                    w.pos = Vector2Add(player.pos, { cosf(a) * 20.0f, sinf(a) * 20.0f });
+                    w.vel = { cosf(a) * 440.0f, sinf(a) * 440.0f };
+                    w.damage = player.baseDmg * 1.35f; w.life = 2.4f; w.radius = 8.5f;
+                    w.applyPoison = true; w.applySlow = true; w.color = sCol;
+                    projectiles.push_back(w);
+                }
+                player.hp = std::min(player.maxHp, player.hp + 18.0f);
+                SpawnPopup({ player.pos.x, player.pos.y - 26.0f }, "+18", GREEN);
+                Burst(player.pos, sCol, 16, 200.0f, 0.45f);
+            } else {
+                // Ninja Trickster: Mưa Chông Điện — Rải 3 bẫy điện (1.9x AoE + Chậm) & ném 5 phi tiêu sét
+                PlaySound(snd.sndSlash);
+                Shake(0.16f, 4.0f);
+                const Color eCol = { 110, 235, 255, 255 };
+                Vector2 perp = { -aimDir.y, aimDir.x };
+                for (int k = -1; k <= 1; ++k) {
+                    GroundEffect trap;
+                    trap.kind = 0;
+                    trap.pos = Vector2Add(Vector2Add(player.pos, Vector2Scale(aimDir, 45.0f)), Vector2Scale(perp, k * 75.0f));
+                    trap.radius = 125.0f; trap.maxTimer = 0.45f; trap.timer = 0.45f;
+                    trap.damage = player.baseDmg * 1.9f; trap.color = eCol;
+                    groundEffects.push_back(trap);
+                }
+                for (int i = -2; i <= 2; ++i) {
+                    float a = baseAng + i * 0.22f;
+                    Projectile sh;
+                    sh.fromPlayer = true; sh.kind = 3;
+                    sh.pos = Vector2Add(player.pos, { cosf(a) * 18.0f, sinf(a) * 18.0f });
+                    sh.vel = { cosf(a) * 640.0f, sinf(a) * 640.0f };
+                    sh.damage = player.baseDmg * 1.1f; sh.life = 1.2f; sh.radius = 8.0f;
+                    sh.pierce = 2; sh.applySlow = true; sh.color = eCol;
+                    projectiles.push_back(sh);
+                }
+                Burst(player.pos, eCol, 16, 220.0f, 0.4f);
+            }
+        } else if (player.heroClass == CLASS_MAGE) {
+            if (player.subClass == 1) {
+                // Spellblade: Thập Tự Ánh Trăng — Chém thập tự (2.3x ST) phóng 5 Kiếm Khí Ánh Trăng + Khiên
+                PlaySound(snd.sndSlash);
+                PlaySound(snd.sndShield);
+                Shake(0.22f, 5.5f);
+                const Color mCol = { 85, 235, 255, 255 };
+                Vector2 cPos = Vector2Add(player.pos, Vector2Scale(aimDir, 52.0f));
+                for (int k = -1; k <= 1; k += 2) {
+                    SlashVisual sv; sv.pos = cPos; sv.angle = baseAng * RAD2DEG + k * 35.0f; sv.kind = 11;
+                    sv.timer = 0.24f; sv.maxTimer = 0.24f; sv.color = mCol;
+                    slashes.push_back(sv);
+                }
+                for (auto& e : enemies) {
+                    if (e.hp <= 0) continue;
+                    if (Vector2Distance(cPos, e.pos) <= 115.0f + e.radius * 0.5f) {
+                        bool isCrit = (Rand01() < player.critChance);
+                        float dmg = player.baseDmg * 2.3f * (isCrit ? critMul : 1.0f);
+                        DamageEnemy(e, dmg, Vector2Normalize(Vector2Subtract(e.pos, player.pos)), 220.0f, isCrit, true);
+                    }
+                }
+                TriggerBarrelsInRadius(cPos, 115.0f, player.baseDmg * 2.3f);
+                for (int i = -2; i <= 2; ++i) {
+                    float a = baseAng + i * 0.20f;
+                    FireSwordWave(player.pos, { cosf(a), sinf(a) }, player.baseDmg * 1.25f, 620.0f, 3, mCol, 14.0f, false);
+                }
+                player.shieldActive = true;
+                Burst(cPos, mCol, 22, 260.0f, 0.5f);
+                TriggerArcaneResonance(aimDir);
+            } else {
+                // Archmage: Cầu Sấm Liên Hoàn — 3 cầu sấm (1.9x AoE) + giật sét lan 6 mục tiêu (Choáng 0.9s)
+                PlaySound(snd.sndSpecial);
+                Shake(0.20f, 5.0f);
+                const Color tCol = { 130, 225, 255, 255 };
+                for (int i = -1; i <= 1; ++i) {
+                    float a = baseAng + i * 0.28f;
+                    Projectile orb;
+                    orb.fromPlayer = true; orb.kind = 2;
+                    orb.pos = Vector2Add(player.pos, { cosf(a) * 22.0f, sinf(a) * 22.0f });
+                    orb.vel = { cosf(a) * 480.0f, sinf(a) * 480.0f };
+                    orb.damage = player.baseDmg * 1.9f; orb.life = 1.4f; orb.radius = 12.0f;
+                    orb.splashRadius = 90.0f; orb.splashRatio = 0.65f; orb.applyStun = true; orb.color = tCol;
+                    projectiles.push_back(orb);
+                }
+                int zaps = 0;
+                for (auto& e : enemies) {
+                    if (e.hp <= 0 || zaps >= 6) continue;
+                    if (Vector2Distance(player.pos, e.pos) <= 360.0f) {
+                        zaps++;
+                        bool isCrit = (Rand01() < player.critChance);
+                        DamageEnemy(e, player.baseDmg * 1.6f * (isCrit ? critMul : 1.0f), Vector2Normalize(Vector2Subtract(e.pos, player.pos)), 120.0f, isCrit, true);
+                        if (e.hp > 0) e.stunTimer = std::max(e.stunTimer, 0.9f);
+                        Burst(e.pos, GOLD, 10, 180.0f, 0.35f);
+                    }
+                }
+                TriggerArcaneResonance(aimDir);
+            }
+        } else {
+            if (player.subClass == 1) {
+                // Sniper Deadeye: Tiễn Xuyên Phá — Bắn Tên Siêu Thanh 3.0x Chí Mạng xuyên toàn bộ & nổ 80px
+                PlaySound(snd.sndShoot);
+                Shake(0.22f, 5.5f);
+                Projectile rail;
+                rail.fromPlayer = true; rail.kind = 1;
+                rail.pos = Vector2Add(player.pos, Vector2Scale(aimDir, 22.0f));
+                rail.vel = Vector2Scale(aimDir, 1050.0f);
+                rail.damage = player.baseDmg * 3.0f; rail.life = 1.6f; rail.radius = 12.0f;
+                rail.pierce = 99; rail.hasPreCrit = true; rail.preCrit = true;
+                rail.splashRadius = 80.0f; rail.splashRatio = 0.6f;
+                rail.color = { 125, 255, 185, 255 };
+                projectiles.push_back(rail);
+                Burst(rail.pos, rail.color, 18, 280.0f, 0.45f);
+            } else {
+                // Tempest Valkyrie: Lao Sấm Valkyrie — Phóng 3 ngọn Lao Sét xuyên 4 mục tiêu (2.1x AoE) + Khiên Sấm
+                PlaySound(snd.sndShoot);
+                PlaySound(snd.sndShield);
+                Shake(0.20f, 5.0f);
+                const Color vCol = { 100, 235, 255, 255 };
+                for (int i = -1; i <= 1; ++i) {
+                    float a = baseAng + i * 0.22f;
+                    Projectile sp;
+                    sp.fromPlayer = true; sp.kind = 1;
+                    sp.pos = Vector2Add(player.pos, { cosf(a) * 20.0f, sinf(a) * 20.0f });
+                    sp.vel = { cosf(a) * 780.0f, sinf(a) * 780.0f };
+                    sp.damage = player.baseDmg * 2.1f; sp.life = 1.5f; sp.radius = 10.5f;
+                    sp.pierce = 4; sp.splashRadius = 65.0f; sp.splashRatio = 0.55f;
+                    sp.applyStun = true; sp.color = vCol;
+                    projectiles.push_back(sp);
+                }
+                player.shieldActive = true;
+                Burst(player.pos, vCol, 18, 240.0f, 0.45f);
+            }
+        }
+    }
+
+    // ── Kỹ năng Nhánh Phụ 4 [V / X] ──
+    void CastSkill4(Vector2 aimDir, Vector2 moveDir) {
+        if (player.subClass == 0) return;
+        (void)moveDir;
+        player.skill4Cooldown = Skill4MaxCd();
+        player.skill4Timer = player.skill4Cooldown;
+        float critMul = CritMult();
+        float baseAng = atan2f(aimDir.y, aimDir.x);
+        const float bw = roomW / 2.0f - 30.0f, bh = roomH / 2.0f - 30.0f;
+
+        if (player.heroClass == CLASS_KNIGHT) {
+            if (player.subClass == 1) {
+                // Holy Paladin: Xiềng Xích Thiên Đường — 210px xích quang kéo quái tụ lại (2.3x ST + Đốt) & +15 Nộ
+                PlaySound(snd.sndSpecial);
+                Shake(0.26f, 6.0f);
+                NovaVisual nv; nv.pos = player.pos; nv.maxRadius = 210.0f; nv.timer = 0.35f; nv.maxTimer = 0.35f; nv.color = GOLD;
+                novas.push_back(nv);
+                Burst(player.pos, GOLD, 26, 300.0f, 0.55f);
+                Vector2 pullCenter = Vector2Add(player.pos, Vector2Scale(aimDir, 42.0f));
+                for (auto& e : enemies) {
+                    if (e.hp <= 0) continue;
+                    if (Vector2Distance(player.pos, e.pos) <= 210.0f + e.radius * 0.5f) {
+                        Vector2 pullDir = Vector2Normalize(Vector2Subtract(pullCenter, e.pos));
+                        e.pos = Vector2Add(e.pos, Vector2Scale(pullDir, std::min(95.0f, Vector2Distance(e.pos, pullCenter) * 0.65f)));
+                        bool isCrit = (Rand01() < player.critChance);
+                        DamageEnemy(e, player.baseDmg * 2.3f * (isCrit ? critMul : 1.0f), { 0, 0 }, 0.0f, isCrit, true);
+                        if (e.hp > 0) { e.burnTimer = std::max(e.burnTimer, 3.0f); e.burnDps = std::max(e.burnDps, player.baseDmg * 0.55f); }
+                    }
+                }
+                TriggerBarrelsInRadius(player.pos, 210.0f, player.baseDmg * 2.3f);
+                AddRage(15.0f);
+            } else {
+                // Dread Berserker: Cơn Lốc Xé Xác — Phóng 8 Huyết Kiếm Khí tỏa tròn (1.85x ST) + Tăng Tốc 2.5s
+                PlaySound(snd.sndSlash);
+                Shake(0.24f, 6.0f);
+                const Color bCol = { 255, 75, 75, 255 };
+                for (int i = 0; i < 8; ++i) {
+                    float a = i * (PI / 4.0f);
+                    FireSwordWave(player.pos, { cosf(a), sinf(a) }, player.baseDmg * 1.85f, 560.0f, 3, bCol, 14.0f, true);
+                }
+                player.hasteTimer = std::max(player.hasteTimer, 2.5f);
+                Burst(player.pos, bCol, 24, 280.0f, 0.5f);
+            }
+        } else if (player.heroClass == CLASS_ASSASSIN) {
+            if (player.subClass == 1) {
+                // Phantom Reaper: Lưỡi Hái Tử Địa — Quét 185px (2.8x Chí Mạng + Đóng Băng 1.4s) & +20 Nộ
+                PlaySound(snd.sndSlash);
+                PlaySound(snd.sndFreeze);
+                Shake(0.26f, 6.0f);
+                const Color rCol = { 195, 95, 255, 255 };
+                SlashVisual sv; sv.pos = player.pos; sv.angle = baseAng * RAD2DEG; sv.kind = 12;
+                sv.timer = 0.28f; sv.maxTimer = 0.28f; sv.color = rCol;
+                slashes.push_back(sv);
+                NovaVisual nv; nv.pos = player.pos; nv.maxRadius = 185.0f; nv.timer = 0.30f; nv.maxTimer = 0.30f; nv.color = rCol;
+                novas.push_back(nv);
+                for (auto& e : enemies) {
+                    if (e.hp <= 0) continue;
+                    if (Vector2Distance(player.pos, e.pos) <= 185.0f + e.radius * 0.5f) {
+                        DamageEnemy(e, player.baseDmg * 2.8f * critMul, Vector2Normalize(Vector2Subtract(e.pos, player.pos)), 220.0f, true, true);
+                        if (e.hp > 0) { e.stunTimer = std::max(e.stunTimer, 1.4f); e.chillTimer = std::max(e.chillTimer, 3.0f); }
+                    }
+                }
+                TriggerBarrelsInRadius(player.pos, 185.0f, player.baseDmg * 2.8f);
+                AddRage(20.0f);
+                Burst(player.pos, rCol, 26, 300.0f, 0.55f);
+            } else {
+                // Ninja Trickster: Lôi Thiểm Nhất Trảm — Lướt sét 180px (2.7x Chí Mạng + Choáng 1.1s) & hồi ngay Dash
+                PlaySound(snd.sndDash);
+                PlaySound(snd.sndSlash);
+                Shake(0.24f, 6.0f);
+                const Color lCol = { 110, 235, 255, 255 };
+                Vector2 startP = player.pos;
+                Vector2 dest = Vector2Add(startP, Vector2Scale(aimDir, 180.0f));
+                dest.x = Clamp(dest.x, -bw, bw); dest.y = Clamp(dest.y, -bh, bh);
+                ResolvePillars(dest, 15.0f);
+                ghosts.push_back({ startP, player.facingLeft, 0.28f, 0.28f });
+                player.pos = dest;
+                player.invulnTimer = std::max(player.invulnTimer, 0.35f);
+                player.dashTimer = 0.0f; // Hồi ngay Dash
+                Vector2 mid = Vector2Scale(Vector2Add(startP, dest), 0.5f);
+                SlashVisual sv; sv.pos = mid; sv.angle = baseAng * RAD2DEG; sv.kind = 11;
+                sv.timer = 0.25f; sv.maxTimer = 0.25f; sv.color = lCol;
+                slashes.push_back(sv);
+                for (auto& e : enemies) {
+                    if (e.hp <= 0) continue;
+                    if (Vector2Distance(startP, e.pos) <= 130.0f || Vector2Distance(mid, e.pos) <= 130.0f || Vector2Distance(dest, e.pos) <= 130.0f) {
+                        DamageEnemy(e, player.baseDmg * 2.7f * critMul, aimDir, 220.0f, true, true);
+                        if (e.hp > 0) e.stunTimer = std::max(e.stunTimer, 1.1f);
+                    }
+                }
+                TriggerBarrelsInRadius(dest, 120.0f, player.baseDmg * 2.7f);
+                Burst(dest, lCol, 24, 280.0f, 0.5f);
+            }
+        } else if (player.heroClass == CLASS_MAGE) {
+            if (player.subClass == 1) {
+                // Spellblade: Kiếm Trận Tinh Tú — Triệu 6 Thần Kiếm giáng xuống (2.1x AoE + Đốt) & +18 Nộ
+                PlaySound(snd.sndSpecial);
+                Shake(0.24f, 5.5f);
+                const Color sCol = { 95, 235, 255, 255 };
+                Vector2 targetC = Vector2Add(player.pos, Vector2Scale(aimDir, 140.0f));
+                targetC.x = Clamp(targetC.x, -bw + 40.0f, bw - 40.0f);
+                targetC.y = Clamp(targetC.y, -bh + 40.0f, bh - 40.0f);
+                for (int k = 0; k < 6; ++k) {
+                    float a = k * (PI / 3.0f);
+                    GroundEffect sw;
+                    sw.kind = 5;
+                    sw.pos = { Clamp(targetC.x + cosf(a) * 88.0f, -bw, bw), Clamp(targetC.y + sinf(a) * 88.0f, -bh, bh) };
+                    sw.radius = 95.0f;
+                    sw.maxTimer = 0.22f + k * 0.08f;
+                    sw.timer = sw.maxTimer;
+                    sw.damage = player.baseDmg * 2.1f;
+                    sw.color = (k & 1) ? sCol : GOLD;
+                    groundEffects.push_back(sw);
+                }
+                AddRage(18.0f);
+                TriggerArcaneResonance(aimDir);
+            } else {
+                // Archmage: Cột Sáng Hủy Diệt — Cột quang (2.6x AoE + vùng đốt 3s) & 6 tia dẫn đường
+                PlaySound(snd.sndSpecial);
+                Shake(0.28f, 7.0f);
+                const Color cCol = { 255, 195, 75, 255 };
+                Vector2 pPos = Vector2Add(player.pos, Vector2Scale(aimDir, 150.0f));
+                pPos.x = Clamp(pPos.x, -bw + 30.0f, bw - 30.0f);
+                pPos.y = Clamp(pPos.y, -bh + 30.0f, bh - 30.0f);
+                NovaVisual nv; nv.pos = pPos; nv.maxRadius = 175.0f; nv.timer = 0.40f; nv.maxTimer = 0.40f; nv.color = cCol;
+                novas.push_back(nv);
+                Burst(pPos, cCol, 32, 340.0f, 0.65f);
+                for (auto& e : enemies) {
+                    if (e.hp <= 0) continue;
+                    if (Vector2Distance(pPos, e.pos) <= 175.0f + e.radius * 0.5f) {
+                        bool isCrit = (Rand01() < player.critChance);
+                        DamageEnemy(e, player.baseDmg * 2.6f * (isCrit ? critMul : 1.0f), Vector2Normalize(Vector2Subtract(e.pos, pPos)), 240.0f, isCrit, true);
+                        if (e.hp > 0) { e.burnTimer = std::max(e.burnTimer, 3.0f); e.burnDps = std::max(e.burnDps, player.baseDmg * 0.7f); }
+                    }
+                }
+                TriggerBarrelsInRadius(pPos, 175.0f, player.baseDmg * 2.6f);
+                GroundEffect hz; hz.kind = 1; hz.pos = pPos; hz.radius = 155.0f; hz.maxTimer = 3.0f; hz.timer = 3.0f; hz.tickTimer = 0.35f;
+                hz.damage = player.baseDmg * 0.75f; hz.color = cCol;
+                groundEffects.push_back(hz);
+                for (int m = 0; m < 6; ++m) {
+                    float a = m * (PI / 3.0f);
+                    Projectile hm; hm.fromPlayer = true; hm.kind = 5;
+                    hm.pos = Vector2Add(player.pos, { cosf(a) * 20.0f, sinf(a) * 20.0f });
+                    hm.vel = { cosf(a) * 440.0f, sinf(a) * 440.0f };
+                    hm.damage = player.baseDmg * 1.2f; hm.life = 2.4f; hm.radius = 8.0f;
+                    hm.color = { 195, 115, 255, 255 };
+                    projectiles.push_back(hm);
+                }
+                TriggerArcaneResonance(aimDir);
+            }
+        } else {
+            if (player.subClass == 1) {
+                // Sniper Deadeye: Pháo Sáng & Ẩn Thân — 6 tên pháo sáng (1.7x AoE) + 1.5s Bất Tử & 3s Tăng Tốc
+                PlaySound(snd.sndShoot);
+                PlaySound(snd.sndShield);
+                Shake(0.20f, 5.0f);
+                const Color fCol = { 255, 220, 85, 255 };
+                for (int i = 0; i < 6; ++i) {
+                    float a = baseAng + (i - 2.5f) * 0.16f;
+                    Projectile fl; fl.fromPlayer = true; fl.kind = 1;
+                    fl.pos = Vector2Add(player.pos, { cosf(a) * 20.0f, sinf(a) * 20.0f });
+                    fl.vel = { cosf(a) * 700.0f, sinf(a) * 700.0f };
+                    fl.damage = player.baseDmg * 1.7f; fl.life = 1.4f; fl.radius = 9.0f;
+                    fl.splashRadius = 70.0f; fl.splashRatio = 0.55f; fl.applyBurn = true; fl.color = fCol;
+                    projectiles.push_back(fl);
+                }
+                player.invulnTimer = std::max(player.invulnTimer, 1.5f);
+                player.hasteTimer = std::max(player.hasteTimer, 3.0f);
+                Burst(player.pos, fCol, 22, 260.0f, 0.5f);
+            } else {
+                // Tempest Valkyrie: Tâm Bão Lôi Đình — Sóng sét 200px (2.2x + Choáng 1.1s), 8 tên sét & +20 Nộ
+                PlaySound(snd.sndSpecial);
+                Shake(0.26f, 6.5f);
+                const Color vCol = { 100, 235, 255, 255 };
+                NovaVisual nv; nv.pos = player.pos; nv.maxRadius = 200.0f; nv.timer = 0.34f; nv.maxTimer = 0.34f; nv.color = vCol;
+                novas.push_back(nv);
+                Burst(player.pos, vCol, 28, 320.0f, 0.55f);
+                for (auto& e : enemies) {
+                    if (e.hp <= 0) continue;
+                    if (Vector2Distance(player.pos, e.pos) <= 200.0f + e.radius * 0.5f) {
+                        bool isCrit = (Rand01() < player.critChance);
+                        DamageEnemy(e, player.baseDmg * 2.2f * (isCrit ? critMul : 1.0f), Vector2Normalize(Vector2Subtract(e.pos, player.pos)), 360.0f, isCrit, true);
+                        if (e.hp > 0) e.stunTimer = std::max(e.stunTimer, 1.1f);
+                    }
+                }
+                TriggerBarrelsInRadius(player.pos, 200.0f, player.baseDmg * 2.2f);
+                for (int i = 0; i < 8; ++i) {
+                    float a = i * (PI / 4.0f);
+                    Projectile sa; sa.fromPlayer = true; sa.kind = 1;
+                    sa.pos = Vector2Add(player.pos, { cosf(a) * 18.0f, sinf(a) * 18.0f });
+                    sa.vel = { cosf(a) * 700.0f, sinf(a) * 700.0f };
+                    sa.damage = player.baseDmg * 1.35f; sa.life = 1.4f; sa.radius = 8.5f;
+                    sa.pierce = 2; sa.color = vCol;
+                    projectiles.push_back(sa);
+                }
+                AddRage(20.0f);
+            }
         }
     }
 
@@ -6990,7 +7490,11 @@ public:
         snprintf(buf, sizeof(buf), "%d%%", (int)roundf(std::min(0.6f, player.critChance) * 100)); stat(1, 2, L("Crit Chance", "Chí Mạng"), buf);
         stat(2, 0, L("Lifesteal", "Hút Máu"), FmtPct(std::min(LifestealCap() + 0.05f, player.lifesteal)));
         snprintf(buf, sizeof(buf), "%.1fs", player.dashCooldown); stat(2, 1, L("Dash Cooldown", "Hồi Lướt"), buf);
-        snprintf(buf, sizeof(buf), "%.1fs / %.1fs", Skill1MaxCd(), Skill2MaxCd()); stat(2, 2, L("Q / E Cooldown", "Hồi Chiêu Q/E"), buf);
+        if (player.subClass == 0) {
+            snprintf(buf, sizeof(buf), "%.1fs / %.1fs", Skill1MaxCd(), Skill2MaxCd()); stat(2, 2, L("Q / E Cooldown", "Hồi Chiêu Q/E"), buf);
+        } else {
+            snprintf(buf, sizeof(buf), "%.0f / %.0f / %.0f / %.0fs", Skill1MaxCd(), Skill2MaxCd(), Skill3MaxCd(), Skill4MaxCd()); stat(2, 2, L("Q/E/C/V CD", "Hồi Q/E/C/V"), buf);
+        }
         std::string extra = std::string(L("Rage: ", "Nộ: ")) + std::to_string((int)player.rage) + "/100   "
                           + L("Ember Lv", "Lửa Cấp ") + std::to_string(player.igniteLevel) + "   "
                           + L("Frost Lv", "Băng Cấp ") + std::to_string(player.frostLevel);
@@ -7002,17 +7506,31 @@ public:
                             + " | " + L("Heirs: ", "Con: ") + std::to_string((int)children.size());
         DrawText(dynInfo.c_str(), px + 225, sy + 2, 13, isNoble ? GOLD : Color{ 195, 225, 195, 255 });
 
-        // Bộ 4 kỹ năng của Class / Nhánh phụ
-        int ky = sy + 106;
-        DrawText(L("SKILLS", "BỘ KỸ NĂNG"), px + 36, ky, 18, HeroAccent());
-        const char* tags[4] = { L("[PASSIVE]", "[NỘI TẠI]"), "[Q]", "[E]", L("[R] RAGE", "[R] NỘ") };
-        const char* sNames[4] = { PassiveName(), QName(), EName(), RName() };
-        const char* sDescs[4] = { PassiveDesc(), QDesc(), EDesc(), RDesc() };
-        for (int s = 0; s < 4; ++s) {
-            int rowY = ky + 24 + s * 22;
-            DrawText(tags[s], px + 36, rowY, 15, s == 3 ? ORANGE : (s == 0 ? HeroColor() : SKYBLUE));
-            DrawText(sNames[s], px + 132, rowY, 15, WHITE);
-            DrawText(sDescs[s], px + 325, rowY, 14, { 190, 205, 230, 255 });
+        // Bộ kỹ năng của Class (4) hoặc Nhánh Phụ (6)
+        int ky = sy + 104;
+        DrawText(player.subClass == 0 ? L("SKILLS (4)", "BỘ KỸ NĂNG (4)") : L("SUBCLASS SKILLS (6)", "BỘ KỸ NĂNG NHÁNH PHỤ (6)"), px + 36, ky, 18, HeroAccent());
+        if (player.subClass == 0) {
+            const char* tags[4] = { L("[PASSIVE]", "[NỘI TẠI]"), "[Q]", "[E]", L("[R] RAGE", "[R] NỘ") };
+            const char* sNames[4] = { PassiveName(), QName(), EName(), RName() };
+            const char* sDescs[4] = { PassiveDesc(), QDesc(), EDesc(), RDesc() };
+            for (int s = 0; s < 4; ++s) {
+                int rowY = ky + 24 + s * 22;
+                DrawText(tags[s], px + 36, rowY, 15, s == 3 ? ORANGE : (s == 0 ? HeroColor() : SKYBLUE));
+                DrawText(sNames[s], px + 132, rowY, 15, WHITE);
+                DrawText(sDescs[s], px + 325, rowY, 14, { 190, 205, 230, 255 });
+            }
+        } else {
+            const char* tags[6] = { L("[PASSIVE]", "[NỘI TẠI]"), "[Q]", "[E]", "[C]", "[V]", L("[R] RAGE", "[R] NỘ") };
+            const char* sNames[6] = { PassiveName(), QName(), EName(), CName(), VName(), RName() };
+            const char* sDescs[6] = { PassiveDesc(), QDesc(), EDesc(), CDesc(), VDesc(), RDesc() };
+            Color sCols[6] = { HeroColor(), SKYBLUE, { 110, 235, 175, 255 }, { 245, 200, 95, 255 }, { 225, 115, 255, 255 }, ORANGE };
+            for (int s = 0; s < 6; ++s) {
+                int colX = (s < 3) ? (px + 36) : (px + 588);
+                int rowY = ky + 22 + (s % 3) * 34;
+                DrawText(tags[s], colX, rowY, 14, sCols[s]);
+                DrawText(sNames[s], colX + 86, rowY, 14, WHITE);
+                DrawText(sDescs[s], colX + 10, rowY + 15, 12, { 190, 205, 230, 255 });
+            }
         }
 
         if (!player.relics.empty()) {
@@ -7318,6 +7836,12 @@ public:
                     float a = i * (PI / 2.0f);
                     DrawLineEx({ c.x + cosf(a) * s * 0.18f, c.y + sinf(a) * s * 0.18f }, { c.x + cosf(a) * s * 0.42f, c.y + sinf(a) * s * 0.42f }, 2.5f, GOLD);
                 }
+            } else if (slotKind == 4) { // C: Consecrated Hammer / Crimson Eruption
+                DrawRectangle((int)(c.x - s * 0.28f), (int)(c.y - s * 0.30f), (int)(s * 0.56f), (int)(s * 0.24f), col);
+                DrawLineEx({ c.x, c.y - s * 0.06f }, { c.x, c.y + s * 0.38f }, 4.0f, WHITE);
+            } else if (slotKind == 5) { // V: Heavenly Chains / Gore Whirlwind
+                DrawCircleLines((int)c.x, (int)c.y, s * 0.34f, GOLD);
+                DrawRing(c, s * 0.16f, s * 0.26f, 30.0f, 310.0f, 12, col);
             } else { // R: Heaven's Judgment Sword
                 DrawLineEx({ c.x, c.y - s * 0.42f }, { c.x, c.y + s * 0.38f }, 4.5f, GOLD);
                 DrawLineEx({ c.x - s * 0.24f, c.y - s * 0.16f }, { c.x + s * 0.24f, c.y - s * 0.16f }, 3.5f, WHITE);
@@ -7336,6 +7860,14 @@ public:
                 DrawCircleLines((int)(c.x - s * 0.14f), (int)c.y, s * 0.20f, Fade(col, 0.5f));
                 DrawLineEx({ c.x - s * 0.22f, c.y + s * 0.22f }, { c.x + s * 0.34f, c.y - s * 0.30f }, 3.5f, col);
                 DrawCircleV({ c.x + s * 0.26f, c.y - s * 0.22f }, 4.0f, WHITE);
+            } else if (slotKind == 4) { // C: Wraith Swarm / Caltrop Storm
+                for (int i = 0; i < 3; ++i) {
+                    float a = -PI / 2.0f + i * (2.0f * PI / 3.0f);
+                    DrawCircleV({ c.x + cosf(a) * s * 0.22f, c.y + sinf(a) * s * 0.22f }, 4.5f, col);
+                }
+            } else if (slotKind == 5) { // V: Graveyard Scythe / Thunder Slash
+                DrawRing(c, s * 0.20f, s * 0.36f, -45.0f, 135.0f, 12, col);
+                DrawLineEx({ c.x - s * 0.28f, c.y + s * 0.30f }, { c.x + s * 0.28f, c.y - s * 0.28f }, 3.0f, WHITE);
             } else { // R: Blade Storm
                 DrawRing(c, s * 0.22f, s * 0.36f, 0.0f, 140.0f, 10, col);
                 DrawRing(c, s * 0.22f, s * 0.36f, 180.0f, 320.0f, 10, { 255, 90, 175, 255 });
@@ -7353,6 +7885,12 @@ public:
                     float a = i * (PI / 3.0f);
                     DrawLineEx({ c.x - cosf(a) * s * 0.36f, c.y - sinf(a) * s * 0.36f }, { c.x + cosf(a) * s * 0.36f, c.y + sinf(a) * s * 0.36f }, 2.5f, SKYBLUE);
                 }
+            } else if (slotKind == 4) { // C: Moonlight Cross / Chain Tempest
+                DrawLineEx({ c.x - s * 0.28f, c.y - s * 0.28f }, { c.x + s * 0.28f, c.y + s * 0.28f }, 3.2f, col);
+                DrawLineEx({ c.x - s * 0.28f, c.y + s * 0.28f }, { c.x + s * 0.28f, c.y - s * 0.28f }, 3.2f, WHITE);
+            } else if (slotKind == 5) { // V: Astral Sword Array / Cataclysm Pillar
+                DrawRectangle((int)(c.x - s * 0.12f), (int)(c.y - s * 0.36f), (int)(s * 0.24f), (int)(s * 0.72f), Fade(col, 0.75f));
+                DrawCircleLines((int)c.x, (int)c.y, s * 0.36f, GOLD);
             } else { // R: Void Meteor
                 DrawCircleV(c, s * 0.26f, { 165, 85, 255, 255 });
                 DrawCircleLines((int)c.x, (int)c.y, s * 0.38f, SKYBLUE);
@@ -7370,6 +7908,13 @@ public:
             } else if (slotKind == 2) { // E: Explosive Trap
                 DrawCircleLines((int)c.x, (int)c.y, s * 0.34f, col);
                 DrawCircleV(c, s * 0.16f, ORANGE);
+            } else if (slotKind == 4) { // C: Railshot / Valkyrie Spear
+                DrawLineEx({ c.x - s * 0.38f, c.y + s * 0.18f }, { c.x + s * 0.34f, c.y - s * 0.18f }, 3.8f, col);
+                Tri({ c.x + s * 0.40f, c.y - s * 0.22f }, { c.x + s * 0.16f, c.y - s * 0.24f }, { c.x + s * 0.26f, c.y - s * 0.02f }, WHITE);
+            } else if (slotKind == 5) { // V: Flare & Camo / Eye of Hurricane
+                DrawCircleLines((int)c.x, (int)c.y, s * 0.34f, col);
+                DrawCircleV(c, s * 0.20f, Fade(WHITE, 0.65f));
+                DrawCircleV(c, s * 0.10f, GOLD);
             } else { // R: Phoenix Arrow Rain
                 for (int i = -1; i <= 1; ++i) {
                     DrawLineEx({ c.x + i * s * 0.18f - s * 0.12f, c.y - s * 0.34f }, { c.x + i * s * 0.18f + s * 0.12f, c.y + s * 0.34f }, 2.5f, { 255, 165, 55, 255 });
@@ -7878,6 +8423,8 @@ public:
         player.hpDisplay = player.hp;
         player.specialCooldown = Skill1MaxCd();
         player.skill2Cooldown = Skill2MaxCd();
+        player.skill3Cooldown = Skill3MaxCd();
+        player.skill4Cooldown = Skill4MaxCd();
         camera.target = player.pos;
         state = PLAYING;
         PlaySound(snd.sndPortal);
@@ -8073,12 +8620,12 @@ public:
             { "Mouse", "Aim weapon & skills" },
             { "Left Click / Space / J", "Basic Attack (Class-Exclusive Weapon)" },
             { "Right Click / Shift / K", "Dash (brief invulnerability)" },
-            { "Q / U", "Class Skill 1" },
-            { "E / L", "Class Skill 2" },
+            { "Q / U  |  E / L", "Class Skills 1 & 2" },
+            { "C / Z  |  V / X", "Subclass Skills 3 & 4 (unlocked at Lv.5)" },
             { "R / Middle Click", "Ultimate Rage Skill (at 100 Rage)" },
             { "1 / 2 / 3", "Pick an upgrade on level-up" },
-            { "I", "Equipment, stats & full skill kit" },
-            { "F", "Trade with the merchant (every 3rd floor)" },
+            { "I / Y / H", "Equipment & Skills / Family Tree / Eat Ration" },
+            { "F / G", "Trade / Surface Landmarks / Ascend at Floor 10+" },
             { "Gamepad", "Sticks, RT/A atk, B dash, X Skill 1, Y Skill 2, LB Ult" },
             { "O / F2 / F11", "Settings / Windowed Fullscreen" },
             { "S", "Sanctuary: permanent upgrades (title / game over)" },
@@ -8090,12 +8637,12 @@ public:
             { "Chuột", "Ngắm hướng đánh & kỹ năng" },
             { "Chuột Trái / Space / J", "Tấn công cơ bản (Vũ khí đặc trưng hệ)" },
             { "Chuột Phải / Shift / K", "Lướt né đòn (miễn sát thương ngắn)" },
-            { "Q / U", "Kỹ năng 1" },
-            { "E / L", "Kỹ năng 2" },
+            { "Q / U  |  E / L", "Kỹ năng 1 & Kỹ năng 2" },
+            { "C / Z  |  V / X", "Kỹ năng Nhánh Phụ 3 & 4 (mở ở Cấp 5)" },
             { "R / Chuột Giữa", "Tuyệt Kỹ Nộ Khí (khi đủ 100 Nộ)" },
             { "1 / 2 / 3", "Chọn nâng cấp hoặc nhánh thức tỉnh" },
-            { "I", "Xem trang bị, chỉ số & bộ kỹ năng" },
-            { "F", "Giao dịch Thương Nhân / Thử Thách / Bệ Thờ" },
+            { "I / Y / H", "Trang bị & Kỹ năng / Cây Gia Phả / Ăn Lương Khô" },
+            { "F / G", "Thương Nhân / Công Trình / Lên Mặt Đất (Tầng 10+)" },
             { "Tay Cầm", "Cần gạt, RT/A đánh, B lướt, X/Y chiêu, LB Tuyệt Kỹ" },
             { "O / F2 / F11", "Cài Đặt / Toàn Màn Hình Không Viền" },
             { "S", "Thánh Điện: nâng cấp vĩnh viễn" },
@@ -9257,18 +9804,25 @@ public:
             DrawRectangleLines(1280 / 2 - sbW / 2, 720 - 44, sbW, 30, GOLD);
             DrawText(sBar, 1280 / 2 - MeasureText(sBar, 15) / 2, 720 - 36, 15, WHITE);
         } else if (!touchMode) {
-            const int slotW = 66, slotH = 66, gap = 10;
-            const int dockX0 = 1280 / 2 - (slotW * 5 + gap * 4) / 2;
-            const int dockY = 720 - 80;
             struct SlotUI { const char* key; int iconKind; Color col; float cd; float maxCd; bool isUlt; bool ready; };
-            SlotUI slots[5] = {
-                { L("PSV", "NT"), 0, hCol, 0.0f, 1.0f, false, true },
-                { "RMB", -1, YELLOW, player.dashTimer, player.dashCooldown, false, player.dashTimer <= 0.0f },
-                { "Q", 1, SKYBLUE, player.specialTimer, std::max(0.1f, player.specialCooldown), false, player.specialTimer <= 0.0f },
-                { "E", 2, { 110, 235, 175, 255 }, player.skill2Timer, std::max(0.1f, player.skill2Cooldown), false, player.skill2Timer <= 0.0f },
-                { "R", 3, ORANGE, 0.0f, 1.0f, true, rageReady }
-            };
-            for (int s = 0; s < 5; ++s) {
+            std::vector<SlotUI> slots;
+            slots.push_back({ L("PSV", "NT"), 0, hCol, 0.0f, 1.0f, false, true });
+            slots.push_back({ "RMB", -1, YELLOW, player.dashTimer, player.dashCooldown, false, player.dashTimer <= 0.0f });
+            slots.push_back({ "Q", 1, SKYBLUE, player.specialTimer, std::max(0.1f, player.specialCooldown), false, player.specialTimer <= 0.0f });
+            slots.push_back({ "E", 2, { 110, 235, 175, 255 }, player.skill2Timer, std::max(0.1f, player.skill2Cooldown), false, player.skill2Timer <= 0.0f });
+            if (player.subClass != 0) {
+                slots.push_back({ "C", 4, { 245, 200, 95, 255 }, player.skill3Timer, std::max(0.1f, player.skill3Cooldown), false, player.skill3Timer <= 0.0f });
+                slots.push_back({ "V", 5, { 225, 115, 255, 255 }, player.skill4Timer, std::max(0.1f, player.skill4Cooldown), false, player.skill4Timer <= 0.0f });
+            }
+            slots.push_back({ "R", 3, ORANGE, 0.0f, 1.0f, true, rageReady });
+
+            const int count = (int)slots.size();
+            const int slotW = (count > 5) ? 60 : 66;
+            const int slotH = (count > 5) ? 60 : 66;
+            const int gap = (count > 5) ? 8 : 10;
+            const int dockX0 = 1280 / 2 - (slotW * count + gap * (count - 1)) / 2;
+            const int dockY = 720 - (slotH + 14);
+            for (int s = 0; s < count; ++s) {
                 int sx = dockX0 + s * (slotW + gap);
                 const SlotUI& ui = slots[s];
                 DrawRectangle(sx, dockY, slotW, slotH, { 18, 22, 34, 230 });
@@ -9278,15 +9832,15 @@ public:
                 }
                 Color border = ui.ready ? (ui.isUlt ? ((int)(GetTime() * 8.0f) % 2 == 0 ? GOLD : WHITE) : ui.col) : Color{ 60, 68, 90, 255 };
                 DrawRectangleLinesEx({ (float)sx, (float)dockY, (float)slotW, (float)slotH }, ui.ready && ui.isUlt ? 2.5f : 1.5f, border);
-                DrawSkillIcon(player.heroClass, ui.iconKind, { sx + slotW / 2.0f, dockY + 28.0f }, 36.0f, ui.ready ? ui.col : GRAY);
+                DrawSkillIcon(player.heroClass, ui.iconKind, { sx + slotW / 2.0f, dockY + slotH * 0.43f }, (float)slotW * 0.54f, ui.ready ? ui.col : GRAY);
                 if (ui.cd > 0.0f) {
                     float pct = std::min(1.0f, ui.cd / std::max(0.01f, ui.maxCd));
                     DrawRectangle(sx, dockY + (int)((1.0f - pct) * slotH), slotW, (int)(pct * slotH), Fade(BLACK, 0.72f));
                     const char* cdt = TextFormat("%.1f", ui.cd);
-                    DrawText(cdt, sx + slotW / 2 - MeasureText(cdt, 18) / 2, dockY + 20, 18, WHITE);
+                    DrawText(cdt, sx + slotW / 2 - MeasureText(cdt, 17) / 2, dockY + 19, 17, WHITE);
                 } else if (ui.isUlt && !ui.ready) {
                     const char* rpt = TextFormat("%d%%", (int)player.rage);
-                    DrawText(rpt, sx + slotW / 2 - MeasureText(rpt, 13) / 2, dockY + 46, 13, GOLD);
+                    DrawText(rpt, sx + slotW / 2 - MeasureText(rpt, 13) / 2, dockY + slotH - 18, 13, GOLD);
                 }
                 DrawRectangle(sx + 2, dockY + 2, MeasureText(ui.key, 11) + 6, 14, { 10, 12, 20, 210 });
                 DrawText(ui.key, sx + 5, dockY + 3, 11, ui.ready ? WHITE : GRAY);
@@ -9307,13 +9861,13 @@ public:
             if (subclassChoosing) {
                 float tm = (float)GetTime();
                 int hc = std::max(0, std::min(3, player.heroClass));
-                const char* hdr = L("LEVEL 5 AWAKENING! CHOOSE YOUR SUBCLASS", "THỨC TỈNH CẤP 5! CHỌN NHÁNH CHUYỂN CHỨC");
-                OutlinedText(hdr, 1280 / 2 - MeasureText(hdr, 34) / 2, 42, 34, GOLD, { 80, 42, 10, 255 });
-                std::string sub = std::string(ClassDisplayName(hc)) + L(" Evolution — Permanent Class Branch & Signature Weapon", " Tiến Hóa — Nhánh Chức Vĩnh Viễn & Vũ Khí Trấn Phái");
-                DrawText(sub.c_str(), 1280 / 2 - MeasureText(sub.c_str(), 18) / 2, 84, 18, SKYBLUE);
+                const char* hdr = L("LEVEL 5 AWAKENING! CHOOSE YOUR SUBCLASS (6 SKILLS)", "THỨC TỈNH CẤP 5! CHỌN NHÁNH CHUYỂN CHỨC (6 KỸ NĂNG)");
+                OutlinedText(hdr, 1280 / 2 - MeasureText(hdr, 30) / 2, 30, 30, GOLD, { 80, 42, 10, 255 });
+                std::string sub = std::string(ClassDisplayName(hc)) + L(" Evolution — Permanent Class Branch, Signature Weapon & 6 Skills", " Tiến Hóa — Nhánh Chức Vĩnh Viễn, Vũ Khí Trấn Phái & 6 Kỹ Năng");
+                DrawText(sub.c_str(), 1280 / 2 - MeasureText(sub.c_str(), 17) / 2, 72, 17, SKYBLUE);
 
-                const float cw = 450.0f, gap = 36.0f, ch = 515.0f;
-                const float sx = 1280 / 2.0f - (cw * 2 + gap) / 2.0f, cy = 130.0f;
+                const float cw = 450.0f, gap = 36.0f, ch = 554.0f;
+                const float sx = 1280 / 2.0f - (cw * 2 + gap) / 2.0f, cy = 116.0f;
                 Vector2 mp = GetMousePosition();
                 for (int i = 0; i < 2; ++i) {
                     const SubclassDef& sc = kSubclasses[hc][i];
@@ -9321,53 +9875,57 @@ public:
                     Rectangle r = { sx + i * (cw + gap), cy, cw, ch };
                     bool hov = CheckCollisionPointRec(mp, r);
                     DrawRectangleRec(r, hov ? Color{ 28, 36, 62, 252 } : Color{ 18, 24, 42, 246 });
-                    DrawRectangle((int)r.x, (int)r.y, (int)cw, 48, Fade(sc.color, hov ? 0.35f : 0.22f));
+                    DrawRectangle((int)r.x, (int)r.y, (int)cw, 44, Fade(sc.color, hov ? 0.35f : 0.22f));
                     DrawRectangleLinesEx(r, hov ? 3.0f : 2.0f, hov ? GOLD : sc.color);
 
-                    DrawText(TextFormat("[%d] %s", i + 1, SubDisplayName(hc, i + 1)), (int)r.x + 18, (int)r.y + 8, 22, sc.color);
-                    DrawText(settings.language == 1 ? scVi.role : sc.role, (int)r.x + 18, (int)r.y + 32, 13, { 215, 225, 245, 255 });
+                    DrawText(TextFormat("[%d] %s", i + 1, SubDisplayName(hc, i + 1)), (int)r.x + 18, (int)r.y + 6, 21, sc.color);
+                    DrawText(settings.language == 1 ? scVi.role : sc.role, (int)r.x + 18, (int)r.y + 28, 12, { 215, 225, 245, 255 });
 
                     // Xem trước nhân vật với vũ khí trấn phái mới
-                    Vector2 pv = { r.x + cw - 72.0f, r.y + 102.0f };
-                    DrawCircleV(pv, 42.0f, Fade(sc.color, 0.16f));
+                    Vector2 pv = { r.x + cw - 66.0f, r.y + 92.0f };
+                    DrawCircleV(pv, 38.0f, Fade(sc.color, 0.16f));
                     DrawHeroModel(pv, hc, sc.signatureWeapon, { 0.85f, sinf(tm * 2.2f + i) * 0.3f }, false, tm * 6.0f, true, sinf(tm * 5.0f) * 0.3f, false, true, 0.0f, 0.0f, i + 1, 0.0f);
 
-                    DrawText(TextFormat(L("Signature Weapon: %s", "Vũ Khí Trấn Phái: %s"), settings.language == 1 ? scVi.weaponTitle : sc.weaponTitle), (int)r.x + 18, (int)r.y + 62, 16, GOLD);
-                    DrawText(TextFormat(L("+%d HP  +%d DMG  +%.1f ARM  +%.2f ATK/s", "+%d Máu  +%d ST  +%.1f Giáp  +%.2f Đánh/s"), (int)sc.bonusHp, (int)sc.bonusDmg, sc.bonusArmor, sc.bonusAtkRate), (int)r.x + 18, (int)r.y + 84, 14, RAYWHITE);
+                    DrawText(TextFormat(L("Signature: %s", "Trấn Phái: %s"), settings.language == 1 ? scVi.weaponTitle : sc.weaponTitle), (int)r.x + 18, (int)r.y + 52, 15, GOLD);
+                    DrawText(TextFormat(L("+%d HP  +%d DMG  +%.1f ARM  +%.2f ATK/s", "+%d Máu  +%d ST  +%.1f Giáp  +%.2f Đánh/s"), (int)sc.bonusHp, (int)sc.bonusDmg, sc.bonusArmor, sc.bonusAtkRate), (int)r.x + 18, (int)r.y + 72, 13, RAYWHITE);
                     std::string lsStr = FmtPct(sc.bonusLifesteal * LifestealScale());
-                    DrawText(TextFormat(L("+%d SPD  +%d%% CRIT  +%s Lifesteal", "+%d Chạy  +%d%% Chí Mạng  +%s Hút Máu"), (int)sc.bonusSpeed, (int)roundf(sc.bonusCrit * 100), lsStr.c_str()), (int)r.x + 18, (int)r.y + 104, 14, SKYBLUE);
-                    DrawText(L("+35% HP Recovery & +30 Rage immediately", "Hồi ngay +35% Máu & +30 Nộ"), (int)r.x + 18, (int)r.y + 124, 13, { 120, 235, 160, 255 });
+                    DrawText(TextFormat(L("+%d SPD  +%d%% CRIT  +%s Lifesteal", "+%d Chạy  +%d%% Chí Mạng  +%s Hút Máu"), (int)sc.bonusSpeed, (int)roundf(sc.bonusCrit * 100), lsStr.c_str()), (int)r.x + 18, (int)r.y + 90, 13, SKYBLUE);
+                    DrawText(L("+35% HP Recovery & +30 Rage immediately", "Hồi ngay +35% Máu & +30 Nộ"), (int)r.x + 18, (int)r.y + 108, 12, { 120, 235, 160, 255 });
 
-                    const char* tags[4] = { L("PASSIVE", "NỘI TẠI"), L("SKILL [Q]", "CHIÊU [Q]"), L("SKILL [E]", "CHIÊU [E]"), L("ULTIMATE [R]", "TUYỆT KỸ [R]") };
-                    const char* sn[4] = {
+                    const char* tags[6] = { L("PASSIVE", "NỘI TẠI"), L("SKILL [Q]", "CHIÊU [Q]"), L("SKILL [E]", "CHIÊU [E]"), L("SKILL [C]", "CHIÊU [C]"), L("SKILL [V]", "CHIÊU [V]"), L("ULTIMATE [R]", "TUYỆT KỸ [R]") };
+                    const char* sn[6] = {
                         settings.language == 1 ? scVi.passiveName : sc.passiveName,
                         settings.language == 1 ? scVi.qName       : sc.qName,
                         settings.language == 1 ? scVi.eName       : sc.eName,
+                        settings.language == 1 ? scVi.cName       : sc.cName,
+                        settings.language == 1 ? scVi.vName       : sc.vName,
                         settings.language == 1 ? scVi.rName       : sc.rName
                     };
-                    const char* sd[4] = {
+                    const char* sd[6] = {
                         settings.language == 1 ? scVi.passiveDesc : sc.passiveDesc,
                         settings.language == 1 ? scVi.qDesc       : sc.qDesc,
                         settings.language == 1 ? scVi.eDesc       : sc.eDesc,
+                        settings.language == 1 ? scVi.cDesc       : sc.cDesc,
+                        settings.language == 1 ? scVi.vDesc       : sc.vDesc,
                         settings.language == 1 ? scVi.rDesc       : sc.rDesc
                     };
-                    Color cols[4] = { sc.color, SKYBLUE, { 110, 235, 175, 255 }, ORANGE };
-                    int ky = (int)r.y + 150;
-                    for (int k = 0; k < 4; ++k) {
-                        int by = ky + k * 74;
-                        DrawRectangle((int)r.x + 14, by, (int)cw - 28, 68, { 12, 16, 28, 225 });
-                        DrawRectangleLines((int)r.x + 14, by, (int)cw - 28, 68, Fade(cols[k], 0.45f));
-                        DrawText(tags[k], (int)r.x + 24, by + 6, 12, cols[k]);
-                        DrawText(sn[k], (int)r.x + 120, by + 5, 15, WHITE);
-                        DrawWrappedText(sd[k], (int)r.x + 24, by + 26, (int)cw - 48, 13, 15, { 195, 210, 235, 255 });
+                    Color cols[6] = { sc.color, SKYBLUE, { 110, 235, 175, 255 }, { 245, 200, 95, 255 }, { 225, 115, 255, 255 }, ORANGE };
+                    int ky = (int)r.y + 132;
+                    for (int k = 0; k < 6; ++k) {
+                        int by = ky + k * 60;
+                        DrawRectangle((int)r.x + 14, by, (int)cw - 28, 54, { 12, 16, 28, 225 });
+                        DrawRectangleLines((int)r.x + 14, by, (int)cw - 28, 54, Fade(cols[k], 0.45f));
+                        DrawText(tags[k], (int)r.x + 22, by + 4, 11, cols[k]);
+                        DrawText(sn[k], (int)r.x + 114, by + 3, 14, WHITE);
+                        DrawWrappedText(sd[k], (int)r.x + 22, by + 20, (int)cw - 44, 12, 14, { 195, 210, 235, 255 });
                     }
 
-                    Rectangle btn = { r.x + 24.0f, r.y + ch - 52.0f, cw - 48.0f, 38.0f };
+                    Rectangle btn = { r.x + 24.0f, r.y + ch - 46.0f, cw - 48.0f, 36.0f };
                     DrawRectangleRec(btn, hov ? Shade(sc.color, 0.55f) : Color{ 32, 76, 118, 255 });
                     DrawRectangleLinesEx(btn, 2.0f, hov ? GOLD : sc.color);
                     std::string bTxt = touchMode ? std::string(L("TAP TO AWAKEN ", "CHẠM ĐỂ THỨC TỈNH ")) + SubDisplayName(hc, i + 1)
                                                  : std::string(TextFormat(L("PRESS [%d] OR CLICK TO AWAKEN", "NHẤN [%d] HOẶC NHẤP ĐỂ THỨC TỈNH"), i + 1));
-                    DrawText(bTxt.c_str(), (int)(btn.x + btn.width / 2) - MeasureText(bTxt.c_str(), 16) / 2, (int)btn.y + 11, 16, WHITE);
+                    DrawText(bTxt.c_str(), (int)(btn.x + btn.width / 2) - MeasureText(bTxt.c_str(), 15) / 2, (int)btn.y + 10, 15, WHITE);
                 }
             } else {
                 const char* luHdr = L("LEVEL UP! CHOOSE AN UPGRADE", "LÊN CẤP! CHỌN NÂNG CẤP");
