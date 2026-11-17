@@ -41,6 +41,7 @@ inline void Game::DrawWalls(const BiomeColors& biome) {
                 if (ex <= bx) continue;
                 DrawRectangle((int)bx, (int)y, (int)(ex - bx) - 1, (int)bh - 1, bc);
                 DrawRectangle((int)bx, (int)y, (int)(ex - bx) - 1, 2, Shade(bc, 1.3f));
+                DrawRectangle((int)bx, (int)(y + bh - 3), (int)(ex - bx) - 1, 2, Shade(bc, 0.55f));
             }
         }
     };
@@ -48,6 +49,13 @@ inline void Game::DrawWalls(const BiomeColors& biome) {
     bricks(-hw - th, hh, roomW + th * 2, th);
     bricks(-hw - th, -hh, th, roomH);
     bricks(hw, -hh, th, roomH);
+    DrawRectangleLinesEx({ -hw - 4.0f, -hh - 4.0f, roomW + 8.0f, roomH + 8.0f }, 3.0f, Shade(biome.trimCol, 0.75f));
+    Vector2 corners[4] = { { -hw, -hh }, { hw, -hh }, { -hw, hh }, { hw, hh } };
+    for (int ci = 0; ci < 4; ++ci) {
+        DrawPoly(corners[ci], 8, 36.0f, 22.5f, Shade(biome.wall, 0.85f));
+        DrawPolyLinesEx(corners[ci], 8, 36.0f, 22.5f, 2.2f, biome.trimCol);
+        Diamond(corners[ci], 8.0f, 8.0f, biome.accentCol, WHITE);
+    }
 }
 
 inline void Game::DrawDecals(const BiomeColors& biome) {
@@ -171,13 +179,18 @@ inline void Game::DrawPillar(Vector2 p, const BiomeColors& biome) {
     Color stone = Shade(biome.wall, 1.22f);
     Color ink = Shade(stone, 0.32f);
     DrawEllipse((int)p.x + 3, (int)p.y + 15, 32.0f, 13.0f, Fade(BLACK, 0.42f));
-    // Chân cột đá vuông vát cạnh + thân bát giác + đỉnh cột chạm khắc 3D
+    // Chân cột đá vuông vát cạnh + thân bát giác có rãnh dọc 3D + đỉnh cột chạm khắc + hào quang pha lê
     BoxRot({ p.x, p.y + 4.0f }, 52.0f, 44.0f, 0.0f, Shade(stone, 0.60f), ink, 1.8f);
     DrawPoly({ p.x, p.y - 2.0f }, 8, 24.5f, 22.5f, Shade(stone, 0.82f));
     DrawPolyLinesEx({ p.x, p.y - 2.0f }, 8, 24.5f, 22.5f, 1.8f, ink);
     BoxRot({ p.x, p.y - 10.0f }, 42.0f, 36.0f, 0.0f, stone, ink, 1.8f);
+    DrawLineEx({ p.x - 12.0f, p.y - 26.0f }, { p.x - 12.0f, p.y + 6.0f }, 2.2f, Fade(WHITE, 0.22f));
+    DrawLineEx({ p.x + 12.0f, p.y - 26.0f }, { p.x + 12.0f, p.y + 6.0f }, 2.2f, Fade(BLACK, 0.28f));
     BoxRot({ p.x, p.y - 11.0f }, 26.0f, 22.0f, 0.0f, Shade(stone, 1.24f), biome.trimCol, 1.4f);
     DrawLineEx({ p.x - 20.0f, p.y - 28.0f }, { p.x + 20.0f, p.y - 28.0f }, 2.0f, Fade(WHITE, 0.25f));
+    BeginBlendMode(BLEND_ADDITIVE);
+    CircleGrad(p.x, p.y - 11.0f, 28.0f, Fade(biome.accentCol, 0.28f), Fade(biome.accentCol, 0.0f));
+    EndBlendMode();
     if (inSurface) {
         if (surfaceRoom == 0) {
             Tri({ p.x + 6.0f, p.y + 8.0f }, { p.x + 21.0f, p.y + 6.0f }, { p.x + 15.0f, p.y + 19.0f }, Fade({ 78, 188, 92, 255 }, 0.85f));
@@ -215,14 +228,20 @@ inline void Game::DrawPillar(Vector2 p, const BiomeColors& biome) {
 inline void Game::DrawTorch(Vector2 t) {
     float tm = (float)GetTime();
     float fl = 0.78f + 0.22f * sinf(tm * 13.0f + t.x * 0.1f) + 0.08f * sinf(tm * 29.0f + t.y);
+    DrawCircleLines((int)t.x, (int)t.y + 4, 6.5f, { 95, 102, 120, 255 });
     DrawRectangle((int)t.x - 3, (int)t.y - 2, 6, 15, { 70, 50, 36, 255 });
     DrawRectangle((int)t.x - 6, (int)t.y - 4, 12, 5, { 120, 88, 54, 255 });
     BeginBlendMode(BLEND_ADDITIVE);
-    CircleGrad(t.x, t.y - 8, 58.0f, Fade({ 255, 150, 50, 255 }, 0.32f * fl), Fade({ 255, 150, 50, 255 }, 0.0f));
+    CircleGrad(t.x, t.y - 8, 82.0f, Fade({ 255, 130, 40, 255 }, 0.20f * fl), Fade({ 255, 130, 40, 255 }, 0.0f));
+    CircleGrad(t.x, t.y - 8, 38.0f, Fade({ 255, 175, 70, 255 }, 0.36f * fl), Fade({ 255, 175, 70, 255 }, 0.0f));
     EndBlendMode();
     DrawCircleV({ t.x, t.y - 8.0f }, 7.5f * fl, { 255, 120, 30, 255 });
     DrawCircleV({ t.x, t.y - 9.0f }, 4.8f * fl, { 255, 200, 70, 255 });
     DrawCircleV({ t.x, t.y - 10.0f }, 2.2f, { 255, 250, 205, 255 });
+    for (int ei = 0; ei < 2; ++ei) {
+        float phase = fmodf(tm * 1.4f + ei * 0.5f + fabsf(t.x) * 0.01f, 1.0f);
+        DrawCircleV({ t.x + sinf(tm * 4.0f + ei * 2.5f) * 4.0f, t.y - 12.0f - phase * 18.0f }, 1.8f * (1.0f - phase), Fade(GOLD, 1.0f - phase));
+    }
 }
 
 inline void Game::AddLight(Vector2 wp, float radius, Color col, float inten) {
@@ -339,7 +358,7 @@ inline void Game::ApplyLighting() {
 }
 
 inline void Game::DrawSurfaceTownSquare(const BiomeColors& biome, float tm) {
-    // 8 Bồn hoa & Cây cảnh hoàng gia viền đá dọc các đại lộ (giữ nguyên toàn bộ nền gạch 3D sắc nét)
+    // 8 Bồn hoa, Cây xanh tán 3 tầng nở hoa & Cột đèn đồng thắp sáng dọc đại lộ
     Vector2 gardens[8] = {
         { -235.0f, -340.0f }, {  235.0f, -340.0f },
         { -235.0f,  340.0f }, {  235.0f,  340.0f },
@@ -348,6 +367,7 @@ inline void Game::DrawSurfaceTownSquare(const BiomeColors& biome, float tm) {
     };
     for (int q = 0; q < 8; ++q) {
         Vector2 gp = gardens[q];
+        DrawEllipse((int)gp.x + 4, (int)gp.y + 20, 62.0f, 24.0f, Fade(BLACK, 0.30f));
         DrawRectangle((int)gp.x - 54, (int)gp.y - 26, 108, 52, { 132, 124, 108, 255 });
         DrawRectangleLines((int)gp.x - 54, (int)gp.y - 26, 108, 52, { 42, 38, 34, 255 });
         DrawRectangle((int)gp.x - 46, (int)gp.y - 18, 92, 36, { 46, 118, 56, 255 });
@@ -356,15 +376,46 @@ inline void Game::DrawSurfaceTownSquare(const BiomeColors& biome, float tm) {
             DrawCircleV({ fx, gp.y }, 9.0f, { 58, 152, 70, 255 });
             Diamond({ fx + sinf(tm * 2.0f + q + f) * 1.2f, gp.y - 2.0f }, 4.0f, 4.0f, (f == 0) ? GOLD : Color{ 255, 130, 185, 255 }, WHITE);
         }
+        // Cây tán 3 lớp bên mép bồn hoa
+        float tx = gp.x + ((q & 1) ? 46.0f : -46.0f), ty = gp.y - 16.0f;
+        DrawRectangle((int)tx - 4, (int)ty - 16, 8, 24, { 98, 62, 36, 255 });
+        DrawCircleV({ tx, ty - 24.0f }, 19.0f, { 34, 96, 46, 255 });
+        DrawCircleV({ tx - 7.0f, ty - 30.0f }, 14.0f, { 54, 148, 68, 255 });
+        DrawCircleV({ tx + 6.0f, ty - 32.0f }, 13.0f, { 76, 178, 86, 255 });
+        DrawCircleV({ tx - 4.0f, ty - 34.0f }, 3.2f, { 255, 155, 195, 255 });
+        DrawCircleV({ tx + 8.0f, ty - 28.0f }, 2.8f, GOLD);
+        // Cột đèn đồng ấm phía còn lại
+        float lx = gp.x + ((q & 1) ? -50.0f : 50.0f), ly = gp.y - 6.0f;
+        DrawRectangle((int)lx - 2, (int)ly - 26, 4, 28, { 58, 62, 74, 255 });
+        DrawCircleV({ lx, ly - 28.0f }, 5.5f, GOLD);
+        BeginBlendMode(BLEND_ADDITIVE);
+        CircleGrad(lx, ly - 28.0f, 24.0f, Fade(ORANGE, 0.34f), Fade(ORANGE, 0.0f));
+        EndBlendMode();
     }
 
-    // Đài Phun Nước Thánh Trung Tâm (3 tầng đá cẩm thạch + nước gợn sóng)
+    // Đài Phun Nước Thánh Trung Tâm (3 tầng đá cẩm thạch + tia nước vòng cung + lá sen hoa nở)
     DrawEllipse(4, 14, 78.0f, 34.0f, Fade(BLACK, 0.38f));
     DrawCircle(0, 0, 68.0f, { 142, 134, 122, 255 });
     DrawCircleLines(0, 0, 68.0f, { 34, 30, 38, 255 });
-    DrawCircle(0, 0, 56.0f, { 42, 152, 212, 255 });
+    DrawCircle(0, 0, 56.0f, { 38, 142, 206, 255 });
+    BeginBlendMode(BLEND_ADDITIVE);
+    CircleGrad(0.0f, 0.0f, 58.0f, Fade({ 95, 225, 255, 255 }, 0.32f), Fade(SKYBLUE, 0.0f));
+    EndBlendMode();
     DrawCircleLines(0, 0, 28.0f + sinf(tm * 3.2f) * 9.0f, Fade({ 210, 248, 255, 255 }, 0.75f));
     DrawCircleLines(0, 0, 44.0f + cosf(tm * 2.5f) * 6.0f, Fade(WHITE, 0.45f));
+    for (int lp = 0; lp < 4; ++lp) {
+        float la = lp * (PI / 2.0f) + 0.6f;
+        Vector2 pad = { cosf(la) * 38.0f, sinf(la) * 38.0f };
+        DrawCircleV(pad, 7.5f, { 48, 148, 72, 255 });
+        DrawCircleV(pad, 3.0f, { 255, 145, 195, 255 });
+    }
+    for (int j = 0; j < 8; ++j) {
+        float ja = j * (PI / 4.0f) + tm * 0.2f;
+        float jp = fmodf(tm * 1.6f + j * 0.125f, 1.0f);
+        Vector2 jEnd = { cosf(ja) * (14.0f + jp * 36.0f), sinf(ja) * (14.0f + jp * 36.0f) - sinf(jp * PI) * 14.0f };
+        DrawLineEx({ cosf(ja) * 10.0f, sinf(ja) * 10.0f }, jEnd, 2.0f, Fade({ 195, 248, 255, 255 }, 0.65f * (1.0f - jp * 0.4f)));
+        DrawCircleV(jEnd, 2.6f, WHITE);
+    }
     DrawPoly({ 0, 0 }, 8, 22.0f, 22.5f, { 196, 190, 178, 255 });
     DrawPolyLinesEx({ 0, 0 }, 8, 22.0f, 22.5f, 1.8f, { 45, 42, 52, 255 });
     Diamond({ 0.0f, -6.0f + sinf(tm * 4.0f) * 2.5f }, 9.0f, 13.0f, SKYBLUE, WHITE);
@@ -372,7 +423,7 @@ inline void Game::DrawSurfaceTownSquare(const BiomeColors& biome, float tm) {
         DrawSurfacePrompt({ 0.0f, 76.0f }, L("CRYSTAL FOUNTAIN", "ĐÀI PHUN NƯỚC THÁNH"), L("[F] Drink Sacred Water (+20 HP)", "[F] Uống Nước (+20 Máu)"), SKYBLUE, true);
     }
 
-    // 4 Công Trình Kiến Trúc Chi Tiết (nhiều lớp tường, mái ngói, cửa sổ sáng, ống khói, bảng hiệu)
+    // 4 Công Trình Kiến Trúc 2.5D Chi Tiết (mái ngói phân lớp, bậc thang 3 tầng, vòm cửa, cửa sổ bồn hoa, biển hiệu treo)
     struct BldgMeta { Color roof; Color facade; Color accent; const char* titleEn; const char* titleVi; const char* subEn; const char* subVi; };
     Color famRoof = houseTier == 0 ? Color{ 118, 108, 92, 255 } : (houseTier == 1 ? Color{ 176, 92, 46, 255 } : (houseTier == 2 ? Color{ 58, 118, 188, 255 } : Color{ 212, 158, 42, 255 }));
     Color famWall = houseTier >= 3 ? Color{ 238, 226, 204, 255 } : Color{ 218, 202, 178, 255 };
@@ -387,43 +438,101 @@ inline void Game::DrawSurfaceTownSquare(const BiomeColors& biome, float tm) {
         Vector2 door = { bp.x, bp.y + 38.0f };
         bool near = Vector2Distance(player.pos, door) < 105.0f;
 
-        // Bóng đổ công trình & thềm đá lối vào
-        DrawEllipse((int)bp.x + 4, (int)bp.y + 36, 106.0f, 26.0f, Fade(BLACK, 0.42f));
-        DrawRectangle((int)bp.x - 36, (int)bp.y + 22, 72, 30, { 148, 140, 128, 255 });
-        DrawRectangleLines((int)bp.x - 36, (int)bp.y + 22, 72, 30, Fade(biome.trimCol, 0.55f));
+        // Bóng đổ công trình & cầu thang đá 3 bậc
+        DrawEllipse((int)bp.x + 5, (int)bp.y + 38, 114.0f, 28.0f, Fade(BLACK, 0.44f));
+        for (int st = 0; st < 3; ++st) {
+            int sw = 80 - st * 10;
+            DrawRectangle((int)bp.x - sw / 2, (int)bp.y + 42 - st * 7, sw, 9, Shade({ 148, 140, 128, 255 }, 0.85f + st * 0.08f));
+            DrawRectangleLines((int)bp.x - sw / 2, (int)bp.y + 42 - st * 7, sw, 9, { 48, 42, 38, 255 });
+        }
 
-        // Thân nhà 3D + khung gỗ/đá
+        // Thân nhà 3D + móng đá 2 hàng bên dưới + bóng mái hiên
         DrawRectangle((int)bp.x - 92, (int)bp.y - 34, 184, 68, Shade(bldgs[i].facade, 0.78f));
         DrawRectangle((int)bp.x - 86, (int)bp.y - 32, 172, 62, bldgs[i].facade);
-        DrawRectangleLinesEx({ bp.x - 92.0f, bp.y - 34.0f, 184.0f, 68.0f }, 2.2f, near ? GOLD : Color{ 38, 30, 28, 255 });
-        // Xà gỗ dọc & ngang
-        DrawRectangle((int)bp.x - 90, (int)bp.y - 10, 180, 6, { 98, 62, 38, 255 });
-        DrawRectangle((int)bp.x - 52, (int)bp.y - 32, 6, 62, { 98, 62, 38, 255 });
-        DrawRectangle((int)bp.x + 46, (int)bp.y - 32, 6, 62, { 98, 62, 38, 255 });
-
-        // Cửa sổ kính ấm tỏa sáng
-        Color winGlow = { 255, 205, 95, 255 };
-        DrawRectangle((int)bp.x - 78, (int)bp.y - 24, 22, 22, { 68, 44, 28, 255 });
-        DrawRectangle((int)bp.x - 75, (int)bp.y - 21, 16, 16, winGlow);
-        DrawRectangle((int)bp.x + 56, (int)bp.y - 24, 22, 22, { 68, 44, 28, 255 });
-        DrawRectangle((int)bp.x + 59, (int)bp.y - 21, 16, 16, winGlow);
-
-        // Cổng vòm mở tối mời người chơi bước vào
-        DrawRectangle((int)bp.x - 24, (int)bp.y - 8, 48, 42, { 72, 54, 42, 255 });
-        DrawRectangle((int)bp.x - 18, (int)bp.y - 2, 36, 36, near ? Color{ 42, 54, 82, 255 } : Color{ 20, 16, 22, 255 });
-        DrawRectangle((int)bp.x - 14, (int)bp.y + 24, 28, 12, Fade(bldgs[i].accent, near ? 0.55f : 0.25f));
-
-        // Mái ngói chóp đa tầng + ống khói/vương miện
-        if (i == 0 || i == 2) {
-            DrawRectangle((int)bp.x + 42, (int)bp.y - 86, 18, 34, { 112, 86, 76, 255 });
-            float sm = fmodf(tm * 0.9f + i, 1.0f);
-            DrawCircleV({ bp.x + 51.0f + sinf(tm * 3.0f) * 4.0f, bp.y - 92.0f - sm * 18.0f }, 5.0f + sm * 4.0f, Fade(LIGHTGRAY, (1.0f - sm) * 0.45f));
+        for (int mr = 0; mr < 2; ++mr) {
+            for (int mc = 0; mc < 6; ++mc) {
+                int mx = (int)bp.x - 88 + mc * 29 + (mr & 1) * 4;
+                int my = (int)bp.y + 12 + mr * 10;
+                DrawRectangle(mx, my, 27, 9, Shade({ 134, 130, 126, 255 }, 0.85f + ((mc + mr) & 1) * 0.14f));
+                DrawRectangleLines(mx, my, 27, 9, { 52, 48, 46, 255 });
+            }
         }
-        Tri({ bp.x - 108.0f, bp.y - 30.0f }, { bp.x + 108.0f, bp.y - 30.0f }, { bp.x, bp.y - 94.0f }, Shade(bldgs[i].roof, 0.72f));
-        Tri({ bp.x - 100.0f, bp.y - 32.0f }, { bp.x + 100.0f, bp.y - 32.0f }, { bp.x, bp.y - 88.0f }, bldgs[i].roof);
-        DrawLineEx({ bp.x - 104.0f, bp.y - 31.0f }, { bp.x, bp.y - 92.0f }, 2.5f, Fade(GOLD, 0.5f));
-        DrawLineEx({ bp.x + 104.0f, bp.y - 31.0f }, { bp.x, bp.y - 92.0f }, 2.5f, Fade(GOLD, 0.5f));
-        Diamond({ bp.x, bp.y - 62.0f }, 8.0f, 10.0f, bldgs[i].accent, WHITE);
+        DrawRectangle((int)bp.x - 88, (int)bp.y - 32, 176, 8, Fade(BLACK, 0.28f));
+        DrawRectangleLinesEx({ bp.x - 92.0f, bp.y - 34.0f, 184.0f, 68.0f }, 2.2f, near ? GOLD : Color{ 38, 30, 28, 255 });
+
+        // Xà gỗ ngang dọc + thanh chéo nửa gỗ Tudor
+        DrawRectangle((int)bp.x - 90, (int)bp.y - 10, 180, 6, { 98, 62, 38, 255 });
+        DrawRectangle((int)bp.x - 52, (int)bp.y - 32, 6, 44, { 98, 62, 38, 255 });
+        DrawRectangle((int)bp.x + 46, (int)bp.y - 32, 6, 44, { 98, 62, 38, 255 });
+        DrawLineEx({ bp.x - 86.0f, bp.y - 28.0f }, { bp.x - 52.0f, bp.y - 10.0f }, 3.5f, { 98, 62, 38, 255 });
+        DrawLineEx({ bp.x + 86.0f, bp.y - 28.0f }, { bp.x + 52.0f, bp.y - 10.0f }, 3.5f, { 98, 62, 38, 255 });
+
+        // Hai cửa sổ khung gỗ + bồn hoa rực rỡ + cửa chớp
+        Color winGlow = { 255, 210, 105, 255 };
+        for (int ws = -1; ws <= 1; ws += 2) {
+            int wx = (int)bp.x + ws * 68 - 11;
+            int wy = (int)bp.y - 24;
+            DrawRectangle(wx - 5, wy, 5, 22, { 78, 52, 34, 255 });
+            DrawRectangle(wx + 22, wy, 5, 22, { 78, 52, 34, 255 });
+            DrawRectangle(wx, wy, 22, 22, { 68, 44, 28, 255 });
+            DrawRectangle(wx + 3, wy + 3, 16, 16, winGlow);
+            DrawLine(wx + 11, wy + 2, wx + 11, wy + 20, { 68, 44, 28, 255 });
+            DrawLine(wx + 2, wy + 11, wx + 20, wy + 11, { 68, 44, 28, 255 });
+            DrawRectangle(wx - 2, wy + 21, 26, 6, { 92, 56, 34, 255 });
+            DrawCircle(wx + 4, wy + 20, 3.0f, Color{ 255, 115, 165, 255 });
+            DrawCircle(wx + 11, wy + 20, 3.0f, GOLD);
+            DrawCircle(wx + 18, wy + 20, 3.0f, Color{ 115, 235, 145, 255 });
+        }
+
+        // Cổng vòm cong đá chạm khắc + đá đỉnh vòm + đèn lồng đồng 2 bên cửa
+        DrawCircle((int)bp.x, (int)bp.y - 2, 24.0f, { 98, 92, 86, 255 });
+        DrawRectangle((int)bp.x - 24, (int)bp.y - 2, 48, 36, { 72, 54, 42, 255 });
+        DrawCircle((int)bp.x, (int)bp.y - 2, 18.0f, near ? Color{ 52, 68, 108, 255 } : Color{ 22, 18, 26, 255 });
+        DrawRectangle((int)bp.x - 18, (int)bp.y - 2, 36, 36, near ? Color{ 42, 54, 82, 255 } : Color{ 20, 16, 22, 255 });
+        DrawRectangle((int)bp.x - 4, (int)bp.y - 26, 8, 8, { 190, 182, 168, 255 });
+        DrawRectangle((int)bp.x - 14, (int)bp.y + 24, 28, 12, Fade(bldgs[i].accent, near ? 0.55f : 0.25f));
+        for (int ls = -1; ls <= 1; ls += 2) {
+            DrawCircle((int)bp.x + ls * 32, (int)bp.y + 4, 4.5f, GOLD);
+            BeginBlendMode(BLEND_ADDITIVE);
+            CircleGrad(bp.x + ls * 32.0f, bp.y + 4.0f, 18.0f, Fade(ORANGE, 0.35f), Fade(ORANGE, 0.0f));
+            EndBlendMode();
+        }
+
+        // Ống khói & khói bay (Quán trọ & Nhà) + Biển hiệu treo sắt rèn
+        if (i == 0 || i == 2) {
+            DrawRectangle((int)bp.x + 42, (int)bp.y - 88, 18, 36, { 112, 86, 76, 255 });
+            float sm = fmodf(tm * 0.9f + i, 1.0f);
+            DrawCircleV({ bp.x + 51.0f + sinf(tm * 3.0f) * 4.0f, bp.y - 94.0f - sm * 18.0f }, 5.0f + sm * 4.0f, Fade(LIGHTGRAY, (1.0f - sm) * 0.45f));
+        }
+        // Mái ngói chóp đa tầng + các đường lợp ngói + xà nóc vàng + cửa sổ mái tròn
+        Tri({ bp.x - 110.0f, bp.y - 30.0f }, { bp.x + 110.0f, bp.y - 30.0f }, { bp.x, bp.y - 96.0f }, Shade(bldgs[i].roof, 0.72f));
+        Tri({ bp.x - 102.0f, bp.y - 32.0f }, { bp.x + 102.0f, bp.y - 32.0f }, { bp.x, bp.y - 90.0f }, bldgs[i].roof);
+        for (int sr = 1; sr <= 4; ++sr) {
+            float ry = bp.y - 32.0f - sr * 11.5f;
+            float rw = 100.0f * (1.0f - (sr * 11.5f) / 60.0f);
+            if (rw > 8.0f) DrawLineEx({ bp.x - rw, ry }, { bp.x + rw, ry }, 1.6f, Shade(bldgs[i].roof, 0.62f));
+        }
+        DrawLineEx({ bp.x - 106.0f, bp.y - 31.0f }, { bp.x, bp.y - 93.0f }, 3.2f, Shade(GOLD, 0.85f));
+        DrawLineEx({ bp.x + 106.0f, bp.y - 31.0f }, { bp.x, bp.y - 93.0f }, 3.2f, Shade(GOLD, 0.85f));
+        DrawCircle((int)bp.x, (int)bp.y - 62, 11.0f, { 54, 42, 34, 255 });
+        Diamond({ bp.x, bp.y - 62.0f }, 7.5f, 9.5f, bldgs[i].accent, WHITE);
+
+        // Biển hiệu treo riêng biệt từng công trình
+        if (i < 3) {
+            DrawLineEx({ bp.x - 92.0f, bp.y - 22.0f }, { bp.x - 108.0f, bp.y - 22.0f }, 2.5f, { 58, 62, 76, 255 });
+            DrawRectangle((int)bp.x - 114, (int)bp.y - 18, 16, 18, { 42, 34, 28, 255 });
+            DrawRectangleLines((int)bp.x - 114, (int)bp.y - 18, 16, 18, bldgs[i].accent);
+            if (i == 0) DrawRectangle((int)bp.x - 109, (int)bp.y - 13, 6, 8, GOLD);
+            else if (i == 1) Diamond({ bp.x - 106.0f, bp.y - 9.0f }, 4.5f, 5.5f, SKYBLUE, WHITE);
+            else Diamond({ bp.x - 106.0f, bp.y - 9.0f }, 4.5f, 4.5f, Color{ 255, 130, 185, 255 }, WHITE);
+        } else {
+            for (int bs = -1; bs <= 1; bs += 2) {
+                float bx = bp.x + bs * 96.0f;
+                DrawRectangle((int)bx - 6, (int)bp.y - 28, 12, 38, { 162, 26, 42, 255 });
+                DrawRectangleLines((int)bx - 6, (int)bp.y - 28, 12, 38, GOLD);
+                Tri({ bx - 6, bp.y + 10 }, { bx + 6, bp.y + 10 }, { bx, bp.y + 18 }, GOLD);
+            }
+        }
 
         DrawSurfacePrompt({ bp.x, bp.y + 58.0f }, L(bldgs[i].titleEn, bldgs[i].titleVi),
                           L(bldgs[i].subEn, bldgs[i].subVi), bldgs[i].accent, near);
@@ -468,15 +577,26 @@ inline void Game::DrawSurfaceTavernRoom(const BiomeColors& biome, float tm) {
     DrawCircleV({ 0.0f, fy + 14.0f }, 16.0f + sinf(tm * 11.0f) * 3.0f, ORANGE);
     DrawCircleV({ 0.0f, fy + 12.0f }, 8.0f + cosf(tm * 15.0f) * 2.0f, GOLD);
 
-    // Quầy Bar Chủ Quán
+    // Quầy Bar Chủ Quán + Kệ Rượu phát sáng + Bảng Truy Nã Quán Trọ
     Vector2 barP = { 0.0f, -275.0f };
     bool nearBar = Vector2Distance(player.pos, barP) < 110.0f;
+    DrawRectangle((int)barP.x - 115, (int)barP.y - 66, 230, 18, { 82, 48, 28, 255 });
+    for (int bt = 0; bt < 8; ++bt) {
+        Color bc = (bt % 3 == 0) ? ORANGE : ((bt % 3 == 1) ? SKYBLUE : GOLD);
+        DrawRectangle((int)barP.x - 95 + bt * 26, (int)barP.y - 78, 8, 12, bc);
+    }
     DrawRectangle((int)barP.x - 135, (int)barP.y - 26, 270, 44, { 112, 68, 38, 255 });
     DrawRectangleLines((int)barP.x - 135, (int)barP.y - 26, 270, 44, nearBar ? GOLD : Color{ 42, 26, 18, 255 });
     DrawCircle((int)barP.x - 95, (int)barP.y - 6, 12.0f, { 145, 92, 48, 255 });
     DrawCircle((int)barP.x + 95, (int)barP.y - 6, 12.0f, { 145, 92, 48, 255 });
     DrawDetailedNpcModel({ barP.x, barP.y - 34.0f }, 5, { 195, 92, 46, 255 }, WHITE, { 78, 52, 34, 255 }, false, 0.2f);
-    DrawSurfacePrompt({ barP.x, barP.y + 24.0f }, L("INNKEEPER COUNTER", "QUẦY CHỦ QUÁN"), L("[F] View Full Menu", "[F] Mở Bảng Thực Đơn"), ORANGE, nearBar);
+    DrawSurfacePrompt({ barP.x, barP.y + 24.0f }, L("INNKEEPER COUNTER", "QUẦY CHỦ QUÁN"), L("[F] View Menu & Bounties", "[F] Mở Thực Đơn & Truy Nã"), ORANGE, nearBar);
+
+    // Bảng Truy Nã gỗ trưng bày bên phải quán trọ
+    DrawRectangle(205, -242, 64, 48, { 108, 72, 42, 255 });
+    DrawRectangleLines(205, -242, 64, 48, GOLD);
+    DrawRectangle(213, -234, 20, 28, { 238, 224, 188, 255 });
+    DrawRectangle(241, -230, 20, 26, { 232, 212, 174, 255 });
 
     // Hai bàn ăn thực khách
     for (int ti = -1; ti <= 1; ti += 2) {
@@ -534,7 +654,14 @@ inline void Game::DrawSurfaceHousingRoom(const BiomeColors& biome, float tm) {
     DrawRectangleLines((int)deskP.x - 110, (int)deskP.y - 24, 220, 42, nearDesk ? GOLD : SKYBLUE);
     DrawRectangle((int)deskP.x - 42, (int)deskP.y - 14, 84, 22, { 175, 220, 255, 230 });
     DrawDetailedNpcModel({ deskP.x, deskP.y - 34.0f }, 6, { 56, 114, 178, 255 }, GOLD, { 185, 190, 205, 255 }, false, 0.4f);
-    DrawSurfacePrompt({ deskP.x, deskP.y + 24.0f }, L("MASTER ARCHITECT", "BẬC THẦY KIẾN TRÚC"), L("[F] View Estate Ledger", "[F] Xem Sổ Gia Trang"), SKYBLUE, nearDesk);
+    DrawSurfacePrompt({ deskP.x, deskP.y + 24.0f }, L("MASTER ARCHITECT & FORGE", "KIẾN TRÚC SƯ & LÒ RÈN"), L("[F] Estate Ledger & Weapon Forge", "[F] Sổ Gia Trang & Cường Hóa +5"), SKYBLUE, nearDesk);
+
+    // Lò Rèn & Đe Thần Bí trưng bày ở góc Đông Bắc Phường Gia Trang
+    DrawRectangle(215, -245, 68, 42, { 78, 72, 76, 255 });
+    DrawRectangleLines(215, -245, 68, 42, { 42, 38, 42, 255 });
+    DrawCircleV({ 249.0f, -224.0f }, 15.0f + sinf((float)GetTime() * 10.0f) * 2.5f, ORANGE);
+    DrawCircleV({ 249.0f, -224.0f }, 8.0f, GOLD);
+    BoxRot({ 249.0f, -182.0f }, 36.0f, 16.0f, 0.0f, { 148, 156, 178, 255 }, GOLD, 1.6f);
 
     Color roofs[3] = { { 172, 92, 48, 255 }, { 58, 118, 188, 255 }, { 215, 165, 42, 255 } };
     for (int t = 1; t <= 3; ++t) {
@@ -569,10 +696,17 @@ inline void Game::DrawSurfaceFamilyHomeRoom(const BiomeColors& biome, float tm) 
     DrawRectangle(-58, -10, 116, (int)(roomH / 2 - 42), rugCol);
     DrawRectangleLinesEx({ -58.0f, -10.0f, 116.0f, roomH / 2.0f - 42.0f }, 2.2f, rugTrim);
 
-    // Lò sưởi ấm áp bên Tây Bắc
+    // Lò sưởi ấm áp bên Tây Bắc & Chân nến vàng gia tộc
     DrawRectangle(-290, (int)(-roomH / 2 + 12), 110, 44, { 92, 84, 78, 255 });
     DrawRectangle(-265, (int)(-roomH / 2 + 28), 60, 26, { 30, 18, 16, 255 });
     DrawCircleV({ -235.0f, -roomH / 2.0f + 42.0f }, 12.0f + sinf(tm * 10.0f) * 2.5f, ORANGE);
+    for (int cs = -1; cs <= 1; cs += 2) {
+        DrawCircle(cs * 130, -305, 9.0f, { 112, 82, 42, 255 });
+        DrawCircle(cs * 130, -307, 4.5f, GOLD);
+        BeginBlendMode(BLEND_ADDITIVE);
+        CircleGrad(cs * 130.0f, -307.0f, 22.0f, Fade(ORANGE, 0.30f), Fade(ORANGE, 0.0f));
+        EndBlendMode();
+    }
 
     // Giường & Bàn ăn trang trí theo cấp Nhà
     if (houseTier >= 1) {
@@ -661,9 +795,19 @@ inline void Game::DrawSurfaceFamilyHomeRoom(const BiomeColors& biome, float tm) 
 
 inline void Game::DrawSurfacePalaceRoom(const BiomeColors& biome, float tm) {
     (void)biome;
-    // Thảm đỏ hoàng gia trải dọc đại điện từ cửa tới ngai vàng
+    // Thảm đỏ hoàng gia trải dọc đại điện từ cửa tới ngai vàng + Thảm gấm & chân nến vàng hai bên
     DrawRectangle(-95, -280, 190, (int)(roomH / 2 + 240), { 142, 26, 42, 235 });
     DrawRectangleLinesEx({ -95.0f, -280.0f, 190.0f, roomH / 2.0f + 240.0f }, 3.5f, GOLD);
+    for (int bs = -1; bs <= 1; bs += 2) {
+        DrawRectangle(bs * 320 - 16, (int)(-roomH / 2 + 14), 32, 68, { 158, 28, 44, 255 });
+        DrawRectangleLines(bs * 320 - 16, (int)(-roomH / 2 + 14), 32, 68, GOLD);
+        Diamond({ bs * 320.0f, -roomH / 2.0f + 46.0f }, 8.0f, 10.0f, GOLD, WHITE);
+        DrawCircle(bs * 185, -210, 10.0f, { 120, 88, 36, 255 });
+        DrawCircle(bs * 185, -212, 5.0f, GOLD);
+        BeginBlendMode(BLEND_ADDITIVE);
+        CircleGrad(bs * 185.0f, -212.0f, 26.0f, Fade(GOLD, 0.34f), Fade(GOLD, 0.0f));
+        EndBlendMode();
+    }
 
     // Ngự Lâm Quân canh gác đại điện
     Vector2 guardPts[4] = { { -145, -270 }, { 145, -270 }, { -160, 110 }, { 160, 110 } };
@@ -748,10 +892,12 @@ inline void Game::Draw() {
             tileCol = Shade(tileCol, 0.96f + (th & 3) * 0.025f);
             DrawRectangle(x, y, tileSize, tileSize, tileCol);
             if (isPath || isCornerPlaza) {
-                DrawRectangleLines(x + 4, y + 4, tileSize - 8, tileSize - 8, Fade(biome.trimCol, 0.22f));
+                DrawRectangleLines(x + 4, y + 4, tileSize - 8, tileSize - 8, Fade(biome.trimCol, 0.28f));
             }
-            DrawRectangle(x, y, tileSize, 2, Fade(WHITE, 0.05f));
-            DrawRectangle(x, y, 2, tileSize, Fade(WHITE, 0.04f));
+            DrawRectangle(x, y, tileSize, 3, Fade(WHITE, 0.08f));
+            DrawRectangle(x, y, 3, tileSize, Fade(WHITE, 0.06f));
+            DrawRectangle(x, y + tileSize - 3, tileSize, 3, Fade(BLACK, 0.22f));
+            DrawRectangle(x + tileSize - 3, y, 3, tileSize, Fade(BLACK, 0.20f));
             DrawRectangleLines(x, y, tileSize, tileSize, Fade(BLACK, 0.16f));
             if (th == 0) DrawRectangle(x + 12, y + 16, 6, 4, Fade(BLACK, 0.12f));
             else if (th == 7) DrawRectangle(x + 26, y + 26, 6, 6, Fade(biome.accentCol, 0.16f));
@@ -763,11 +909,20 @@ inline void Game::Draw() {
     DrawPoly({ 0, 0 }, 8, 148.0f, 22.5f, Fade(biome.pathCol, 0.85f));
     DrawPolyLinesEx({ 0, 0 }, 8, 148.0f, 22.5f, 3.0f, Fade(biome.trimCol, 0.65f));
     DrawPolyLinesEx({ 0, 0 }, 8, 108.0f, 0.0f, 2.0f, Fade(biome.accentCol, 0.45f));
+    DrawRing({ 0, 0 }, 64.0f, 68.0f, (float)GetTime() * 14.0f, (float)GetTime() * 14.0f + 290.0f, 24, Fade(biome.accentCol, 0.30f));
     for (int ci = 0; ci < 8; ++ci) {
         float ca = ci * (PI / 4.0f);
         DrawLineEx({ cosf(ca) * 32.0f, sinf(ca) * 32.0f }, { cosf(ca) * 102.0f, sinf(ca) * 102.0f }, 2.0f, Fade(biome.trimCol, 0.35f));
     }
     Diamond({ 0, 0 }, 24.0f, 24.0f, Fade(biome.trimCol, 0.45f), Fade(biome.accentCol, 0.75f));
+    Vector2 plazaPts[4] = {
+        { -(float)halfW + 96.0f, -(float)halfH + 96.0f }, { (float)halfW - 96.0f, -(float)halfH + 96.0f },
+        { -(float)halfW + 96.0f,  (float)halfH - 96.0f }, { (float)halfW - 96.0f,  (float)halfH - 96.0f }
+    };
+    for (int pi = 0; pi < 4; ++pi) {
+        DrawPolyLinesEx(plazaPts[pi], 8, 42.0f, 22.5f, 1.8f, Fade(biome.trimCol, 0.32f));
+        Diamond(plazaPts[pi], 9.0f, 9.0f, Fade(biome.accentCol, 0.35f), Fade(biome.trimCol, 0.45f));
+    }
 
     // Bóng đổ từ tường xuống sàn
     DrawRectangleGradientV(-halfW, -halfH, (int)roomW, 46, Fade(BLACK, 0.50f), Fade(BLACK, 0.0f));
@@ -1047,7 +1202,14 @@ inline void Game::Draw() {
         }
     }
 
-    // Loots: tinh thể XP, đồng vàng bát giác, bình máu ruby
+    // Loots: tinh thể XP, đồng vàng bát giác, bình máu ruby (+ ánh sáng nền)
+    BeginBlendMode(BLEND_ADDITIVE);
+    for (const auto& l : loots) {
+        float bob = sinf((float)GetTime() * 4.5f + l.pos.x * 0.1f) * 2.5f;
+        Color lc = (l.type == 0) ? SKYBLUE : (l.type == 1 ? GOLD : Color{ 255, 70, 105, 255 });
+        CircleGrad(l.pos.x, l.pos.y + bob, 18.0f, Fade(lc, 0.28f), Fade(lc, 0.0f));
+    }
+    EndBlendMode();
     for (const auto& l : loots) {
         float bob = sinf((float)GetTime() * 4.5f + l.pos.x * 0.1f) * 2.5f;
         Vector2 lp = { l.pos.x, l.pos.y + bob };
@@ -1074,7 +1236,8 @@ inline void Game::Draw() {
         Quad({ g.pos.x - 7.5f, g.pos.y - 20.0f }, { g.pos.x + 7.5f, g.pos.y - 20.0f }, { g.pos.x + 6.5f, g.pos.y - 7.0f }, { g.pos.x - 6.5f, g.pos.y - 7.0f }, gc);
     }
 
-    // Slashes: vệt cung kiếm & kỹ năng
+    // Slashes & Novas (Additive Glow)
+    BeginBlendMode(BLEND_ADDITIVE);
     for (const auto& sl : slashes) {
         float rad = sl.angle * DEG2RAD;
         float k = sl.timer / sl.maxTimer;
@@ -1110,36 +1273,61 @@ inline void Game::Draw() {
             DrawRing(centre, 30.0f, 38.0f, sl.angle - 45.0f, sl.angle + 45.0f, 20, Fade({ 120, 220, 255, 255 }, 0.7f * k));
         }
     }
-
-    // Novas
     for (const auto& n : novas) {
         float a = n.timer / n.maxTimer;
         DrawCircleLines((int)n.pos.x, (int)n.pos.y, n.radius, Fade(n.color, a));
-        DrawCircleLines((int)n.pos.x, (int)n.pos.y, n.radius * 0.9f, Fade(WHITE, a * 0.7f));
+        DrawCircleLines((int)n.pos.x, (int)n.pos.y, n.radius * 0.9f, Fade(WHITE, a * 0.75f));
+        DrawRing(n.pos, std::max(1.0f, n.radius * 0.82f), n.radius, 0.0f, 360.0f, 28, Fade(n.color, a * 0.22f));
     }
+    EndBlendMode();
 
     // Enemies
-    for (const auto& e : enemies) {
-        if (e.hp <= 0) continue;
-        // Shadow
-        DrawEllipse((int)e.pos.x, (int)e.pos.y + e.radius * 0.8f, e.radius, e.radius * 0.4f, { 0, 0, 0, 90 });
+    {
+        float etm = (float)GetTime();
+        for (const auto& e : enemies) {
+            if (e.hp <= 0) continue;
+            // Boss & Elite floor sigils
+            if (e.type == BOSS) {
+                DrawRing(e.pos, e.radius + 10.0f, e.radius + 15.0f, etm * 45.0f, etm * 45.0f + 280.0f, 24, Fade(RED, 0.55f));
+                DrawRing(e.pos, e.radius + 3.0f, e.radius + 6.0f, -etm * 60.0f, -etm * 60.0f + 240.0f, 20, Fade(GOLD, 0.40f));
+            } else if (e.isElite || e.isWarden) {
+                DrawPolyLinesEx({ e.pos.x, e.pos.y + 6.0f }, 6, e.radius + 6.0f, etm * 40.0f, 1.6f, Fade(GOLD, 0.52f));
+            }
+            // Shadow
+            DrawEllipse((int)e.pos.x, (int)e.pos.y + e.radius * 0.8f, e.radius, e.radius * 0.4f, { 0, 0, 0, 90 });
 
-        DrawEnemyBody(e);
+            DrawEnemyBody(e);
 
-        // Health bar + Elite affix tag
-        float barW = e.radius * 2.2f;
-        float pct = std::max(0.0f, e.hp / e.maxHp);
-        DrawRectangle((int)(e.pos.x - barW / 2), (int)(e.pos.y - e.radius - 12), (int)barW, 5, BLACK);
-        DrawRectangle((int)(e.pos.x - barW / 2), (int)(e.pos.y - e.radius - 12), (int)(barW * pct), 5, RED);
-        if (e.isElite && e.eliteAffix >= 1 && e.eliteAffix <= 4) {
-            static const char* affNames[5] = { "", "VAMPIRIC", "BLINK", "MOLTEN", "FROSTWARD" };
-            static const Color affCols[5]  = { WHITE, { 255, 80, 110, 255 }, { 195, 115, 255, 255 }, ORANGE, SKYBLUE };
-            const char* an = affNames[e.eliteAffix];
-            DrawText(an, (int)e.pos.x - MeasureText(an, 10) / 2, (int)(e.pos.y - e.radius - 24), 10, affCols[e.eliteAffix]);
+            // Beveled HP Bar + Status Dots + Elite Affix Tag
+            int bw = (int)(e.radius * 2.3f);
+            int bx = (int)(e.pos.x - bw / 2), by = (int)(e.pos.y - e.radius - 14);
+            float pct = std::max(0.0f, e.hp / std::max(1.0f, e.maxHp));
+            DrawRectangle(bx - 1, by - 1, bw + 2, 7, { 12, 14, 22, 230 });
+            DrawRectangleLines(bx - 1, by - 1, bw + 2, 7, e.isElite ? GOLD : Color{ 70, 78, 100, 220 });
+            int fw = (int)(bw * pct);
+            if (fw > 0) {
+                DrawRectangle(bx, by, fw, 5, e.isElite ? ORANGE : Color{ 230, 52, 68, 255 });
+                DrawRectangle(bx, by, fw, 2, Fade(WHITE, 0.28f));
+            }
+            int stX = bx + bw + 4;
+            if (e.burnTimer > 0.0f) { DrawCircle(stX, by + 2, 2.5f, ORANGE); stX += 6; }
+            if (e.poisonTimer > 0.0f) { DrawCircle(stX, by + 2, 2.5f, LIME); stX += 6; }
+            if (e.chillTimer > 0.0f || e.slowTimer > 0.0f) { DrawCircle(stX, by + 2, 2.5f, SKYBLUE); }
+            if (e.isElite && e.eliteAffix >= 1 && e.eliteAffix <= 4) {
+                static const char* affNames[5] = { "", "VAMPIRIC", "BLINK", "MOLTEN", "FROSTWARD" };
+                static const Color affCols[5]  = { WHITE, { 255, 80, 110, 255 }, { 195, 115, 255, 255 }, ORANGE, SKYBLUE };
+                const char* an = affNames[e.eliteAffix];
+                DrawText(an, (int)e.pos.x - MeasureText(an, 10) / 2, by - 13, 10, affCols[e.eliteAffix]);
+            }
         }
     }
 
-    // Projectiles: mũi tên, phi tiêu, sao chổi lửa & tinh thể phép định hướng
+    // Projectiles: additive halo + mũi tên, phi tiêu, sao chổi lửa & tinh thể phép định hướng
+    BeginBlendMode(BLEND_ADDITIVE);
+    for (const auto& p : projectiles) {
+        CircleGrad(p.pos.x, p.pos.y, p.radius * 2.2f, Fade(p.color, 0.32f), Fade(p.color, 0.0f));
+    }
+    EndBlendMode();
     for (const auto& p : projectiles) {
         Vector2 dir = Vector2Length(p.vel) > 0.1f ? Vector2Normalize(p.vel) : Vector2{ 1, 0 };
         Vector2 perp = { -dir.y, dir.x };
@@ -1203,9 +1391,10 @@ inline void Game::Draw() {
 
     if (!inSurface) DrawItemDrops();
 
-    // Hạt
+    // Hạt (Outer bloom halo + Core)
     for (const auto& pt : particles) {
         float k = pt.life / pt.maxLife;
+        DrawCircleV(pt.pos, pt.size * 1.7f * k, Fade(pt.color, k * 0.28f));
         DrawCircleV(pt.pos, pt.size * (0.3f + 0.7f * k), Fade(pt.color, k * k));
     }
 
@@ -1217,6 +1406,31 @@ inline void Game::Draw() {
     EndMode2D();
 
     if (settings.lighting) ApplyLighting();
+
+    // Subtle Volumetric God-Rays + Atmospheric Biome / Blossom Particles
+    {
+        Color rayCol = (inSurface && (TimePhase() == 0 || TimePhase() == 1)) ? Fade(GOLD, 0.030f) : Fade(biome.accentCol, 0.022f);
+        Color rayCol2 = (inSurface && (TimePhase() == 0 || TimePhase() == 1)) ? Fade(GOLD, 0.020f) : Fade(biome.accentCol, 0.014f);
+        BeginBlendMode(BLEND_ADDITIVE);
+        Quad({ 140, 0 }, { 260, 0 }, { 520, 720 }, { 360, 720 }, rayCol);
+        Quad({ 540, 0 }, { 640, 0 }, { 920, 720 }, { 780, 720 }, rayCol);
+        Quad({ 940, 0 }, { 1030, 0 }, { 1260, 720 }, { 1150, 720 }, rayCol2);
+        EndBlendMode();
+
+        float atm = (float)GetTime();
+        for (int i = 0; i < 36; ++i) {
+            float seed = i * 17.31f;
+            float ax = fmodf(i * 197.0f + atm * (18.0f + (i % 5) * 6.0f) + sinf(atm * 1.3f + seed) * 24.0f, 1320.0f) - 20.0f;
+            float ay = fmodf(i * 113.0f + atm * (14.0f + (i % 4) * 5.0f), 740.0f) - 10.0f;
+            if (inSurface) {
+                Color pCol = (i % 3 == 0) ? Color{ 255, 165, 205, 145 } : Fade(GOLD, 0.45f);
+                Diamond({ ax, ay }, 3.2f, 2.2f, pCol, Fade(WHITE, 0.35f));
+            } else {
+                Color dCol = Fade(biome.mote, 0.35f + 0.15f * sinf(atm * 2.5f + seed));
+                DrawCircleV({ ax, ay }, 2.2f + (i % 2), dCol);
+            }
+        }
+    }
 
     // Vignette + viền đỏ khi bị đau (dùng chung cho cả Hầm Ngục & Mặt Đất)
     if (settings.vignette) {
@@ -1235,6 +1449,15 @@ inline void Game::Draw() {
     std::string badgeLeft = (isNoble ? std::string(L("[NOBLE] ", "[QT] ")) : std::string(""))
                           + (!heroGivenName.empty() ? (heroGivenName + " - ") : (generation > 1 ? (std::string(L("Gen", "Đ")) + std::to_string(generation) + " ") : std::string("")))
                           + hTitle;
+    int yOff = surfaceUnlocked ? 22 : 0;
+    // Ornate Top-Left HUD Backing Frame
+    DrawRectangle(14, 10, 332, 98 + yOff, { 12, 16, 28, 215 });
+    DrawRectangleLinesEx({ 14.0f, 10.0f, 332.0f, 98.0f + yOff }, 1.8f, Fade(isNoble ? GOLD : hCol, 0.70f));
+    Diamond({ 14.0f, 10.0f }, 3.5f, 3.5f, GOLD, WHITE);
+    Diamond({ 346.0f, 10.0f }, 3.5f, 3.5f, GOLD, WHITE);
+    Diamond({ 14.0f, 108.0f + yOff }, 3.5f, 3.5f, GOLD, WHITE);
+    Diamond({ 346.0f, 108.0f + yOff }, 3.5f, 3.5f, GOLD, WHITE);
+
     // Top-Left: Class / Subclass Badge, HP (with damage lag), XP, Rage, Hunger, Gold
     DrawRectangle(20, 14, 320, 22, { 18, 22, 34, 225 });
     DrawRectangleLines(20, 14, 320, 22, Fade(isNoble ? GOLD : hCol, 0.85f));
@@ -1249,6 +1472,8 @@ inline void Game::Draw() {
     float hpPct = std::max(0.0f, std::min(1.0f, player.hp / std::max(1.0f, player.maxHp)));
     DrawRectangle(22, 42, (int)(316 * lagPct), 20, { 245, 220, 220, 210 });
     DrawRectangle(22, 42, (int)(316 * hpPct), 20, { 225, 48, 62, 255 });
+    DrawRectangle(22, 42, (int)(316 * hpPct), 7, Fade(WHITE, 0.18f));
+    for (int tq = 1; tq <= 3; ++tq) DrawLine(22 + (316 * tq) / 4, 42, 22 + (316 * tq) / 4, 62, Fade(BLACK, 0.35f));
     std::string hpTxt = std::string(L("HP ", "MÁU ")) + std::to_string((int)player.hp) + " / " + std::to_string((int)player.maxHp);
     DrawText(hpTxt.c_str(), 180 - MeasureText(hpTxt.c_str(), 16) / 2, 44, 16, WHITE);
 
@@ -1256,6 +1481,7 @@ inline void Game::Draw() {
     bool atMaxLv = (player.level >= kMaxPlayerLevel);
     float xpPct = atMaxLv ? 1.0f : std::min(1.0f, (float)player.xp / std::max(1, player.xpNext));
     DrawRectangle(22, 70, (int)(316 * xpPct), 11, atMaxLv ? Color{ 165, 112, 18, 255 } : Color{ 42, 118, 195, 255 });
+    DrawRectangle(22, 70, (int)(316 * xpPct), 4, Fade(WHITE, 0.18f));
     std::string xpTxt = atMaxLv
                       ? std::string(CurrentLevelTitle()) + L(" (LV.100 MAX)", " (CẤP 100 MAX)")
                       : (std::string(L("XP ", "KN ")) + std::to_string(player.xp) + "/" + std::to_string(player.xpNext) + "  -  " + CurrentLevelTitle());
@@ -1267,17 +1493,17 @@ inline void Game::Draw() {
     bool rageReady = (player.rage >= player.maxRage);
     Color rageCol = rageReady ? ((int)(GetTime() * 8.0f) % 2 == 0 ? GOLD : ORANGE) : Color{ 235, 110, 35, 255 };
     DrawRectangle(22, 88, (int)(316 * ragePct), 12, rageCol);
+    DrawRectangle(22, 88, (int)(316 * ragePct), 5, Fade(WHITE, 0.18f));
     DrawRectangleLines(20, 86, 320, 16, rageReady ? GOLD : Color{ 90, 60, 40, 255 });
     std::string rageTxt = rageReady ? L("RAGE 100/100  [R] ULTIMATE READY!", "NỘ 100/100  [R] TUYỆT KỸ SẴN SÀNG!") : (std::string(L("RAGE ", "NỘ ")) + std::to_string((int)player.rage) + " / 100");
     DrawText(rageTxt.c_str(), 180 - MeasureText(rageTxt.c_str(), 12) / 2, 88, 12, WHITE);
 
-    int yOff = 0;
     if (surfaceUnlocked) {
-        yOff = 22;
         DrawRectangle(20, 106, 320, 16, { 30, 24, 16, 225 });
         float huPct = std::max(0.0f, std::min(1.0f, hunger / maxHunger));
         Color huCol = (hunger >= 70.0f) ? Color{ 100, 225, 120, 255 } : ((hunger < 25.0f) ? RED : Color{ 235, 175, 60, 255 });
         DrawRectangle(22, 108, (int)(316 * huPct), 12, huCol);
+        DrawRectangle(22, 108, (int)(316 * huPct), 5, Fade(WHITE, 0.18f));
         DrawRectangleLines(20, 106, 320, 16, hunger < 25.0f ? RED : Color{ 110, 88, 52, 255 });
         std::string huTxt = std::string(L("HUNGER ", "ĐỘ NO ")) + std::to_string((int)ceilf(hunger)) + "/100   "
                           + L("[H] Ration:", "[H] Lương:") + std::to_string(foodRations);
@@ -1285,7 +1511,7 @@ inline void Game::Draw() {
     }
 
     std::string goldTxt = std::string(L("Gold: ", "Vàng: ")) + std::to_string(player.gold);
-    DrawText(goldTxt.c_str(), 24, 108 + yOff, 18, GOLD);
+    DrawText(goldTxt.c_str(), 24, 112 + yOff, 18, GOLD);
 
     // Relics Row
     const char* relPrefix = L("Relics: ", "Thánh Tích: ");
@@ -1361,6 +1587,10 @@ inline void Game::Draw() {
         DrawRectangle(hx, hy, 30, 30, { 14, 18, 30, 210 });
         DrawRectangleLines(hx, hy, 30, 30, rc);
         DrawItemIcon(i, { hx + 15.0f, hy + 15.0f }, 17.0f, hasEquip[i] ? rc : Color{ 70, 78, 100, 255 }, hasEquip[i] ? equipped[i].weaponType : 0);
+        if (hasEquip[i] && equipPlus[i] > 0) {
+            const char* pTag = TextFormat("+%d", equipPlus[i]);
+            DrawText(pTag, hx + 18, hy + 18, 10, GOLD);
+        }
     }
     DrawText(L("[I] Gear & Skills   [Y] Family Tree", "[I] Đồ & Kỹ Năng   [Y] Gia Phả"), 24 + 4 * 36 + 4, 164 + yOff, 14, { 150, 165, 200, 255 });
 
@@ -1418,6 +1648,8 @@ inline void Game::Draw() {
         float sY = (mapH - 16) / roomH;
         float midX = mapX + mapW / 2.0f;
         float midY = mapY + mapH / 2.0f;
+        DrawLine(mapX + 8, (int)midY, mapX + mapW - 8, (int)midY, Fade(SKYBLUE, 0.16f));
+        DrawLine((int)midX, mapY + 18, (int)midX, mapY + mapH - 8, Fade(SKYBLUE, 0.16f));
 
         // Player dot
         DrawCircle((int)(midX + player.pos.x * sX), (int)(midY + player.pos.y * sY), 3.5f, GREEN);
@@ -1483,6 +1715,7 @@ inline void Game::Draw() {
             int sx = dockX0 + s * (slotW + gap);
             const SlotUI& ui = slots[s];
             DrawRectangle(sx, dockY, slotW, slotH, { 18, 22, 34, 230 });
+            DrawRectangle(sx + 1, dockY + 1, slotW - 2, 12, Fade(ui.col, 0.12f));
             if (ui.isUlt) {
                 int fillH = (int)(slotH * ragePct);
                 DrawRectangle(sx, dockY + slotH - fillH, slotW, fillH, Fade(ui.ready ? GOLD : ORANGE, ui.ready ? 0.35f : 0.22f));
@@ -1595,7 +1828,10 @@ inline void Game::Draw() {
                 float cx = startX + i * (cardW + 20);
                 float cy = 240;
                 DrawRectangle((int)cx, (int)cy, (int)cardW, 280, { 25, 32, 45, 245 });
+                DrawRectangle((int)cx, (int)cy, (int)cardW, 56, Fade(SKYBLUE, 0.16f));
                 DrawRectangleLines((int)cx, (int)cy, (int)cardW, 280, SKYBLUE);
+                DrawRectangleLinesEx({ cx + 4.0f, cy + 4.0f, cardW - 8.0f, 272.0f }, 1.2f, Fade(GOLD, 0.45f));
+                Diamond({ cx + cardW / 2.0f, cy }, 5.0f, 5.0f, GOLD, WHITE);
 
                 std::string title = UpgradeTitle(levelChoices[i]);
                 std::string desc = UpgradeDesc(levelChoices[i]);

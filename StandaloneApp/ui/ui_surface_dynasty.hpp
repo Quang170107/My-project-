@@ -317,10 +317,22 @@ inline void Game::DrawSurfaceUi() {
                     Color cc = kClasses[std::max(0, std::min(3, ch.heroClass))].color;
                     DrawRectangleRec(r, sel ? Color{ 34, 42, 68, 252 } : Color{ 20, 26, 44, 240 });
                     DrawRectangleLinesEx(r, sel ? 2.5f : 1.2f, sel ? GOLD : Fade(cc, 0.65f));
-                    DrawText(TextFormat(L("Heir %d: %s  (%s)", "Con %d: %s  (%s)"), (int)i + 1, ch.name.c_str(), ClassDisplayName(ch.heroClass)), (int)r.x + 22, (int)r.y + 12, 20, cc);
-                    DrawText(TextFormat(L("Inherits Gold, Gear, House, Noble & +%d HP +%d DMG +%.1f ARM +%d SPD",
-                                          "Kế thừa Vàng, Đồ, Nhà, Quý Tộc & +%d Máu +%d ST +%.1f Giáp +%d Chạy"),
-                        (int)ch.bonusHp, (int)ch.bonusDmg, ch.bonusArmor, (int)ch.bonusSpeed), (int)r.x + 22, (int)r.y + 44, 14, RAYWHITE);
+                    DrawText(TextFormat(L("Heir %d: %s  (%s)  Age %d  Lv%d", "Con %d: %s  (%s)  %d tuổi  Lv%d"), (int)i + 1, ch.name.c_str(), ClassDisplayName(ch.heroClass), ChildAgeYears(ch), ch.level), (int)r.x + 22, (int)r.y + 12, 18, cc);
+                    DrawText(TextFormat(L("Inherits: +%d HP +%d DMG +%.1f ARM +%d SPD", "Kế thừa: +%d Máu +%d ST +%.1f Giáp +%d Chạy"),
+                        (int)ch.bonusHp, (int)ch.bonusDmg, ch.bonusArmor, (int)ch.bonusSpeed), (int)r.x + 22, (int)r.y + 40, 14, RAYWHITE);
+                    {
+                        std::string st = (ch.injuredTimer > 0.0f) ? std::string(TextFormat(L("Wounded: %ds", "Dưỡng thương: %ds"), (int)ceilf(ch.injuredTimer)))
+                                       : (ch.age < (float)kChildTrainAge) ? std::string(TextFormat(L("Too young to train (%d+)", "Chưa đủ tuổi rèn luyện (%d+)"), kChildTrainAge))
+                                       : (ch.inParty ? std::string(L("In training party", "Đang theo cha rèn luyện")) : std::string(L("Staying home", "Đang ở nhà")));
+                        DrawText(st.c_str(), (int)r.x + 22, (int)r.y + 58, 12, ch.inParty ? Color{ 120, 245, 170, 255 } : Color{ 170, 180, 205, 255 });
+                    }
+
+                    Rectangle trB = { r.x + r.width - 546.0f, r.y + 16.0f, 118.0f, 44.0f };
+                    bool canTr = ChildCanTrain(ch);
+                    DrawRectangleRec(trB, ch.inParty ? Color{ 30, 96, 62, 255 } : (canTr ? Color{ 36, 70, 52, 255 } : Color{ 40, 42, 52, 255 }));
+                    DrawRectangleLinesEx(trB, 1.6f, ch.inParty ? Color{ 120, 245, 170, 255 } : (canTr ? Color{ 100, 200, 140, 255 } : GRAY));
+                    const char* trLbl = ch.inParty ? L("STAY HOME [T]", "Ở NHÀ [T]") : L("TRAIN [T]", "DẪN THEO [T]");
+                    DrawText(trLbl, (int)(trB.x + trB.width / 2) - MeasureText(trLbl, 13) / 2, (int)trB.y + 15, 13, canTr || ch.inParty ? WHITE : GRAY);
 
                     Rectangle renB = { r.x + r.width - 418.0f, r.y + 16.0f, 118.0f, 44.0f };
                     DrawRectangleRec(renB, { 42, 62, 108, 255 });

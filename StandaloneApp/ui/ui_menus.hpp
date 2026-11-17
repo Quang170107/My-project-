@@ -703,6 +703,9 @@ inline void Game::DrawTitleScreen() {
     float t = (float)GetTime();
     DrawRectangleGradientV(0, 0, 1280, 720, Fade(BLACK, 0.86f), Fade(BLACK, 0.70f));
     if (showHelp) { DrawHelpPanel(); return; }
+    DrawPolyLinesEx({ 640.0f, 185.0f }, 8, 126.0f, t * 18.0f, 2.0f, Fade(GOLD, 0.22f));
+    DrawPolyLinesEx({ 640.0f, 185.0f }, 6, 92.0f, -t * 26.0f, 1.8f, Fade(SKYBLUE, 0.20f));
+    DrawRing({ 640.0f, 185.0f }, 142.0f, 145.0f, t * 20.0f, t * 20.0f + 260.0f, 32, Fade(GOLD, 0.16f));
     const char* title = "GEOMETRIC DUNGEON";
     int tw = MeasureText(title, 72);
     int ty = 100 + (int)(sinf(t * 1.6f) * 5.0f);

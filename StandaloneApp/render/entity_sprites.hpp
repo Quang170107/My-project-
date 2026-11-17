@@ -49,6 +49,11 @@ inline void Game::DrawEnemyBody(const Enemy& e) {
     }
     base = TintCol(base, e);
 
+    // Additive 2.5D depth glow behind enemy
+    BeginBlendMode(BLEND_ADDITIVE);
+    CircleGrad(c.x, c.y, r * 1.35f, Fade(base, e.type == BOSS ? 0.32f : 0.16f), Fade(base, 0.0f));
+    EndBlendMode();
+
     // Hào quang elite / boss
     if (e.isElite) {
         float k = 0.5f + 0.5f * sinf(t * 5.0f + c.x);
@@ -95,6 +100,7 @@ inline void Game::DrawEnemyBody(const Enemy& e) {
         Tri({ hc.x + r * 0.42f, hc.y - r * 0.10f }, { hc.x + r * 0.28f, hc.y + r * 0.18f }, { hc.x + r * 1.08f, hc.y - r * 0.42f }, Shade(skin, 0.8f));
         QuadOut({ hc.x - r * 0.48f, hc.y - r * 0.36f }, { hc.x + r * 0.48f, hc.y - r * 0.36f },
                 { hc.x + r * 0.38f, hc.y + r * 0.28f }, { hc.x - r * 0.38f, hc.y + r * 0.28f }, skin, ink);
+        DrawLineEx({ hc.x - r * 0.42f, hc.y - r * 0.31f }, { hc.x + r * 0.36f, hc.y - r * 0.31f }, 2.0f, Fade(WHITE, 0.28f));
         Tri({ hc.x - r * 0.38f, hc.y + r * 0.28f }, { hc.x + r * 0.38f, hc.y + r * 0.28f }, { hc.x, hc.y + r * 0.46f }, Shade(skin, 0.85f));
         for (int s2 = -1; s2 <= 1; s2 += 2) {
             Vector2 ec = { hc.x + s2 * r * 0.22f, hc.y - r * 0.04f };
@@ -186,6 +192,7 @@ inline void Game::DrawEnemyBody(const Enemy& e) {
                 { c.x + r * 0.56f, c.y + r * 0.54f }, { c.x - r * 0.56f, c.y + r * 0.54f }, armor, ink, 2.0f);
         QuadOut({ c.x - r * 0.50f, c.y - r * 0.24f }, { c.x + r * 0.50f, c.y - r * 0.24f },
                 { c.x + r * 0.36f, c.y + r * 0.28f }, { c.x - r * 0.36f, c.y + r * 0.28f }, steel, ink, 1.5f);
+        DrawLineEx({ c.x - r * 0.44f, c.y - r * 0.20f }, { c.x + r * 0.44f, c.y - r * 0.20f }, 2.2f, Fade(WHITE, 0.34f));
         BoxRot({ c.x, c.y + r * 0.42f }, r * 1.05f, r * 0.22f, 0.0f, Shade(steel, 0.58f), ink);
         // Cầu vai có gai
         for (int s2 = -1; s2 <= 1; s2 += 2) {
@@ -247,7 +254,13 @@ inline void Game::DrawEnemyBody(const Enemy& e) {
         // Thân đá V-shape khổng lồ
         QuadOut({ c.x - r * 0.92f * sq, c.y - r * 0.45f }, { c.x + r * 0.92f * sq, c.y - r * 0.45f },
                 { c.x + r * 0.56f * sq, c.y + r * 0.58f }, { c.x - r * 0.56f * sq, c.y + r * 0.58f }, rockMid, ink, 2.5f);
-        // Vết nứt dung nham phát sáng + lõi lò ngực
+        // Vết nứt dung nham phát sáng + lõi lò ngực (additive pulse)
+        BeginBlendMode(BLEND_ADDITIVE);
+        CircleGrad(c.x, c.y + r * 0.14f, r * 0.68f, Fade(lava, 0.42f + 0.16f * sinf(t * 5.0f)), Fade(lava, 0.0f));
+        for (int s2 = -1; s2 <= 1; s2 += 2) {
+            CircleGrad(c.x + s2 * r * 1.10f, c.y + r * 0.18f + smashY, r * 0.42f, Fade(ORANGE, 0.32f), Fade(ORANGE, 0.0f));
+        }
+        EndBlendMode();
         for (int i = -1; i <= 1; ++i) {
             float gl = 0.72f + 0.28f * sinf(t * 4.0f + i);
             DrawLineEx({ c.x + i * r * 0.34f, c.y - r * 0.15f }, { c.x + i * r * 0.26f, c.y + r * 0.50f }, 3.5f, Fade(lava, gl));
@@ -259,7 +272,7 @@ inline void Game::DrawEnemyBody(const Enemy& e) {
             BoxRot({ c.x + s2 * r * 1.10f, c.y + r * 0.18f + smashY }, r * 0.46f, r * 0.54f, s2 * 10.0f, rockDark, ink, 2.2f);
             DrawLineEx({ c.x + s2 * r * 0.98f, c.y + r * 0.18f + smashY }, { c.x + s2 * r * 1.22f, c.y + r * 0.18f + smashY }, 3.0f, lava);
         }
-        // Đầu Titan góc cạnh + mắt khe dung nham + ngọn lửa hình đa giác
+        // Đầu Titan góc cạnh + mắt khe dung nham + 5 ngọn lửa vương miện
         Vector2 hc = { c.x, c.y - r * 0.56f };
         QuadOut({ hc.x - r * 0.44f, hc.y - r * 0.34f }, { hc.x + r * 0.44f, hc.y - r * 0.34f },
                 { hc.x + r * 0.32f, hc.y + r * 0.32f }, { hc.x - r * 0.32f, hc.y + r * 0.32f }, rockDark, ink, 2.2f);
@@ -267,26 +280,27 @@ inline void Game::DrawEnemyBody(const Enemy& e) {
         for (int s2 = -1; s2 <= 1; s2 += 2) {
             BoxRot({ hc.x + s2 * r * 0.19f, hc.y - r * 0.04f }, r * 0.22f, r * 0.10f, -s2 * 14.0f, eyeC, ink, 1.0f);
         }
-        for (int i = -1; i <= 1; ++i) {
-            float fl = 0.7f + 0.3f * sinf(t * 14.0f + i * 2.0f);
-            float fx = hc.x + i * r * 0.22f, fy = hc.y - r * 0.34f;
-            Tri({ fx - 6.0f, fy }, { fx + 6.0f, fy }, { fx, fy - r * 0.42f * fl - 6.0f }, { 255, 130, 35, 255 });
-            Tri({ fx - 3.0f, fy }, { fx + 3.0f, fy }, { fx, fy - r * 0.26f * fl - 3.0f }, { 255, 240, 140, 255 });
+        for (int i = -2; i <= 2; ++i) {
+            float fl = 0.7f + 0.3f * sinf(t * 14.0f + i * 1.7f);
+            float fx = hc.x + i * r * 0.16f, fy = hc.y - r * 0.34f;
+            float fh = r * (0.44f - 0.04f * abs(i)) * fl + 6.0f;
+            Tri({ fx - 5.5f, fy }, { fx + 5.5f, fy }, { fx, fy - fh }, { 255, 130, 35, 255 });
+            Tri({ fx - 2.6f, fy }, { fx + 2.6f, fy }, { fx, fy - fh * 0.62f }, { 255, 240, 140, 255 });
         }
     } else if (e.type == BOSS) {
-        // THE VOID SOVEREIGN: Hoàng đế Hư Không - cánh kiếm nổi, áo choàng, vương miện, đại kiếm Void
+        // THE VOID SOVEREIGN: Hoàng đế Hư Không - 3 cặp cánh kiếm nổi, hào quang sau đầu, áo choàng, vương miện
         float hover = sinf(t * 2.5f) * 4.0f;
         Vector2 bc = { c.x, c.y + hover * 0.5f };
         Color darkVoid = Shade(base, 0.42f);
         Color accent = e.enraged ? Color{ 255, 80, 90, 255 } : Color{ 195, 110, 255, 255 };
-        // Cánh kiếm obsidian nổi phía sau 2 bên
+        // Cánh kiếm obsidian nổi 3 tầng phía sau 2 bên
         for (int s2 = -1; s2 <= 1; s2 += 2) {
-            for (int w = 0; w < 2; ++w) {
-                float wy = bc.y - r * 0.28f + w * r * 0.34f + sinf(t * 3.0f + w) * 3.0f;
-                Tri({ bc.x + s2 * r * 0.42f, wy },
-                    { bc.x + s2 * r * (1.28f - w * 0.18f), wy - r * 0.48f },
-                    { bc.x + s2 * r * (0.95f - w * 0.12f), wy + r * 0.20f }, darkVoid);
-                DrawLineEx({ bc.x + s2 * r * 0.42f, wy }, { bc.x + s2 * r * (1.28f - w * 0.18f), wy - r * 0.48f }, 2.0f, accent);
+            for (int w = 0; w < 3; ++w) {
+                float wy = bc.y - r * 0.38f + w * r * 0.26f + sinf(t * 3.0f + w) * 3.0f;
+                Tri({ bc.x + s2 * r * 0.40f, wy },
+                    { bc.x + s2 * r * (1.36f - w * 0.16f), wy - r * 0.52f },
+                    { bc.x + s2 * r * (0.98f - w * 0.10f), wy + r * 0.18f }, darkVoid);
+                DrawLineEx({ bc.x + s2 * r * 0.40f, wy }, { bc.x + s2 * r * (1.36f - w * 0.16f), wy - r * 0.52f }, 2.2f, accent);
             }
         }
         // Áo choàng hoàng gia rộng
@@ -295,12 +309,14 @@ inline void Game::DrawEnemyBody(const Enemy& e) {
         // Thân giáp Hư Không + lõi pha lê ngực
         QuadOut({ bc.x - r * 0.58f, bc.y - r * 0.38f }, { bc.x + r * 0.58f, bc.y - r * 0.38f },
                 { bc.x + r * 0.40f, bc.y + r * 0.54f }, { bc.x - r * 0.40f, bc.y + r * 0.54f }, base, ink, 2.2f);
+        DrawLineEx({ bc.x - r * 0.50f, bc.y - r * 0.33f }, { bc.x + r * 0.50f, bc.y - r * 0.33f }, 2.2f, Fade(WHITE, 0.30f));
         Diamond({ bc.x, bc.y + r * 0.06f }, r * 0.20f, r * 0.28f, accent, GOLD);
         for (int s2 = -1; s2 <= 1; s2 += 2) {
             BoxRot({ bc.x + s2 * r * 0.68f, bc.y - r * 0.28f }, r * 0.44f, r * 0.34f, s2 * 22.0f, Shade(base, 1.25f), GOLD, 1.8f);
         }
-        // Đầu giáp sừng + vương miện 3 ngọn + mắt rực
+        // Hào quang xoay & đầu giáp sừng + vương miện 3 ngọn
         Vector2 hc = { bc.x, bc.y - r * 0.64f };
+        DrawRing({ hc.x, hc.y - 4.0f }, r * 0.55f, r * 0.62f, t * 50.0f, t * 50.0f + 280.0f, 20, accent);
         QuadOut({ hc.x - r * 0.36f, hc.y - r * 0.30f }, { hc.x + r * 0.36f, hc.y - r * 0.30f },
                 { hc.x + r * 0.26f, hc.y + r * 0.30f }, { hc.x - r * 0.26f, hc.y + r * 0.30f }, darkVoid, ink, 2.0f);
         Color eyeC = e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 255, 220, 90, 255 };
@@ -486,14 +502,21 @@ inline void Game::DrawEnemyBody(const Enemy& e) {
 inline void Game::DrawWeaponModel(Vector2 hand, Vector2 dir, int wt, float t, bool enchanted) {
     Vector2 perp = { -dir.y, dir.x };
     const Color ink = { 18, 16, 26, 255 };
+    if (enchanted) {
+        BeginBlendMode(BLEND_ADDITIVE);
+        Vector2 gPos = Vector2Add(hand, Vector2Scale(dir, 15.0f));
+        CircleGrad(gPos.x, gPos.y, 24.0f, Fade(SKYBLUE, 0.30f), Fade(SKYBLUE, 0.0f));
+        EndBlendMode();
+    }
     if (wt == WP_BOW) {
         float ang = atan2f(dir.y, dir.x) * RAD2DEG;
         Vector2 bowC = { hand.x + dir.x * 4.0f, hand.y + dir.y * 4.0f };
         DrawRing(bowC, 15.0f, 19.0f, ang - 75.0f, ang + 75.0f, 16, { 165, 112, 58, 255 });
         DrawRing(bowC, 17.5f, 19.5f, ang - 75.0f, ang + 75.0f, 16, { 110, 215, 130, 255 });
+        DrawRing(bowC, 15.0f, 16.5f, ang - 65.0f, ang + 65.0f, 16, GOLD);
         Vector2 topLimb = { bowC.x + cosf((ang - 75.0f) * DEG2RAD) * 16.5f, bowC.y + sinf((ang - 75.0f) * DEG2RAD) * 16.5f };
         Vector2 botLimb = { bowC.x + cosf((ang + 75.0f) * DEG2RAD) * 16.5f, bowC.y + sinf((ang + 75.0f) * DEG2RAD) * 16.5f };
-        DrawLineEx(topLimb, botLimb, 1.5f, Fade(WHITE, 0.75f));
+        DrawLineEx(topLimb, botLimb, 1.5f, Fade(WHITE, 0.85f));
         Vector2 arrTail = Vector2Subtract(bowC, Vector2Scale(dir, 5.0f));
         Vector2 arrTip = Vector2Add(bowC, Vector2Scale(dir, 24.0f));
         DrawLineEx(arrTail, arrTip, 2.5f, { 225, 200, 140, 255 });
@@ -503,12 +526,16 @@ inline void Game::DrawWeaponModel(Vector2 hand, Vector2 dir, int wt, float t, bo
         Vector2 tip = Vector2Add(hand, Vector2Scale(dir, 28.0f));
         DrawLineEx(tail, tip, 5.4f, { 68, 40, 102, 255 });
         DrawLineEx(tail, tip, 2.8f, { 145, 95, 200, 255 });
+        DrawLineEx(tail, tip, 1.0f, Fade(WHITE, 0.35f));
         Vector2 pL = Vector2Add(tip, Vector2Add(Vector2Scale(dir, 8.0f), Vector2Scale(perp, 6.5f)));
         Vector2 pR = Vector2Add(tip, Vector2Add(Vector2Scale(dir, 8.0f), Vector2Scale(perp, -6.5f)));
         DrawLineEx(tip, pL, 2.6f, GOLD);
         DrawLineEx(tip, pR, 2.6f, GOLD);
         Vector2 orb = Vector2Add(tip, Vector2Scale(dir, 8.0f));
         float pulse = 0.85f + 0.15f * sinf(t * 7.0f);
+        BeginBlendMode(BLEND_ADDITIVE);
+        CircleGrad(orb.x, orb.y, 16.0f * pulse, Fade({ 115, 235, 255, 255 }, 0.40f), Fade(SKYBLUE, 0.0f));
+        EndBlendMode();
         Diamond(orb, 6.5f * pulse, 8.5f * pulse, { 115, 235, 255, 255 }, WHITE);
     } else if (wt == WP_HAMMER) {
         Vector2 tail = Vector2Subtract(hand, Vector2Scale(dir, 8.0f));
@@ -518,6 +545,7 @@ inline void Game::DrawWeaponModel(Vector2 hand, Vector2 dir, int wt, float t, bo
         float deg = atan2f(dir.y, dir.x) * RAD2DEG;
         BoxRot(tip, 14.0f, 24.0f, deg, { 176, 186, 210, 255 }, ink, 1.8f);
         BoxRot(tip, 14.5f, 7.0f, deg, GOLD, ink, 1.2f);
+        DrawLineEx(Vector2Add(tip, Vector2Scale(perp, -9.0f)), Vector2Add(tip, Vector2Scale(perp, 9.0f)), 1.6f, Fade(WHITE, 0.45f));
         Tri(Vector2Add(tip, Vector2Scale(dir, 7.0f)), Vector2Add(tip, Vector2Add(Vector2Scale(dir, 3.0f), Vector2Scale(perp, 5.0f))),
             Vector2Add(tip, Vector2Add(Vector2Scale(dir, 3.0f), Vector2Scale(perp, -5.0f))), GOLD);
     } else if (wt == WP_SCYTHE) {
@@ -530,6 +558,7 @@ inline void Game::DrawWeaponModel(Vector2 hand, Vector2 dir, int wt, float t, bo
         Tri(tip, bladeMid, bladeTip, { 195, 210, 235, 255 });
         DrawLineEx(tip, bladeMid, 2.2f, ink);
         DrawLineEx(bladeMid, bladeTip, 2.6f, { 210, 120, 255, 255 });
+        DrawLineEx(tip, bladeTip, 1.2f, Fade(WHITE, 0.50f));
     } else if (wt == WP_AXE) {
         Vector2 tail = Vector2Subtract(hand, Vector2Scale(dir, 8.0f));
         Vector2 tip = Vector2Add(hand, Vector2Scale(dir, 28.0f));
@@ -542,6 +571,7 @@ inline void Game::DrawWeaponModel(Vector2 hand, Vector2 dir, int wt, float t, bo
                 Vector2Add(tip, Vector2Add(Vector2Scale(dir,  6.0f), Vector2Scale(perp, -4.0f))),
                 Vector2Add(tip, Vector2Add(Vector2Scale(dir,  4.0f), Vector2Scale(perp, -16.0f))),
                 Vector2Add(tip, Vector2Add(Vector2Scale(dir, -14.0f), Vector2Scale(perp, -14.0f))), { 166, 174, 198, 255 }, ink, 1.4f);
+        DrawLineEx(Vector2Add(tip, Vector2Scale(perp, 14.0f)), Vector2Add(tip, Vector2Add(Vector2Scale(dir, 4.0f), Vector2Scale(perp, 15.0f))), 1.8f, WHITE);
         DrawLineEx(Vector2Add(hand, Vector2Scale(perp, 6.0f)), Vector2Subtract(hand, Vector2Scale(perp, 6.0f)), 3.5f, GOLD);
     } else if (wt == WP_SPEAR) {
         Vector2 tail = Vector2Subtract(hand, Vector2Scale(dir, 14.0f));
@@ -554,7 +584,7 @@ inline void Game::DrawWeaponModel(Vector2 hand, Vector2 dir, int wt, float t, bo
             { tip.x - perp.x * 5.5f, tip.y - perp.y * 5.5f }, enchanted ? Color{ 125, 240, 255, 255 } : Color{ 238, 244, 255, 255 });
         DrawLineEx(tip, Vector2Add(tip, Vector2Scale(dir, 18.0f)), 1.6f, WHITE);
     } else {
-        // Sword / Dagger / Enchanted Runeblade: lưỡi đa giác vát nhọn + hào quang phép nếu Kiếm Sư
+        // Sword / Dagger / Enchanted Runeblade: lưỡi đa giác vát nhọn + rãnh kiếm sáng & đá quý chuôi kiếm
         bool isDagger = (wt == WP_DAGGER);
         float wlen = isDagger ? 17.0f : (enchanted ? 31.0f : 26.0f);
         float hw = isDagger ? 2.6f : (enchanted ? 4.0f : 3.4f);
@@ -569,11 +599,12 @@ inline void Game::DrawWeaponModel(Vector2 hand, Vector2 dir, int wt, float t, bo
                 Vector2Subtract(shoulder, Vector2Scale(perp, hw * 0.82f)), Vector2Subtract(baseBlade, Vector2Scale(perp, hw)),
                 bladeCol, enchanted ? Color{ 195, 115, 255, 255 } : ink, 1.4f);
         Tri(Vector2Add(shoulder, Vector2Scale(perp, hw * 0.82f)), Vector2Subtract(shoulder, Vector2Scale(perp, hw * 0.82f)), tip, WHITE);
-        DrawLineEx(baseBlade, tip, 1.6f, enchanted ? Color{ 220, 150, 255, 255 } : (isDagger ? Color{ 255, 85, 130, 255 } : WHITE));
+        DrawLineEx(baseBlade, tip, 1.8f, enchanted ? Color{ 220, 150, 255, 255 } : (isDagger ? Color{ 255, 85, 130, 255 } : WHITE));
         DrawLineEx({ hand.x + perp.x * (isDagger ? 6.0f : 9.0f), hand.y + perp.y * (isDagger ? 6.0f : 9.0f) },
                    { hand.x - perp.x * (isDagger ? 6.0f : 9.0f), hand.y - perp.y * (isDagger ? 6.0f : 9.0f) }, 4.2f, enchanted ? Color{ 165, 110, 255, 255 } : GOLD);
         DrawLineEx(Vector2Subtract(hand, Vector2Scale(dir, 6.0f)), hand, 3.6f, { 95, 60, 36, 255 });
     }
+    Diamond(Vector2Subtract(hand, Vector2Scale(dir, 7.0f)), 3.0f, 3.0f, enchanted ? SKYBLUE : GOLD, WHITE);
     float hdeg = atan2f(dir.y, dir.x) * RAD2DEG;
     BoxRot(hand, 7.5f, 7.5f, hdeg, enchanted ? Color{ 110, 230, 255, 255 } : Color{ 150, 160, 188, 255 }, ink, 1.3f);
 }
@@ -591,57 +622,73 @@ inline void Game::DrawHeroModel(Vector2 p, int heroClass, int wt, Vector2 aimDir
     Vector2 head = { body.x, body.y - 14.5f };
     float step = moving ? sinf(walkTimer) * 5.0f : 0.0f;
 
+    // Additive class aura behind hero
+    BeginBlendMode(BLEND_ADDITIVE);
+    CircleGrad(body.x, body.y - 2.0f, 28.0f, Fade(kClasses[std::max(0, std::min(3, heroClass))].color, 0.22f), Fade(WHITE, 0.0f));
+    EndBlendMode();
+
     if (holyBuffTimer > 0.0f) {
         float k = 0.65f + 0.35f * sinf(t * 10.0f);
         DrawPolyLinesEx({ body.x, body.y - 4.0f }, 8, 29.0f, t * 35.0f, 2.0f, Fade(GOLD, 0.70f * k));
     }
 
     if (heroClass == CLASS_KNIGHT) {
-        // VANGUARD KNIGHT: áo choàng xanh hoàng gia, giáp ngực thép bạc, cầu vai vàng, khiên tháp & mũ Crusader
+        // VANGUARD KNIGHT: áo choàng xanh hoàng gia 2 lớp lót đỏ, giáp ngực thép bạc, cầu vai vàng, khiên tháp & mũ Crusader
         Color cape = { 44, 74, 168, 255 };
         QuadOut({ body.x + back * 5.0f, body.y - 9.0f }, { body.x + back * 6.0f, body.y + 8.0f },
                 { body.x + back * (30.0f + sway), body.y + 18.0f + sway * 0.35f }, { body.x + back * (28.0f + sway), body.y - 4.0f }, cape, ink, 1.5f);
+        Tri({ body.x + back * 6.0f, body.y + 5.0f }, { body.x + back * (28.0f + sway), body.y + 15.0f + sway * 0.30f },
+            { body.x + back * (22.0f + sway), body.y + 18.0f + sway * 0.35f }, { 148, 34, 48, 255 });
         DrawLineEx({ body.x + back * (28.0f + sway), body.y - 4.0f }, { body.x + back * (30.0f + sway), body.y + 18.0f + sway * 0.35f }, 2.2f, GOLD);
         // Giày giáp sắt
         BoxRot({ p.x - 6.0f, p.y + 15.0f + step * 0.55f }, 7.5f, 8.5f, -step * 2.2f, { 112, 122, 148, 255 }, ink);
         BoxRot({ p.x + 6.0f, p.y + 15.0f - step * 0.55f }, 7.5f, 8.5f,  step * 2.2f, { 112, 122, 148, 255 }, ink);
-        // Lông mũ đỏ bay phía sau
+        // Lông mũ đỏ kép bay phía sau
         Tri({ head.x, head.y - 9.0f }, { head.x + back * (26.0f + sway * 0.45f), head.y - 16.0f + sway * 0.25f }, { head.x + back * 7.0f, head.y - 2.0f }, { 224, 52, 66, 255 });
-        // Giáp ngực hình thang + chữ thập vàng + đai lưng
+        Tri({ head.x + back * 3.0f, head.y - 7.0f }, { head.x + back * (23.0f + sway * 0.35f), head.y - 10.0f + sway * 0.25f }, { head.x + back * 8.0f, head.y }, GOLD);
+        // Giáp ngực hình thang + phản chiếu kim loại + chữ thập vàng + đai lưng + găng tay giáp
         QuadOut({ body.x - 13.0f, body.y - 8.0f }, { body.x + 13.0f, body.y - 8.0f },
                 { body.x + 9.5f, body.y + 10.0f }, { body.x - 9.5f, body.y + 10.0f }, { 214, 222, 240, 255 }, ink, 1.8f);
+        Quad({ body.x - 10.5f, body.y - 6.5f }, { body.x - 3.0f, body.y - 6.5f }, { body.x - 4.0f, body.y + 3.0f }, { body.x - 9.0f, body.y + 3.0f }, Fade(WHITE, 0.35f));
         DrawLineEx({ body.x, body.y - 5.0f }, { body.x, body.y + 7.0f }, 2.6f, GOLD);
         DrawLineEx({ body.x - 5.0f, body.y - 1.0f }, { body.x + 5.0f, body.y - 1.0f }, 2.4f, GOLD);
         BoxRot({ body.x, body.y + 7.5f }, 20.0f, 4.5f, 0.0f, { 92, 62, 42, 255 }, ink, 1.2f);
         BoxRot({ body.x, body.y + 7.5f }, 6.0f, 5.5f, 0.0f, GOLD, ink, 1.0f);
-        // Cầu vai thép viền vàng
+        // Cầu vai thép viền vàng & găng tay
         BoxRot({ body.x - 13.5f, body.y - 6.0f }, 9.0f, 8.5f, -18.0f, { 188, 198, 224, 255 }, GOLD, 1.4f);
         BoxRot({ body.x + 13.5f, body.y - 6.0f }, 9.0f, 8.5f,  18.0f, { 188, 198, 224, 255 }, GOLD, 1.4f);
+        BoxRot({ body.x + back * 12.0f, body.y + 5.0f }, 6.0f, 6.0f, 0.0f, { 196, 206, 232, 255 }, GOLD, 1.0f);
         // Khiên phụ bên tay còn lại
         Vector2 sh = { body.x + back * 14.5f, body.y + 1.5f };
         QuadOut({ sh.x - 5.5f, sh.y - 8.0f }, { sh.x + 5.5f, sh.y - 8.0f }, { sh.x + 4.5f, sh.y + 4.0f }, { sh.x - 4.5f, sh.y + 4.0f }, { 44, 78, 172, 255 }, { 205, 214, 236, 255 }, 1.8f);
         Tri({ sh.x - 4.5f, sh.y + 4.0f }, { sh.x + 4.5f, sh.y + 4.0f }, { sh.x, sh.y + 10.5f }, { 205, 214, 236, 255 });
         DrawLineEx({ sh.x, sh.y - 5.0f }, { sh.x, sh.y + 6.0f }, 2.0f, GOLD);
-        // Mũ giáp Crusader tách khối rõ ràng
+        // Mũ giáp Crusader tách khối + cánh nhỏ & khe T cyan phát sáng
         QuadOut({ head.x - 10.0f, head.y - 8.5f }, { head.x + 10.0f, head.y - 8.5f },
                 { head.x + 9.0f, head.y + 6.5f }, { head.x - 9.0f, head.y + 6.5f }, { 222, 228, 244, 255 }, ink, 1.7f);
-        Tri({ head.x - 10.0f, head.y - 8.5f }, { head.x + 10.0f, head.y - 8.5f }, { head.x, head.y - 13.5f }, { 190, 202, 226, 255 });
+        Tri({ head.x - 10.0f, head.y - 8.5f }, { head.x + 10.0f, head.y - 8.5f }, { head.x, head.y - 14.0f }, { 190, 202, 226, 255 });
+        Tri({ head.x - 10.0f, head.y - 4.0f }, { head.x - 16.0f, head.y - 10.0f }, { head.x - 10.0f, head.y - 8.0f }, GOLD);
+        Tri({ head.x + 10.0f, head.y - 4.0f }, { head.x + 16.0f, head.y - 10.0f }, { head.x + 10.0f, head.y - 8.0f }, GOLD);
         BoxRot({ head.x + face * 3.0f, head.y + 0.5f }, 12.0f, 4.2f, 0.0f, { 18, 24, 48, 255 }, ink, 1.0f);
         DrawRectangle((int)(head.x + face * 5.0f - 4), (int)(head.y - 0.5f), 8, 2, { 90, 230, 255, 255 });
+        DrawRectangle((int)(head.x + face * 5.0f - 1), (int)(head.y - 0.5f), 2, 5, { 90, 230, 255, 255 });
     } else if (heroClass == CLASS_ASSASSIN) {
-        // SHADOW ASSASSIN: khăn đỏ bay đôi, giáp da sát thủ, dao găm phụ, đầu mũ ninja & mặt nạ
+        // SHADOW ASSASSIN: khăn đỏ bay đôi viền sáng, giáp da sát thủ, túi phi tiêu thắt lưng, dao găm phụ, mắt đỏ
         Color scarf = { 212, 42, 74, 255 };
-        Tri({ body.x + back * 3.0f, body.y - 9.0f }, { body.x + back * (32.0f + sway * 1.15f), body.y - 14.0f + sway * 0.45f }, { body.x + back * (25.0f + sway), body.y + 1.0f }, scarf);
+        Tri({ body.x + back * 3.0f, body.y - 9.0f }, { body.x + back * (34.0f + sway * 1.15f), body.y - 15.0f + sway * 0.45f }, { body.x + back * (26.0f + sway), body.y + 1.0f }, scarf);
+        DrawLineEx({ body.x + back * 5.0f, body.y - 9.0f }, { body.x + back * (34.0f + sway * 1.15f), body.y - 15.0f + sway * 0.45f }, 1.6f, { 255, 115, 145, 255 });
         Tri({ body.x + back * 3.0f, body.y - 4.0f }, { body.x + back * (28.0f + sway), body.y + 4.0f }, { body.x + back * (22.0f + sway), body.y + 14.0f + sway * 0.35f }, Shade(scarf, 0.72f));
         // Ủng ninja gọn
         BoxRot({ p.x - 5.5f, p.y + 15.0f + step * 0.55f }, 6.5f, 8.0f, -step * 2.5f, { 34, 30, 44, 255 }, ink);
         BoxRot({ p.x + 5.5f, p.y + 15.0f - step * 0.55f }, 6.5f, 8.0f,  step * 2.5f, { 34, 30, 44, 255 }, ink);
-        // Thân giáp da tối + dây chéo + đai đỏ
+        // Thân giáp da tối + dây chéo + túi kunai + đai đỏ
         QuadOut({ body.x - 11.5f, body.y - 8.5f }, { body.x + 11.5f, body.y - 8.5f },
                 { body.x + 8.5f, body.y + 9.5f }, { body.x - 8.5f, body.y + 9.5f }, { 46, 44, 66, 255 }, ink, 1.7f);
         DrawLineEx({ body.x - 9.0f, body.y - 7.0f }, { body.x + 7.5f, body.y + 7.5f }, 2.2f, { 112, 92, 130, 255 });
         DrawLineEx({ body.x + 9.0f, body.y - 7.0f }, { body.x - 7.5f, body.y + 7.5f }, 2.2f, { 112, 92, 130, 255 });
         BoxRot({ body.x, body.y + 7.5f }, 17.5f, 4.0f, 0.0f, scarf, ink, 1.0f);
+        BoxRot({ body.x - 8.0f, body.y + 7.5f }, 4.5f, 5.5f, 0.0f, { 90, 62, 46, 255 }, ink, 0.9f);
+        BoxRot({ body.x + 8.0f, body.y + 7.5f }, 4.5f, 5.5f, 0.0f, { 90, 62, 46, 255 }, ink, 0.9f);
         // Vai góc cạnh
         Tri({ body.x - 10.0f, body.y - 8.0f }, { body.x - 16.5f, body.y - 4.0f }, { body.x - 11.0f, body.y }, { 70, 64, 96, 255 });
         Tri({ body.x + 10.0f, body.y - 8.0f }, { body.x + 16.5f, body.y - 4.0f }, { body.x + 11.0f, body.y }, { 70, 64, 96, 255 });
@@ -665,7 +712,7 @@ inline void Game::DrawHeroModel(Vector2 p, int heroClass, int wt, Vector2 aimDir
             }
         }
     } else if (heroClass == CLASS_MAGE) {
-        // ARCANE MAGE: áo choàng tầng thêu chỉ vàng, sách phép bay tay trái, mũ phù thủy vành rộng chóp lệch
+        // ARCANE MAGE: áo choàng tầng thêu chỉ vàng, sách phép + vòng rune, mũ phù thủy đính tinh thể treo chóp
         Color robe = { 82, 66, 178, 255 };
         BoxRot({ p.x - 5.0f, p.y + 16.0f + step * 0.35f }, 6.0f, 6.5f, 0.0f, { 42, 34, 72, 255 }, ink);
         BoxRot({ p.x + 5.0f, p.y + 16.0f - step * 0.35f }, 6.0f, 6.5f, 0.0f, { 42, 34, 72, 255 }, ink);
@@ -675,11 +722,13 @@ inline void Game::DrawHeroModel(Vector2 p, int heroClass, int wt, Vector2 aimDir
         QuadOut({ body.x - 10.5f, body.y - 8.5f }, { body.x + 10.5f, body.y - 8.5f },
                 { body.x + 8.0f, body.y + 5.5f }, { body.x - 8.0f, body.y + 5.5f }, robe, ink, 1.5f);
         DrawLineEx({ body.x, body.y - 6.0f }, { body.x, body.y + 14.0f }, 3.2f, GOLD);
+        DrawLineEx({ body.x - 15.0f, body.y + 14.0f }, { body.x + 15.0f, body.y + 14.0f }, 1.8f, Fade(GOLD, 0.75f));
         Diamond({ body.x, body.y - 2.0f }, 3.6f, 4.6f, { 110, 240, 255, 255 }, ink);
         BoxRot({ body.x - 12.0f, body.y - 5.5f }, 7.5f, 6.5f, -20.0f, Shade(robe, 1.25f), GOLD, 1.2f);
         BoxRot({ body.x + 12.0f, body.y - 5.5f }, 7.5f, 6.5f,  20.0f, Shade(robe, 1.25f), GOLD, 1.2f);
-        // Sách phép mở bay ở tay còn lại
+        // Sách phép mở + vòng tròn ma thuật bay ở tay còn lại
         Vector2 bk = { body.x + back * 15.5f, body.y - 1.0f + sinf(t * 4.5f) * 2.0f };
+        DrawCircleLines((int)bk.x, (int)bk.y, 10.5f, Fade(SKYBLUE, 0.55f));
         BoxRot(bk, 10.0f, 11.0f, back * 14.0f, { 95, 42, 130, 255 }, GOLD, 1.2f);
         BoxRot(bk, 7.5f, 8.5f, back * 14.0f, { 238, 232, 210, 255 }, { 140, 120, 90, 255 }, 0.8f);
         // Đầu + khuôn mặt trong bóng râm + mắt sáng cyan
@@ -687,12 +736,14 @@ inline void Game::DrawHeroModel(Vector2 p, int heroClass, int wt, Vector2 aimDir
                 { head.x + 7.5f, head.y + 6.5f }, { head.x - 7.5f, head.y + 6.5f }, { 22, 16, 44, 255 }, ink, 1.5f);
         Diamond({ head.x + face * 5.5f, head.y + 1.0f }, 2.4f, 2.0f, { 105, 240, 255, 255 }, ink);
         Diamond({ head.x + face * 0.5f, head.y + 1.0f }, 2.4f, 2.0f, { 105, 240, 255, 255 }, ink);
-        // Mũ phù thủy vành đa giác rộng + chóp cong nhọn + đai vàng
+        // Mũ phù thủy vành đa giác rộng + chóp cong nhọn + đai vàng + đèn pha lê treo chóp mũ
         QuadOut({ head.x - 19.0f, head.y - 5.5f }, { head.x + 19.0f, head.y - 5.5f },
                 { head.x + 13.0f, head.y - 2.0f }, { head.x - 13.0f, head.y - 2.0f }, { 64, 48, 148, 255 }, ink, 1.6f);
         QuadOut({ head.x - 10.5f, head.y - 13.5f }, { head.x + 10.5f, head.y - 13.5f },
                 { head.x + 11.5f, head.y - 5.5f }, { head.x - 11.5f, head.y - 5.5f }, { 78, 60, 170, 255 }, ink, 1.5f);
-        Tri({ head.x - 10.5f, head.y - 13.5f }, { head.x + 10.5f, head.y - 13.5f }, { head.x + back * 12.0f, head.y - 26.5f }, { 68, 52, 152, 255 });
+        Vector2 hatTip = { head.x + back * 12.0f, head.y - 26.5f };
+        Tri({ head.x - 10.5f, head.y - 13.5f }, { head.x + 10.5f, head.y - 13.5f }, hatTip, { 68, 52, 152, 255 });
+        Diamond({ hatTip.x, hatTip.y + 5.0f }, 3.0f, 4.2f, SKYBLUE, WHITE);
         DrawLineEx({ head.x - 11.0f, head.y - 6.5f }, { head.x + 11.0f, head.y - 6.5f }, 2.4f, GOLD);
         Diamond({ head.x + face * 2.5f, head.y - 9.5f }, 3.2f, 3.6f, { 110, 240, 255, 255 }, ink);
         for (int i = 0; i < 2; ++i) {
@@ -700,10 +751,11 @@ inline void Game::DrawHeroModel(Vector2 p, int heroClass, int wt, Vector2 aimDir
             Diamond({ body.x + cosf(a3) * 23.0f, body.y - 4.0f + sinf(a3) * 8.0f }, 3.4f, 4.4f, { 110, 235, 255, 255 }, ink);
         }
     } else {
-        // EMERALD RANGER: áo choàng rừng xanh, ống tên lông chim sau lưng, giáp da thợ săn, mũ trùm gắn lông vàng
+        // EMERALD RANGER: áo choàng lá rừng viền vàng, ống tên lông chim, giáp da & băng tay thợ săn, mũ trùm gắn ngọc lục bảo
         Color cloak = { 42, 134, 78, 255 };
         QuadOut({ body.x + back * 4.0f, body.y - 8.5f }, { body.x + back * 6.0f, body.y + 8.0f },
                 { body.x + back * (28.0f + sway), body.y + 16.5f + sway * 0.3f }, { body.x + back * (24.0f + sway), body.y - 3.0f }, cloak, ink, 1.5f);
+        DrawLineEx({ body.x + back * 6.0f, body.y + 7.5f }, { body.x + back * (28.0f + sway), body.y + 16.5f + sway * 0.3f }, 1.6f, { 130, 235, 150, 255 });
         // Ống tên đeo chéo sau vai + 2 đuôi lông tên
         DrawLineEx({ body.x + back * 7.0f, body.y - 14.0f }, { body.x + back * 14.0f, body.y + 5.0f }, 6.0f, { 126, 84, 46, 255 });
         Tri({ body.x + back * 5.0f, body.y - 16.0f }, { body.x + back * 9.0f, body.y - 15.0f }, { body.x + back * 6.5f, body.y - 21.0f }, { 255, 220, 110, 255 });
@@ -711,7 +763,7 @@ inline void Game::DrawHeroModel(Vector2 p, int heroClass, int wt, Vector2 aimDir
         // Ủng săn da nâu
         BoxRot({ p.x - 5.5f, p.y + 15.0f + step * 0.55f }, 7.0f, 8.5f, -step * 2.4f, { 88, 58, 38, 255 }, ink);
         BoxRot({ p.x + 5.5f, p.y + 15.0f - step * 0.55f }, 7.0f, 8.5f,  step * 2.4f, { 88, 58, 38, 255 }, ink);
-        // Áo giáp da + đai chéo đựng tên
+        // Áo giáp da + đai chéo đựng tên + băng tay thợ săn
         QuadOut({ body.x - 12.0f, body.y - 8.0f }, { body.x + 12.0f, body.y - 8.0f },
                 { body.x + 9.0f, body.y + 9.5f }, { body.x - 9.0f, body.y + 9.5f }, { 56, 168, 96, 255 }, ink, 1.7f);
         QuadOut({ body.x - 8.5f, body.y - 6.0f }, { body.x + 8.5f, body.y - 6.0f },
@@ -719,11 +771,13 @@ inline void Game::DrawHeroModel(Vector2 p, int heroClass, int wt, Vector2 aimDir
         DrawLineEx({ body.x - 9.0f, body.y - 7.0f }, { body.x + 7.0f, body.y + 8.0f }, 2.6f, { 150, 106, 64, 255 });
         Diamond({ body.x, body.y + 7.5f }, 3.2f, 2.8f, GOLD, ink);
         BoxRot({ body.x + back * 12.5f, body.y - 5.5f }, 8.0f, 7.0f, back * 16.0f, { 116, 80, 48, 255 }, ink, 1.3f);
-        // Đầu + mũ trùm thợ săn + lông vàng trên mũ + khăn che mặt
+        BoxRot({ body.x + back * 12.0f, body.y + 5.0f }, 5.5f, 5.5f, 0.0f, { 116, 80, 48, 255 }, GOLD, 1.0f);
+        // Đầu + mũ trùm thợ săn + ngọc lục bảo + lông vàng + khăn che mặt
         QuadOut({ head.x - 9.5f, head.y - 7.5f }, { head.x + 9.5f, head.y - 7.5f },
                 { head.x + 8.5f, head.y + 6.5f }, { head.x - 8.5f, head.y + 6.5f }, { 48, 148, 84, 255 }, ink, 1.6f);
         Tri({ head.x - 9.5f, head.y - 7.5f }, { head.x + 9.5f, head.y - 7.5f }, { head.x + back * 9.0f, head.y - 16.0f }, { 38, 120, 68, 255 });
         Tri({ head.x + back * 5.0f, head.y - 9.0f }, { head.x + back * 8.0f, head.y - 7.0f }, { head.x + back * 16.0f, head.y - 21.0f }, GOLD);
+        Diamond({ head.x + face * 3.0f, head.y - 6.0f }, 2.8f, 3.2f, LIME, GOLD);
         BoxRot({ head.x + face * 3.0f, head.y + 0.5f }, 11.0f, 5.0f, 0.0f, { 18, 28, 22, 255 }, ink, 1.0f);
         Diamond({ head.x + face * 6.0f, head.y + 0.5f }, 2.4f, 2.0f, { 255, 225, 95, 255 }, ink);
         Diamond({ head.x + face * 0.5f, head.y + 0.5f }, 2.4f, 2.0f, { 255, 225, 95, 255 }, ink);
@@ -787,7 +841,21 @@ inline void Game::DrawPlayerSprite() {
     float off = 0.5f;
     if (visWt == WP_BOW || visWt == WP_STAFF) off = 0.0f;
     else if (player.attackTimer > 0.0f && sinceAtk < 0.16f) off = Lerp(-1.25f, 1.25f, sinceAtk / 0.16f);
+    float tm = (float)GetTime();
+    Color auraCol = nextHitCrit ? GOLD : HeroColor();
+    DrawEllipseLines((int)player.pos.x, (int)player.pos.y + 14, 21.0f, 8.5f, Fade(auraCol, 0.35f));
+    if (nextHitCrit || (hasEquip[SLOT_WEAPON] && equipPlus[SLOT_WEAPON] > 0)) {
+        DrawPolyLinesEx({ player.pos.x, player.pos.y + 14.0f }, 6, 24.0f, tm * 45.0f, 1.5f, Fade(GOLD, 0.55f));
+    }
     DrawHeroModel(player.pos, player.heroClass, wt, aimDirDraw, player.facingLeft, player.walkTimer, moving, off, player.isInvuln, player.shieldActive, player.holyBuffTimer, player.ultActiveTimer, player.subClass, player.swordOrbitTimer);
+    if (hasEquip[SLOT_WEAPON] && equipPlus[SLOT_WEAPON] > 0) {
+        int cnt = std::min(5, equipPlus[SLOT_WEAPON]);
+        for (int i = 0; i < cnt; ++i) {
+            float a = tm * 3.0f + i * (2.0f * PI / cnt);
+            Vector2 mp = { player.pos.x + cosf(a) * 26.0f, player.pos.y - 4.0f + sinf(a) * 10.0f };
+            Diamond(mp, 3.0f, 3.6f, (cnt >= 4) ? SKYBLUE : GOLD, WHITE);
+        }
+    }
 }
 
 inline void Game::DrawChest(const Chest& c) {

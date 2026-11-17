@@ -119,6 +119,8 @@ inline bool Game::SaveGameToSlot(int slot) {
       << "timeOfDay=" << timeOfDay << "\n"
       << "dayCount=" << dayCount << "\n"
       << "heroAge=" << heroAge << "\n"
+      << "agingVersion=1\n"
+      << "yearClock=" << yearClock << "\n"
       << "legacyHp=" << legacyHp << "\n"
       << "legacyDmg=" << legacyDmg << "\n"
       << "legacyArmor=" << legacyArmor << "\n"
@@ -132,7 +134,12 @@ inline bool Game::SaveGameToSlot(int slot) {
           << "child_" << i << "_hp=" << children[i].bonusHp << "\n"
           << "child_" << i << "_dmg=" << children[i].bonusDmg << "\n"
           << "child_" << i << "_arm=" << children[i].bonusArmor << "\n"
-          << "child_" << i << "_spd=" << children[i].bonusSpeed << "\n";
+          << "child_" << i << "_spd=" << children[i].bonusSpeed << "\n"
+          << "child_" << i << "_age=" << children[i].age << "\n"
+          << "child_" << i << "_lvl=" << children[i].level << "\n"
+          << "child_" << i << "_xp=" << children[i].xp << "\n"
+          << "child_" << i << "_party=" << (children[i].inParty ? 1 : 0) << "\n"
+          << "child_" << i << "_inj=" << children[i].injuredTimer << "\n";
     }
     for (size_t i = 0; i < familyTree.size(); ++i) {
         o << "anc_" << i << "_gen=" << familyTree[i].generation << "\n"
@@ -215,6 +222,8 @@ inline bool Game::LoadGameFromSlot(int slot) {
     bool lSpUnlocked[4] = { false, false, false, false };
     int lNextFloor = 11, lRations = 2, lGen = 1, lHouseTier = 0, lRqKills = 0, lRqBosses = 0, lSpouseIdx = -1, lSurfaceRoom = 0;
     int lSpQuest = 0, lDay = 1, lAge = 18;
+    int lAgingVer = 0;
+    float lYearClock = 0.0f;
     int lBossEssence = 0, lCurse = 0, lBloodline = 0, lBountyKind = 0, lBountyProg = 0, lBountyTgt = 6, lBountyGold = 200;
     int lPerfDodges = 0, lReactCnt = 0;
     bool lBountyActive = false;
@@ -305,6 +314,8 @@ inline bool Game::LoadGameFromSlot(int slot) {
         else if (k == "timeOfDay") lTimeOfDay = Clamp(fv, 0.0f, 23.99f);
         else if (k == "dayCount") lDay = std::max(1, iv);
         else if (k == "heroAge") lAge = std::max(1, iv);
+        else if (k == "agingVersion") lAgingVer = iv;
+        else if (k == "yearClock") lYearClock = Clamp(fv, 0.0f, kRealSecondsPerYear - 0.01f);
         else if (k == "legacyHp") lLegHp = std::max(0.0f, fv);
         else if (k == "legacyDmg") lLegDmg = std::max(0.0f, fv);
         else if (k == "legacyArmor") lLegArm = std::max(0.0f, fv);
@@ -323,6 +334,11 @@ inline bool Game::LoadGameFromSlot(int slot) {
                 else if (f == "dmg") lChildren[ci].bonusDmg = fv;
                 else if (f == "arm") lChildren[ci].bonusArmor = fv;
                 else if (f == "spd") lChildren[ci].bonusSpeed = fv;
+                else if (f == "age") lChildren[ci].age = std::max(0.0f, fv);
+                else if (f == "lvl") lChildren[ci].level = std::max(1, std::min(kChildMaxLevel, iv));
+                else if (f == "xp") lChildren[ci].xp = std::max(0, iv);
+                else if (f == "party") lChildren[ci].inParty = (iv != 0);
+                else if (f == "inj") lChildren[ci].injuredTimer = Clamp(fv, 0.0f, kChildInjuryTime);
             }
         } else if (k.compare(0, 4, "anc_") == 0 && k.size() > 6) {
             int ai = atoi(k.c_str() + 4);
@@ -427,6 +443,8 @@ inline bool Game::LoadGameFromSlot(int slot) {
     timeOfDay = lTimeOfDay;
     dayCount = lDay;
     heroAge = lAge;
+    yearClock = lYearClock;
+    lastChildKiller = -1;
     bossEssence = lBossEssence;
     curseStacks = lCurse;
     bloodlineTrait = lBloodline;
@@ -444,6 +462,9 @@ inline bool Game::LoadGameFromSlot(int slot) {
     legacySpeed = lLegSpd;
     if ((int)lChildren.size() > lChildCount) lChildren.resize(lChildCount);
     if ((int)lAncestors.size() > lAncCount) lAncestors.resize(lAncCount);
+    if (lAgingVer < 1) { // bản lưu cũ (chưa có hệ thống tuổi): coi các con đã trưởng thành
+        for (auto& c : lChildren) c.age = (float)kChildAdultAge;
+    }
     children = lChildren;
     familyTree = lAncestors;
 
