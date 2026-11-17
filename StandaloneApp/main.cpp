@@ -9,6 +9,62 @@
 #include <random>
 #include <ctime>
 
+// ── Phông chữ Unicode hỗ trợ đầy đủ Tiếng Việt ──────────────────────────────
+static Font gUiFont = { 0 };
+
+static void InitGameFont() {
+    if (IsWindowState(FLAG_WINDOW_HIDDEN) || gUiFont.baseSize > 0) return;
+    std::vector<int> cps;
+    for (int c = 0x0020; c <= 0x007E; ++c) cps.push_back(c);
+    for (int c = 0x00A0; c <= 0x024F; ++c) cps.push_back(c);
+    for (int c = 0x1E00; c <= 0x1EFF; ++c) cps.push_back(c);
+    for (int c = 0x2010; c <= 0x2027; ++c) cps.push_back(c);
+    static const char* kFontPaths[] = {
+        "C:/Windows/Fonts/segoeui.ttf",
+        "C:/Windows/Fonts/tahoma.ttf",
+        "C:/Windows/Fonts/arial.ttf",
+        "/system/fonts/Roboto-Regular.ttf",
+        "/system/fonts/NotoSans-Regular.ttf"
+    };
+    for (const char* path : kFontPaths) {
+        if (FileExists(path)) {
+            Font f = LoadFontEx(path, 32, cps.data(), (int)cps.size());
+            if (f.texture.id > 0 && f.baseSize > 0) {
+                gUiFont = f;
+                SetTextureFilter(gUiFont.texture, TEXTURE_FILTER_BILINEAR);
+                break;
+            }
+        }
+    }
+}
+
+static void CloseGameFont() {
+    if (gUiFont.texture.id > 0 && gUiFont.baseSize > 0) {
+        UnloadFont(gUiFont);
+        gUiFont = { 0 };
+    }
+}
+
+static void GameDrawText(const char* text, int posX, int posY, int fontSize, Color color) {
+    if (!text) return;
+    if (gUiFont.texture.id > 0 && gUiFont.baseSize > 0) {
+        DrawTextEx(gUiFont, text, { (float)posX, (float)posY }, (float)fontSize, 1.0f, color);
+    } else {
+        ::DrawText(text, posX, posY, fontSize, color);
+    }
+}
+
+static int GameMeasureText(const char* text, int fontSize) {
+    if (!text) return 0;
+    if (gUiFont.texture.id > 0 && gUiFont.baseSize > 0) {
+        return (int)ceilf(MeasureTextEx(gUiFont, text, (float)fontSize, 1.0f).x);
+    }
+    return ::MeasureText(text, fontSize);
+}
+
+#define DrawText GameDrawText
+#define MeasureText GameMeasureText
+
 // ── Audio Procedural Synthesizer ───────────────────────────────────────────
 struct SoundManager {
     Sound sndSlash;
@@ -296,6 +352,118 @@ static const SubclassDef kSubclasses[4][2] = {
             "Thunder Volley", "Fire 7 lightning arrows (1.35x AoE, pierce 3 & 0.8s Stun)",
             "Tempest Vault", "Drop 2.5x Shock Trap, leap back & gain Storm Shield + Haste",
             "Gungnir Skyfall", "Rain Lightning Arrows for 3.8s (1.35x AoE) + +35% ATK SPD"
+        }
+    }
+};
+
+struct ClassTextVi {
+    const char* name;
+    const char* role;
+    const char* weaponTitle;
+    const char* passiveName;
+    const char* passiveDesc;
+    const char* qName;
+    const char* qDesc;
+    const char* eName;
+    const char* eDesc;
+    const char* rName;
+    const char* rDesc;
+};
+
+static const ClassTextVi kClassesVi[4] = {
+    {
+        "Kỵ Sĩ Tiên Phong", "Đấu Sĩ Giáp Nặng", "Kiếm Sắt",
+        "Khiên Bất Khuất", "Giảm 15% sát thương; bị đánh +8 Nộ & nổ xung kích; đòn thứ 5 hồi 4 HP",
+        "Xung Kích Khiên", "Lướt húc gây 1.9x sát thương & Làm choáng 1.2s",
+        "Thánh Quang Xung", "Nổ 1.8x ST + Giáp Thánh 3.5s (+4 Giáp, +25% Tốc Đánh, chặn 1 đòn)",
+        "Phán Quyết Thiên Đường", "3.5x Đại Kiếm Ánh Sáng + Choáng, vùng thánh 4s (0.85x & hồi 4% HP/s)"
+    },
+    {
+        "Sát Thủ Bóng Đêm", "Chí Mạng Tốc Độ", "Dao Găm",
+        "Động Lực Tử Thần", "Chí mạng gây 2.4x ST + Độc; hạ gục hồi 50% Dash & +25% Tốc Chạy 2s",
+        "Phi Tiêu Bóng Tối", "Phóng 5 phi tiêu xuyên thấu (1.1x ST, Độc & Làm chậm)",
+        "Ám Tập", "Dịch chuyển 210px, thả bom khói & chém chắc chắn chí mạng 2.2x",
+        "Vũ Điệu Tử Thần", "3.5s Bão Kiếm (+35% Tốc Chạy, -50% ST nhận, chém 0.85x/0.2s)"
+    },
+    {
+        "Pháp Sư Huyền Bí", "Pháp Sư Nguyên Tố", "Quyền Trượng",
+        "Cộng Hưởng Ma Pháp", "Giảm 15% hồi chiêu; tung Q/E/R bắn 3 tia dẫn đường & +6 Nộ",
+        "Cầu Lửa Hủy Diệt", "Cầu lửa nổ diện rộng 135px gây 2.3x ST & Thiêu đốt",
+        "Vòng Băng Giá", "Vụ nổ băng 185px gây 1.5x ST, Đóng băng 1.3s & Làm chậm",
+        "Thiên Thạch Hư Không", "3.8s Hố Đen hút quái & mưa 12 thiên thạch (1.5x ST/cái)"
+    },
+    {
+        "Xạ Thủ Lục Bảo", "Xạ Thủ Tầm Xa", "Cung Tên",
+        "Dấu Ấn Đại Bàng", "Mỗi đòn thứ 3 bắn Tên Gió xuyên thấu 1.5x ST (+10% Chí mạng)",
+        "Liên Xạ Tiễn", "Bắn quạt 7 mũi tên (1.0x ST mỗi tên) đẩy lùi kẻ địch",
+        "Bẫy Nổ & Nhào Lộn", "Đặt bẫy nổ (2.4x AoE + Làm chậm) & lộn ngược lùi về",
+        "Mưa Tên Phượng Hoàng", "3.6s bão 16 mũi tên lửa (1.15x + Thiêu đốt) & +35% Tốc Đánh"
+    }
+};
+
+static const ClassTextVi kSubclassesVi[4][2] = {
+    { // KNIGHT
+        {
+            "Thánh Kỵ Sĩ Paladin", "Thánh Kỵ Sĩ - Kiếm & Khiên Thần", "Thánh Kiếm Nhật Quang",
+            "Thánh Vực Bảo Hộ", "Giảm 20% ST nhận vào; đòn thứ 4 giáng thánh 115px & hồi 6 HP",
+            "Thiên Phạt Đại Chấn", "Lướt đập 2.4x ST, Choáng 1.5s & tạo Thánh Vực hồi máu 2.5s",
+            "Khiên Bình Minh", "Nổ 2.2x ST + Giáp Thánh 4.5s (+6 Giáp, +30% Tốc Đánh, chặn 1 đòn)",
+            "Phán Quyết Solaris", "4.2x Thánh Kiếm + 4.5s Thánh Vực (1.1x ST & hồi máu liên tục)"
+        },
+        {
+            "Cuồng Chiến Huyết Ma", "Cuồng Chiến - Huyết Kiếm Cuồng Bạo", "Trọng Kiếm Huyết Ma",
+            "Huyết Cuồng Nộ", "Chém phóng Huyết Kiếm Khí; máu càng thấp tốc đánh càng tăng (+40%)",
+            "Nhảy Chém Cuồng Bạo", "Nhảy 110px đập vùng máu 2.5x ST, Thiêu đốt & hồi 10% Máu Tối Đa",
+            "Tiếng Gầm Sôi Máu", "Nổ máu 2.0x ST + Làm chậm, +25 Nộ & Cuồng Nộ 4s (+30% Tốc)",
+            "Chém Đầu Tận Thế", "4.2x Địa Chấn Đỏ + 4s Xoáy Máu hút và xé nát kẻ địch"
+        }
+    },
+    { // ASSASSIN
+        {
+            "Tử Thần Hư Vô", "Tử Thần - Song Chủy Đoạt Mệnh", "Song Chủy Đoạt Hồn",
+            "Thu Hoạch Linh Hồn", "Chí mạng 2.6x ST; hạ gục thả Tinh Linh truy đuổi & hồi 4 HP",
+            "Vòng Xoáy Tử Thần", "Phóng 6 lưỡi dao linh hồn xuyên 3 mục tiêu (1.35x ST, Độc & Băng)",
+            "Tử Thần Dịch Chuyển", "Biến 225px, chém 2.6x chắc chắn chí mạng & tạo Khiên Linh Hồn",
+            "Cơn Lốc Oan Hồn", "4.0s Bão Đoạt Hồn (1.05x ST/0.18s & hồi 2 HP mỗi nhát trúng)"
+        },
+        {
+            "Nhẫn Giả Lôi Ảnh", "Nhẫn Giả - Song Đao Sấm Chớp", "Song Đao Lôi Nha",
+            "Ảo Ảnh Phân Thân", "Mỗi đòn đánh phóng kèm phi tiêu sét; Dash để lại bẫy phân thân nổ",
+            "Bão Phi Tiêu Sấm", "Ném 8 phi tiêu sấm sét (1.25x ST, xuyên 2 & choáng nhẹ)",
+            "Lôi Ảnh Huyễn Thuật", "Biến 230px, thả phân thân nổ 2.2x & chém chí mạng 2.4x",
+            "Nghìn Lưỡi Đao", "3.8s siêu bão kiếm (+45% Tốc Chạy, chém cực nhanh + 4 hướng tiêu)"
+        }
+    },
+    { // MAGE
+        {
+            "Kiếm Sư Ma Pháp", "Kiếm Sư - Gậy Phép Hóa Kiếm", "Gậy Kiếm Tinh Tú (Kiếm)",
+            "Ma Kiếm Phù Văn", "Cầm Gậy hóa model Kiếm Phép chém phóng Kiếm Khí Ánh Trăng nổ AoE",
+            "Trảm Không Gian", "Lướt chém 115px (2.4x ST) + phóng 3 Kiếm Khí Ánh Trăng + Khiên",
+            "Vòng Kiếm Hồn", "Nổ băng-lửa 1.9x (Choáng 1.4s) + 3.2s Kiếm Hồn bay chém xung quanh",
+            "Thần Kiếm Excalibur", "3.8x Đại Kiếm Tinh Tú + 4s Mưa Kiếm Phép & +35% Tốc Đánh"
+        },
+        {
+            "Đại Pháp Sư", "Đại Pháp Sư - Quyền Trượng Nguyên Tố", "Quyền Trượng Tối Thượng",
+            "Quá Tải Nguyên Tố", "Bắn song cầu phép nổ; dùng chiêu bắn 5 tia dẫn đường & +10 Nộ",
+            "Song Thiên Thạch", "Phóng 2 sao chổi lửa khổng lồ (2.3x AoE mỗi quả + Thiêu đốt)",
+            "Băng Giá Tuyệt Đối", "Nổ bão tuyết 215px (1.9x ST, Đóng băng 1.8s) + 6 mảnh băng",
+            "Kỳ Dị Vũ Trụ", "4.2s Hố Đen Khổng Lồ + mưa thiên thạch (1.75x) & hồi 25% Máu"
+        }
+    },
+    { // RANGER
+        {
+            "Thần Tiễn Bách Phát", "Thần Tiễn - Cung Thần Xuyên Phá", "Trường Cung Cuồng Phong",
+            "Ưng Nhãn Hành Quyết", "Mỗi phát thứ 2 bắn Tên Gió 1.75x xuyên thấu; tên thường +1 xuyên",
+            "Liên Hoàn Tinh Tú", "Bắn quạt 9 mũi tên xuyên 2 mục tiêu (1.2x ST + Thiêu đốt)",
+            "Mìn Chùm & Lộn Ngược", "Đặt mìn choáng 2.8x ST, lộn lùi 140px & +35% Tốc Đánh 2.5s",
+            "Bão Tên Thái Dương", "4.0s mưa 22 mũi tên mặt trời (1.35x + Đốt) & +45% Tốc Đánh"
+        },
+        {
+            "Chiến Thần Sấm Sét", "Chiến Thần - Cung Sấm Sét", "Đại Cung Lôi Đình",
+            "Mũi Tên Bão Táp", "Cung bắn ra Tên Sét xuyên thấu & nổ xung kích diện rộng",
+            "Loạt Tên Lôi Đình", "Bắn 7 mũi tên sét nổ AoE (1.35x ST, xuyên 3 & Choáng 0.8s)",
+            "Nhảy Bão Sấm", "Đặt bẫy điện 2.5x ST, lộn về & nhận Khiên Bão + Tăng Tốc",
+            "Lôi Tiễn Gungnir", "3.8s Mưa Tên Sét từ bầu trời (1.35x AoE) & +35% Tốc Đánh"
         }
     }
 };
@@ -743,6 +911,17 @@ static const MetaUpgrade kMeta[8] = {
     { "Second Wind", "Start every run with a random relic", 1, 400, 0 },
 };
 
+static const char* kMetaVi[8][2] = {
+    { "Sinh Lực", "+10 Máu tối đa mỗi cấp" },
+    { "Sức Mạnh", "+2 Sát thương mỗi cấp" },
+    { "Nhanh Nhẹn", "+5 Tốc chạy mỗi cấp" },
+    { "Phú Quý", "+10 Vàng khởi đầu mỗi cấp" },
+    { "Học Giả", "+8% Kinh nghiệm nhận được mỗi cấp" },
+    { "Bùa May Mắn", "+2% Tỉ lệ rơi trang bị mỗi cấp" },
+    { "Mặc Cả", "-5% Giá mua tại Cửa hàng mỗi cấp" },
+    { "Hơi Thở Thứ Hai", "Bắt đầu mỗi lượt chơi với 1 Cổ Vật ngẫu nhiên" }
+};
+
 // ── Cài đặt (lưu vào settings.cfg cạnh file exe) ─────────────────────────
 struct Settings {
     int resW = 1280, resH = 720;
@@ -760,6 +939,7 @@ struct Settings {
     bool vignette = true;
     int volume = 10;      // 0..10
     int difficulty = 1;   // 0 dễ, 1 thường, 2 khó
+    int language = 1;     // 0: English, 1: Tiếng Việt
 };
 static const int kFpsOptions[5] = { 30, 60, 120, 144, 0 }; // 0 = không giới hạn
 static const int kResOptions[5][2] = { { 1280, 720 }, { 1366, 768 }, { 1600, 900 }, { 1920, 1080 }, { 2560, 1440 } };
@@ -905,24 +1085,74 @@ public:
     float shrineRefuse = 0.0f;
     float shrinePulse = 0.0f;
 
+    const char* L(const char* en, const char* vi) const { return settings.language == 1 ? vi : en; }
     const ClassDef& BaseClass() const { return kClasses[std::max(0, std::min(3, player.heroClass))]; }
     const SubclassDef* ActiveSubclass() const {
         if (player.subClass != 1 && player.subClass != 2) return nullptr;
         int hc = std::max(0, std::min(3, player.heroClass));
         return &kSubclasses[hc][player.subClass - 1];
     }
-    const char* HeroTitle() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->name : BaseClass().name; }
-    const char* HeroRole() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->role : BaseClass().role; }
+    const char* ClassDisplayName(int hc) const {
+        hc = std::max(0, std::min(3, hc));
+        return settings.language == 1 ? kClassesVi[hc].name : kClasses[hc].name;
+    }
+    const char* SubDisplayName(int hc, int branch) const {
+        hc = std::max(0, std::min(3, hc));
+        int b = (branch == 2) ? 1 : 0;
+        return settings.language == 1 ? kSubclassesVi[hc][b].name : kSubclasses[hc][b].name;
+    }
+    const char* HeroTitle() const {
+        int hc = std::max(0, std::min(3, player.heroClass));
+        if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].name : kSubclasses[hc][player.subClass - 1].name;
+        return settings.language == 1 ? kClassesVi[hc].name : kClasses[hc].name;
+    }
+    const char* HeroRole() const {
+        int hc = std::max(0, std::min(3, player.heroClass));
+        if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].role : kSubclasses[hc][player.subClass - 1].role;
+        return settings.language == 1 ? kClassesVi[hc].role : kClasses[hc].role;
+    }
     Color HeroColor() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->color : BaseClass().color; }
     Color HeroAccent() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->accent : BaseClass().accent; }
-    const char* PassiveName() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->passiveName : BaseClass().passiveName; }
-    const char* PassiveDesc() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->passiveDesc : BaseClass().passiveDesc; }
-    const char* QName() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->qName : BaseClass().qName; }
-    const char* QDesc() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->qDesc : BaseClass().qDesc; }
-    const char* EName() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->eName : BaseClass().eName; }
-    const char* EDesc() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->eDesc : BaseClass().eDesc; }
-    const char* RName() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->rName : BaseClass().rName; }
-    const char* RDesc() const { const SubclassDef* sc = ActiveSubclass(); return sc ? sc->rDesc : BaseClass().rDesc; }
+    const char* PassiveName() const {
+        int hc = std::max(0, std::min(3, player.heroClass));
+        if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].passiveName : kSubclasses[hc][player.subClass - 1].passiveName;
+        return settings.language == 1 ? kClassesVi[hc].passiveName : kClasses[hc].passiveName;
+    }
+    const char* PassiveDesc() const {
+        int hc = std::max(0, std::min(3, player.heroClass));
+        if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].passiveDesc : kSubclasses[hc][player.subClass - 1].passiveDesc;
+        return settings.language == 1 ? kClassesVi[hc].passiveDesc : kClasses[hc].passiveDesc;
+    }
+    const char* QName() const {
+        int hc = std::max(0, std::min(3, player.heroClass));
+        if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].qName : kSubclasses[hc][player.subClass - 1].qName;
+        return settings.language == 1 ? kClassesVi[hc].qName : kClasses[hc].qName;
+    }
+    const char* QDesc() const {
+        int hc = std::max(0, std::min(3, player.heroClass));
+        if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].qDesc : kSubclasses[hc][player.subClass - 1].qDesc;
+        return settings.language == 1 ? kClassesVi[hc].qDesc : kClasses[hc].qDesc;
+    }
+    const char* EName() const {
+        int hc = std::max(0, std::min(3, player.heroClass));
+        if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].eName : kSubclasses[hc][player.subClass - 1].eName;
+        return settings.language == 1 ? kClassesVi[hc].eName : kClasses[hc].eName;
+    }
+    const char* EDesc() const {
+        int hc = std::max(0, std::min(3, player.heroClass));
+        if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].eDesc : kSubclasses[hc][player.subClass - 1].eDesc;
+        return settings.language == 1 ? kClassesVi[hc].eDesc : kClasses[hc].eDesc;
+    }
+    const char* RName() const {
+        int hc = std::max(0, std::min(3, player.heroClass));
+        if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].rName : kSubclasses[hc][player.subClass - 1].rName;
+        return settings.language == 1 ? kClassesVi[hc].rName : kClasses[hc].rName;
+    }
+    const char* RDesc() const {
+        int hc = std::max(0, std::min(3, player.heroClass));
+        if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].rDesc : kSubclasses[hc][player.subClass - 1].rDesc;
+        return settings.language == 1 ? kClassesVi[hc].rDesc : kClasses[hc].rDesc;
+    }
     static int ClassWeaponType(int heroClass) {
         int hc = std::max(0, std::min(3, heroClass));
         return kClasses[hc].startWeapon; // Knight: Sword, Assassin: Dagger, Mage: Staff, Ranger: Bow
@@ -996,6 +1226,7 @@ public:
     }
 
     void Init() {
+        InitGameFont();
         snd.Init();
         camera.zoom = 1.0f;
         camera.offset = { 1280 / 2.0f, 720 / 2.0f };
@@ -1068,14 +1299,39 @@ public:
         if (meta[7] > 0) GiveRandomRelic(); // Second Wind
     }
 
-    // ── Bioma: đổi màu phòng mỗi 3 tầng ──
-    struct BiomeColors { Color bg, tileA, tileB, wall, mote; };
-    BiomeColors Biome() {
-        switch (((floor - 1) / 3) % 4) {
-            case 1: return { { 16, 26, 20, 255 }, { 36, 54, 44, 255 }, { 30, 46, 38, 255 }, { 72, 105, 78, 255 }, { 170, 235, 150, 255 } };  // Overgrown Ruins
-            case 2: return { { 30, 16, 14, 255 }, { 62, 40, 38, 255 }, { 52, 33, 32, 255 }, { 130, 72, 52, 255 }, { 255, 160, 70, 255 } };   // Molten Depths
-            case 3: return { { 14, 24, 34, 255 }, { 42, 62, 78, 255 }, { 35, 54, 70, 255 }, { 120, 165, 195, 255 }, { 235, 245, 255, 255 } }; // Frozen Halls
-            default: return { { 20, 24, 32, 255 }, { 38, 44, 58, 255 }, { 32, 38, 50, 255 }, { 60, 70, 90, 255 }, { 190, 205, 235, 255 } };  // Ancient Crypt
+    // ── Bioma: 6 quần xã phong phú đổi màu & cảnh quan mỗi 2 tầng ──
+    struct BiomeColors {
+        Color bg, tileA, tileB, pathCol, trimCol, accentCol, wall, mote;
+        const char* nameEn;
+        const char* nameVi;
+    };
+    int BiomeIdx() const { return ((std::max(1, floor) - 1) / 2) % 6; }
+    BiomeColors Biome() const {
+        switch (BiomeIdx()) {
+            case 1: // Emerald Overgrown Ruins
+                return { { 18, 30, 22, 255 }, { 38, 66, 48, 255 }, { 28, 52, 38, 255 }, { 82, 76, 56, 255 },
+                         { 115, 225, 130, 255 }, { 255, 135, 195, 255 }, { 76, 118, 82, 255 }, { 170, 245, 155, 255 },
+                         "EMERALD GROVE RUINS", "TÀN TÍCH RỪNG NGỌC" };
+            case 2: // Obsidian Molten Forge
+                return { { 30, 16, 16, 255 }, { 48, 34, 36, 255 }, { 36, 24, 28, 255 }, { 84, 56, 40, 255 },
+                         { 255, 120, 40, 255 }, { 255, 205, 65, 255 }, { 128, 68, 48, 255 }, { 255, 165, 75, 255 },
+                         "MOLTEN FORGE DEPTHS", "LÒ RÈN DUNG NHAM" };
+            case 3: // Crystal Frost Sanctum
+                return { { 14, 24, 38, 255 }, { 40, 66, 92, 255 }, { 30, 52, 76, 255 }, { 74, 106, 138, 255 },
+                         { 125, 235, 255, 255 }, { 195, 155, 255, 255 }, { 112, 162, 198, 255 }, { 225, 248, 255, 255 },
+                         "CRYSTAL FROST SANCTUM", "THÁNH ĐIỆN BĂNG TINH" };
+            case 4: // Golden Sun Temple
+                return { { 32, 24, 16, 255 }, { 82, 62, 42, 255 }, { 68, 50, 34, 255 }, { 30, 88, 102, 255 },
+                         { 255, 210, 80, 255 }, { 85, 225, 205, 255 }, { 148, 108, 66, 255 }, { 255, 220, 125, 255 },
+                         "GOLDEN SUN TEMPLE", "ĐỀN MẶT TRỜI HOÀNG KIM" };
+            case 5: // Astral Void Nexus
+                return { { 18, 14, 34, 255 }, { 40, 28, 66, 255 }, { 30, 20, 52, 255 }, { 48, 64, 108, 255 },
+                         { 220, 95, 255, 255 }, { 95, 245, 255, 255 }, { 92, 66, 142, 255 }, { 215, 160, 255, 255 },
+                         "ASTRAL VOID NEXUS", "HƯ KHÔNG TINH TÚ" };
+            default: // Ancient Royal Crypt
+                return { { 18, 22, 34, 255 }, { 36, 44, 62, 255 }, { 28, 35, 50, 255 }, { 88, 30, 46, 255 },
+                         { 225, 180, 72, 255 }, { 95, 225, 255, 255 }, { 66, 78, 102, 255 }, { 195, 212, 245, 255 },
+                         "ROYAL ANCIENT CRYPT", "LĂNG MỘ HOÀNG GIA" };
         }
     }
 
@@ -1145,6 +1401,21 @@ public:
 
     // ── Nâng cấp ──
     std::string UpgradeTitle(UpgradeType u) {
+        if (settings.language == 1) {
+            switch (u) {
+                case UP_HP: return "Trái Tim Khổng Lồ";
+                case UP_DMG: return "Lưỡi Đao Sắc Bén";
+                case UP_SPEED: return "Thần Phong Bộ";
+                case UP_ATTACK_RATE: return "Cuồng Phong Trảm";
+                case UP_DASH: return "Tức Thời Bộ";
+                case UP_LIFESTEAL: return "Hút Máu Huyết Ma";
+                case UP_ARMOR: return "Giáp Thiết Thạch";
+                case UP_CRIT: return "Ưng Nhãn Chí Mạng";
+                case UP_NOVA: return "Tập Trung Ma Lực";
+                case UP_IGNITE: return "Lưỡi Kiếm Lửa";
+                case UP_FROST: return "Chạm Băng Giá";
+            }
+        }
         switch (u) {
             case UP_HP: return "Titan's Heart";
             case UP_DMG: return "Sharpened Edge";
@@ -1162,6 +1433,21 @@ public:
     }
 
     std::string UpgradeDesc(UpgradeType u) {
+        if (settings.language == 1) {
+            switch (u) {
+                case UP_HP: return "+25 Máu Tối Đa\n& Hồi Máu Ngay";
+                case UP_DMG: return "+8 Sát Thương\nCho mọi đòn đánh";
+                case UP_SPEED: return "+15% Tốc Độ Chạy\nNé đòn linh hoạt";
+                case UP_ATTACK_RATE: return "+30% Tốc Độ Đánh\nRa đòn nhanh hơn";
+                case UP_DASH: return "-0.2s Hồi Chiêu Lướt\nCơ động vượt trội";
+                case UP_LIFESTEAL: return "+" + FmtPct(LifestealStep()) + " Hút Máu\nHồi máu khi trúng đòn";
+                case UP_ARMOR: return "+2 Giáp Cố Định\nGiảm sát thương nhận";
+                case UP_CRIT: return "+8% Tỉ Lệ Chí Mạng\nĐòn chí mạng x2 ST";
+                case UP_NOVA: return "-12% Hồi Chiêu Q & E\nTung kỹ năng liên tục";
+                case UP_IGNITE: return "Đòn đánh Thiêu Đốt 3s\n+50% ST/s mỗi cấp";
+                case UP_FROST: return "Đòn đánh Làm Chậm 2s\n-15% tốc quái mỗi cấp";
+            }
+        }
         switch (u) {
             case UP_HP: return "+25 Max Health\n& Instant Recovery";
             case UP_DMG: return "+8 Melee Damage\nFor all attacks";
@@ -1200,12 +1486,12 @@ public:
             po.nextMod = -1;
             po.rewardKind = 0;
             if (nextF % 5 == 0) {
-                po.title = "BOSS GATE";
-                po.subtitle = "Defeat Boss for Relic";
+                po.title = L("BOSS GATE", "CỔNG TRÙM");
+                po.subtitle = L("Defeat Boss for Relic", "Diệt Trùm nhận Thánh Tích");
                 po.color = { 255, 85, 85, 255 };
             } else {
-                po.title = "MERCHANT SHOP";
-                po.subtitle = "Spend Gold & Heal";
+                po.title = L("MERCHANT SHOP", "TIỆM THƯƠNG NHÂN");
+                po.subtitle = L("Spend Gold & Heal", "Mua đồ & Hồi máu");
                 po.color = GOLD;
             }
             portalChoices.push_back(po);
@@ -1214,15 +1500,15 @@ public:
 
         struct Cand { int mod; int reward; const char* title; const char* sub; Color col; };
         Cand pool[4] = {
-            { MOD_ELITE,  0, "ELITE ARENA",     "High Gear Drops",    { 255, 165, 50, 255 } },
-            { MOD_SWARM,  1, "SWARM GAUNTLET",  "+Bonus Gold",        { 80, 235, 155, 255 } },
-            { MOD_SNIPER, 3, "SNIPER NEST",     "+40 Starting Rage",  { 255, 85, 105, 255 } },
-            { MOD_NONE,   2, "SANCTIFIED HALL", "+35% HP Recovery",   SKYBLUE }
+            { MOD_ELITE,  0, L("ELITE ARENA", "ĐẤU TRƯỜNG TINH ANH"),    L("High Gear Drops", "Tỉ lệ rơi đồ hiếm cao"), { 255, 165, 50, 255 } },
+            { MOD_SWARM,  1, L("SWARM GAUNTLET", "BẦY QUÁI ĐÔNG"),       L("+Bonus Gold", "+Thêm Vàng thưởng"),         { 80, 235, 155, 255 } },
+            { MOD_SNIPER, 3, L("SNIPER NEST", "Ổ XẠ THỦ"),               L("+40 Starting Rage", "+40 Nộ khởi đầu"),     { 255, 85, 105, 255 } },
+            { MOD_NONE,   2, L("SANCTIFIED HALL", "SẢNH THANH TẨY"),     L("+35% HP Recovery", "Hồi +35% Máu tối đa"),  SKYBLUE }
         };
         std::vector<Cand> cands(pool, pool + 4);
         for (int i = 3; i > 0; --i) std::swap(cands[i], cands[rand() % (i + 1)]);
         if (Rand01() < 0.22f) {
-            cands[2] = { MOD_TREASURE, 0, "TREASURE VAULT", "Free Vault Chest", { 195, 110, 255, 255 } };
+            cands[2] = { MOD_TREASURE, 0, L("TREASURE VAULT", "KHO BÁU CỔ"), L("Free Vault Chest", "Rương kho báu miễn phí"), { 195, 110, 255, 255 } };
         }
         Vector2 positions[3] = {
             portalPos,
@@ -3833,46 +4119,46 @@ public:
         switch (state) {
             case TITLE:
                 if (showHelp) {
-                    b.push_back({ { 540, 650, 200, 44 }, "CLOSE", UI_CLOSE_HELP, grey });
+                    b.push_back({ { 540, 650, 200, 44 }, L("CLOSE", "ĐÓNG"), UI_CLOSE_HELP, grey });
                 } else {
-                    b.push_back({ { 470, 392, 340, 56 }, "NEW GAME", UI_START, green });
-                    b.push_back({ { 470, 458, 340, 48 }, "LOAD GAME (4 SLOTS)", UI_SAVE_LOAD, teal });
-                    b.push_back({ { 470, 516, 166, 44 }, "SANCTUARY", UI_SANCT, purple });
-                    b.push_back({ { 644, 516, 166, 44 }, "SETTINGS", UI_SETTINGS, blue });
-                    b.push_back({ { 470, 570, 166, 40 }, "CONTROLS", UI_HELP, grey });
+                    b.push_back({ { 470, 392, 340, 56 }, L("NEW GAME", "CHƠI MỚI"), UI_START, green });
+                    b.push_back({ { 470, 458, 340, 48 }, L("LOAD GAME (4 SLOTS)", "TẢI GAME (4 Ô LƯU)"), UI_SAVE_LOAD, teal });
+                    b.push_back({ { 470, 516, 166, 44 }, L("SANCTUARY", "THÁNH ĐIỆN"), UI_SANCT, purple });
+                    b.push_back({ { 644, 516, 166, 44 }, L("SETTINGS", "CÀI ĐẶT"), UI_SETTINGS, blue });
+                    b.push_back({ { 470, 570, 166, 40 }, L("CONTROLS", "ĐIỀU KHIỂN"), UI_HELP, grey });
 #ifndef __ANDROID__
-                    b.push_back({ { 644, 570, 166, 40 }, "QUIT", UI_QUIT, red });
+                    b.push_back({ { 644, 570, 166, 40 }, L("QUIT", "THOÁT"), UI_QUIT, red });
 #endif
                 }
                 break;
             case PAUSED:
                 if (showHelp) {
-                    b.push_back({ { 540, 650, 200, 44 }, "CLOSE", UI_CLOSE_HELP, grey });
+                    b.push_back({ { 540, 650, 200, 44 }, L("CLOSE", "ĐÓNG"), UI_CLOSE_HELP, grey });
                 } else {
                     float y = 212;
-                    b.push_back({ { 480, y, 320, 38 }, "RESUME", UI_RESUME, green }); y += 43;
-                    b.push_back({ { 480, y, 320, 38 }, "SAVE / LOAD GAME", UI_SAVE_LOAD, teal }); y += 43;
-                    b.push_back({ { 480, y, 320, 38 }, "EQUIPMENT & SKILLS", UI_EQUIP, blue }); y += 43;
-                    b.push_back({ { 480, y, 320, 38 }, "CHANGE HERO", UI_CHANGE_CLASS, purple }); y += 43;
-                    b.push_back({ { 480, y, 320, 38 }, "SETTINGS", UI_SETTINGS, blue }); y += 43;
-                    b.push_back({ { 480, y, 320, 38 }, "RESTART RUN", UI_RESTART, purple }); y += 43;
-                    b.push_back({ { 480, y, 320, 38 }, "CONTROLS", UI_HELP, grey }); y += 43;
-                    b.push_back({ { 480, y, 320, 38 }, "MAIN MENU", UI_MAIN_MENU, red });
+                    b.push_back({ { 480, y, 320, 38 }, L("RESUME", "TIẾP TỤC"), UI_RESUME, green }); y += 43;
+                    b.push_back({ { 480, y, 320, 38 }, L("SAVE / LOAD GAME", "LƯU / TẢI GAME"), UI_SAVE_LOAD, teal }); y += 43;
+                    b.push_back({ { 480, y, 320, 38 }, L("EQUIPMENT & SKILLS", "TRANG BỊ & KỸ NĂNG"), UI_EQUIP, blue }); y += 43;
+                    b.push_back({ { 480, y, 320, 38 }, L("CHANGE HERO", "ĐỔI TƯỚNG"), UI_CHANGE_CLASS, purple }); y += 43;
+                    b.push_back({ { 480, y, 320, 38 }, L("SETTINGS", "CÀI ĐẶT"), UI_SETTINGS, blue }); y += 43;
+                    b.push_back({ { 480, y, 320, 38 }, L("RESTART RUN", "CHƠI LẠI"), UI_RESTART, purple }); y += 43;
+                    b.push_back({ { 480, y, 320, 38 }, L("CONTROLS", "ĐIỀU KHIỂN"), UI_HELP, grey }); y += 43;
+                    b.push_back({ { 480, y, 320, 38 }, L("MAIN MENU", "MENU CHÍNH"), UI_MAIN_MENU, red });
                 }
                 break;
             case GAME_OVER:
-                b.push_back({ { 510, 496, 260, 44 }, "PLAY AGAIN", UI_RESTART, red });
-                b.push_back({ { 510, 548, 260, 40 }, "CHANGE HERO", UI_CHANGE_CLASS, blue });
-                b.push_back({ { 510, 596, 260, 40 }, "SANCTUARY", UI_SANCT, purple });
-                b.push_back({ { 510, 644, 260, 40 }, "LOAD SAVE", UI_SAVE_LOAD, teal });
+                b.push_back({ { 510, 496, 260, 44 }, L("PLAY AGAIN", "CHƠI LẠI"), UI_RESTART, red });
+                b.push_back({ { 510, 548, 260, 40 }, L("CHANGE HERO", "ĐỔI TƯỚNG"), UI_CHANGE_CLASS, blue });
+                b.push_back({ { 510, 596, 260, 40 }, L("SANCTUARY", "THÁNH ĐIỆN"), UI_SANCT, purple });
+                b.push_back({ { 510, 644, 260, 40 }, L("LOAD SAVE", "TẢI BẢN LƯU"), UI_SAVE_LOAD, teal });
                 break;
             case INVENTORY:
-                b.push_back({ { 1040, 622, 146, 40 }, "CLOSE", UI_CLOSE_INV, grey });
+                b.push_back({ { 1040, 622, 146, 40 }, L("CLOSE", "ĐÓNG"), UI_CLOSE_INV, grey });
                 break;
             case META:
             case SHOP:
             case SAVE_LOAD:
-                b.push_back({ { 30, 28, 150, 44 }, "< BACK", UI_BACK, grey });
+                b.push_back({ { 30, 28, 150, 44 }, L("< BACK", "< QUAY LẠI"), UI_BACK, grey });
                 break;
             default:
                 break;
@@ -4175,16 +4461,16 @@ public:
 
     const char* RelicDesc(RelicType t) {
         switch (t) {
-            case RELIC_LIGHTNING: return "Hits arc lightning to a nearby enemy";
-            case RELIC_TOXIC: return "Hits poison enemies";
-            case RELIC_FROST: return "Crits freeze enemies";
-            case RELIC_AEGIS: return "Blocks one hit every 12s";
-            case RELIC_CHALICE: return "More healing drops";
-            case RELIC_COMBUSTION: return "Enemies explode on death";
-            case RELIC_PHOENIX: return "Revive once at half HP";
-            case RELIC_MIDAS: return "+50% gold, bigger pickup range";
-            case RELIC_BERSERK: return "+40% damage below 40% HP";
-            case RELIC_THORNS: return "Getting hurt unleashes a shockwave";
+            case RELIC_LIGHTNING:  return L("Hits arc lightning to a nearby enemy", "Đòn đánh phóng sét lan sang địch gần");
+            case RELIC_TOXIC:      return L("Hits poison enemies", "Đòn đánh gây độc lên kẻ địch");
+            case RELIC_FROST:      return L("Crits freeze enemies", "Đòn chí mạng đóng băng kẻ địch");
+            case RELIC_AEGIS:      return L("Blocks one hit every 12s", "Chặn 1 đòn mỗi 12 giây");
+            case RELIC_CHALICE:    return L("More healing drops", "Tăng tỉ lệ rơi cầu hồi máu");
+            case RELIC_COMBUSTION: return L("Enemies explode on death", "Kẻ địch phát nổ khi bị hạ");
+            case RELIC_PHOENIX:    return L("Revive once at half HP", "Hồi sinh 1 lần với 50% máu");
+            case RELIC_MIDAS:      return L("+50% gold, bigger pickup range", "+50% vàng & tầm nhặt rộng hơn");
+            case RELIC_BERSERK:    return L("+40% damage below 40% HP", "+40% sát thương khi máu < 40%");
+            case RELIC_THORNS:     return L("Getting hurt unleashes a shockwave", "Bị đánh sẽ nổ sóng xung kích");
         }
         return "";
     }
@@ -5367,20 +5653,20 @@ public:
         if (i < 0 || i > 4) return;
         ShopSlot& s = shopSlots[i];
         if (s.sold) return;
-        if (s.potion && player.hp >= player.maxHp) { ShowBanner("HP is already full!", 1.5f); return; }
+        if (s.potion && player.hp >= player.maxHp) { ShowBanner(L("HP is already full!", "Máu đã đầy!"), 1.5f); return; }
         if (!s.potion && hasEquip[s.item.slot] && s.item.Score() <= equipped[s.item.slot].Score()) {
-            ShowBanner("Not an upgrade - you already wear better!", 2.0f);
+            ShowBanner(L("Not an upgrade - you already wear better!", "Bạn đang mặc món mạnh hơn rồi!"), 2.0f);
             return;
         }
-        if (player.gold < s.price) { ShowBanner("Not enough Gold!", 1.5f); PlaySound(snd.sndHurt); return; }
+        if (player.gold < s.price) { ShowBanner(L("Not enough Gold!", "Không đủ Vàng!"), 1.5f); PlaySound(snd.sndHurt); return; }
         player.gold -= s.price;
         if (s.potion) {
             player.hp = std::min(player.maxHp, player.hp + s.heal);
-            ShowBanner("Healed " + std::to_string((int)s.heal) + " HP!", 2.0f);
+            ShowBanner(std::string(L("Healed ", "Đã hồi ")) + std::to_string((int)s.heal) + L(" HP!", " Máu!"), 2.0f);
         } else {
             int soldOld = 0;
-            if (TryEquipItem(s.item, soldOld)) ShowBanner("EQUIPPED: " + equipped[s.item.slot].name, 2.5f);
-            else { player.gold += s.item.SellValue(); ShowBanner("Bought & sold " + s.item.name, 2.0f); }
+            if (TryEquipItem(s.item, soldOld)) ShowBanner(std::string(L("EQUIPPED: ", "ĐÃ TRANG BỊ: ")) + equipped[s.item.slot].name, 2.5f);
+            else { player.gold += s.item.SellValue(); ShowBanner(std::string(L("Bought & sold ", "Đã mua & bán ")) + s.item.name, 2.0f); }
         }
         PlaySound(snd.sndCoin);
         s.sold = true;
@@ -5405,9 +5691,9 @@ public:
 
     void DrawShopScreen() {
         DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.84f));
-        const char* title = "MERCHANT'S SHOP";
+        const char* title = L("MERCHANT'S SHOP", "CỬA HÀNG THƯƠNG NHÂN");
         OutlinedText(title, 1280 / 2 - MeasureText(title, 44) / 2, 60, 44, GOLD, { 90, 50, 10, 255 });
-        std::string g = "Gold: " + std::to_string(player.gold);
+        std::string g = std::string(L("Gold: ", "Vàng: ")) + std::to_string(player.gold);
         DrawText(g.c_str(), 1280 / 2 - MeasureText(g.c_str(), 26) / 2, 118, 26, YELLOW);
         for (int i = 0; i < 5; ++i) {
             ShopSlot& s = shopSlots[i];
@@ -5423,8 +5709,8 @@ public:
                 DrawCircleV({ ic.x, ic.y + 8 }, 24.0f, { 220, 60, 90, 255 });
                 DrawRectangle((int)ic.x - 8, (int)ic.y - 22, 16, 14, { 190, 200, 220, 255 });
                 DrawCircleV({ ic.x - 8, ic.y }, 7.0f, Fade(WHITE, 0.5f));
-                DrawText("Healing Potion", (int)r.x + 12, (int)r.y + 124, 17, rc);
-                DrawText(TextFormat("Heals %d HP", (int)s.heal), (int)r.x + 12, (int)r.y + 156, 16, RAYWHITE);
+                DrawText(L("Healing Potion", "Bình Hồi Máu"), (int)r.x + 12, (int)r.y + 124, 17, rc);
+                DrawText(TextFormat(L("Heals %d HP", "Hồi %d Máu"), (int)s.heal), (int)r.x + 12, (int)r.y + 156, 16, RAYWHITE);
             } else {
                 DrawCircleV(ic, 34.0f, Fade(rc, 0.16f));
                 DrawItemIcon(s.item.slot, ic, 54.0f, rc, s.item.weaponType);
@@ -5441,18 +5727,19 @@ public:
             }
             if (s.sold) {
                 DrawRectangleRec(r, Fade(BLACK, 0.55f));
-                DrawText("SOLD", (int)r.x + 100 - MeasureText("SOLD", 30) / 2, (int)r.y + 150, 30, { 255, 120, 120, 255 });
+                const char* soldTxt = L("SOLD", "ĐÃ BÁN");
+                DrawText(soldTxt, (int)r.x + 100 - MeasureText(soldTxt, 28) / 2, (int)r.y + 150, 28, { 255, 120, 120, 255 });
             } else {
                 bool afford = player.gold >= s.price;
                 DrawRectangle((int)r.x + 10, (int)r.y + 296, 180, 32, afford ? Color{ 30, 80, 40, 255 } : Color{ 80, 30, 30, 255 });
                 DrawRectangleLines((int)r.x + 10, (int)r.y + 296, 180, 32, afford ? Color{ 120, 235, 140, 255 } : Color{ 235, 120, 120, 255 });
-                std::string pr = std::to_string(s.price) + " g";
+                std::string pr = std::to_string(s.price) + (settings.language == 1 ? " Vàng" : " g");
                 DrawText(pr.c_str(), (int)r.x + 100 - MeasureText(pr.c_str(), 20) / 2, (int)r.y + 302, 20, afford ? Color{ 255, 230, 120, 255 } : Color{ 255, 160, 160, 255 });
             }
         }
-        const char* foot = "1-5 / click / Enter: buy      A/D: select      Esc or F: leave";
+        const char* foot = L("1-5 / click / Enter: buy      A/D: select      Esc or F: leave", "1-5 / nhấp chuột / Enter: mua      A/D: chọn      Esc hoặc F: rời đi");
         DrawText(foot, 1280 / 2 - MeasureText(foot, 18) / 2, 550, 18, { 150, 165, 200, 255 });
-        const char* foot2 = "Gear you buy is equipped automatically if it beats what you wear.";
+        const char* foot2 = L("Gear you buy is equipped automatically if it beats what you wear.", "Trang bị vừa mua sẽ tự động mặc nếu mạnh hơn món hiện tại.");
         DrawText(foot2, 1280 / 2 - MeasureText(foot2, 16) / 2, 580, 16, { 120, 135, 165, 255 });
     }
 
@@ -5559,13 +5846,13 @@ public:
     void DrawMetaScreen() {
         float t = (float)GetTime();
         DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.88f));
-        const char* title = "SANCTUARY";
+        const char* title = L("SANCTUARY", "THÁNH ĐIỆN");
         OutlinedText(title, 1280 / 2 - MeasureText(title, 48) / 2, 40, 48, { 190, 150, 255, 255 }, { 40, 20, 80, 255 });
-        const char* sub = "Spend Souls on upgrades that last across every run";
+        const char* sub = L("Spend Souls on upgrades that last across every run", "Dùng Linh Hồn để nâng cấp chỉ số vĩnh viễn qua mọi lượt chơi");
         DrawText(sub, 1280 / 2 - MeasureText(sub, 18) / 2, 94, 18, { 160, 150, 200, 255 });
 
         // Linh hồn
-        std::string sv = "Souls: " + std::to_string(souls);
+        std::string sv = std::string(L("Souls: ", "Linh Hồn: ")) + std::to_string(souls);
         int sw = MeasureText(sv.c_str(), 28);
         float wx = 1280 / 2.0f - sw / 2.0f - 30.0f, wy = 126.0f + sinf(t * 3.0f) * 2.0f;
         BeginBlendMode(BLEND_ADDITIVE);
@@ -5584,8 +5871,8 @@ public:
             DrawRectangleRec(r, sel ? Color{ 40, 34, 70, 255 } : Color{ 22, 20, 40, 255 });
             DrawRectangleLinesEx(r, sel ? 2.0f : 1.0f, sel ? Color{ 190, 150, 255, 255 } : Color{ 60, 54, 100, 255 });
             DrawText(TextFormat("[%d]", i + 1), (int)r.x + 10, (int)r.y + 16, 16, { 140, 130, 190, 255 });
-            DrawText(kMeta[i].name, (int)r.x + 50, (int)r.y + 6, 20, maxed ? Color{ 255, 215, 90, 255 } : WHITE);
-            DrawText(kMeta[i].desc, (int)r.x + 50, (int)r.y + 29, 14, { 170, 180, 210, 255 });
+            DrawText(settings.language == 1 ? kMetaVi[i][0] : kMeta[i].name, (int)r.x + 50, (int)r.y + 6, 20, maxed ? Color{ 255, 215, 90, 255 } : WHITE);
+            DrawText(settings.language == 1 ? kMetaVi[i][1] : kMeta[i].desc, (int)r.x + 50, (int)r.y + 29, 14, { 170, 180, 210, 255 });
             // Các ô cấp độ
             int pips = kMeta[i].maxLevel;
             for (int k = 0; k < pips; ++k)
@@ -5595,7 +5882,8 @@ public:
             if (maxed) {
                 DrawRectangleRec(b, { 70, 56, 20, 255 });
                 DrawRectangleLinesEx(b, 1.0f, GOLD);
-                DrawText("MAX", (int)(b.x + b.width / 2) - MeasureText("MAX", 20) / 2, (int)b.y + 7, 20, GOLD);
+                const char* maxTxt = L("MAX", "TỐI ĐA");
+                DrawText(maxTxt, (int)(b.x + b.width / 2) - MeasureText(maxTxt, 18) / 2, (int)b.y + 8, 18, GOLD);
             } else {
                 DrawRectangleRec(b, afford ? Color{ 30, 80, 60, 255 } : Color{ 70, 30, 40, 255 });
                 DrawRectangleLinesEx(b, 1.0f, afford ? Color{ 120, 235, 170, 255 } : Color{ 235, 120, 130, 255 });
@@ -5604,7 +5892,7 @@ public:
             }
         }
         if (metaMsgTimer > 0) DrawText(metaMsg.c_str(), 1280 / 2 - MeasureText(metaMsg.c_str(), 22) / 2, 640, 22, GOLD);
-        const char* foot = "1-8 / click / Enter: buy      W/S: select      Esc: back";
+        const char* foot = L("1-8 / click / Enter: buy      W/S: select      Esc: back", "1-8 / nhấp chuột / Enter: nâng cấp      W/S: chọn      Esc: quay lại");
         DrawText(foot, 1280 / 2 - MeasureText(foot, 16) / 2, 676, 16, { 150, 160, 200, 255 });
     }
 
@@ -5633,6 +5921,7 @@ public:
             else if (k == "vignette") settings.vignette = v != 0;
             else if (k == "volume") settings.volume = std::max(0, std::min(10, v));
             else if (k == "difficulty") settings.difficulty = std::max(0, std::min(2, v));
+            else if (k == "language") settings.language = std::max(0, std::min(1, v));
             else if (k == "best") bestFloor = std::max(1, v);
             else if (k == "souls") souls = std::max(0, v);
             else if (k == "runs") runs = std::max(0, v);
@@ -5650,6 +5939,7 @@ public:
           << "\nvsync=" << settings.vsync << "\nfpsIndex=" << settings.fpsIndex << "\nshowFps=" << settings.showFps
           << "\nvibration=" << settings.vibration << "\nlighting=" << settings.lighting << "\nparticles=" << settings.particles
           << "\nvignette=" << settings.vignette << "\nvolume=" << settings.volume << "\ndifficulty=" << settings.difficulty
+          << "\nlanguage=" << settings.language
           << "\nbest=" << bestFloor << "\nsouls=" << souls << "\nruns=" << runs << "\nheroClass=" << selectedClass;
         for (int i = 0; i < 8; ++i) o << "\nmeta" << i << "=" << meta[i];
         o << "\n";
@@ -5676,22 +5966,26 @@ public:
     void ApplySettings() {
 #ifndef __ANDROID__
         if (lastAppliedWinMode != settings.windowMode || lastAppliedW != settings.resW || lastAppliedH != settings.resH) {
-            if (settings.windowMode != 2 && IsWindowFullscreen()) ToggleFullscreen();
-            if (settings.windowMode != 1 && IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE)) ToggleBorderlessWindowed();
+            if (IsWindowFullscreen()) ToggleFullscreen();
+            if (IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE)) ToggleBorderlessWindowed();
+
+            int mon = GetCurrentMonitor();
+            int mw = GetMonitorWidth(mon), mh = GetMonitorHeight(mon);
+            Vector2 mpos = GetMonitorPosition(mon);
 
             if (settings.windowMode == 1) {
-                if (!IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE)) ToggleBorderlessWindowed();
+                // Windowed Fullscreen thực sự: không viền và cao hơn màn hình 1px để driver OpenGL không tự chiếm Exclusive Fullscreen (Alt+Tab tức thì!)
+                SetWindowState(FLAG_WINDOW_UNDECORATED);
+                SetWindowPosition((int)mpos.x, (int)mpos.y);
+                SetWindowSize(mw, mh + 1);
             } else if (settings.windowMode == 2) {
-                int mon = GetCurrentMonitor();
-                SetWindowSize(GetMonitorWidth(mon), GetMonitorHeight(mon));
+                ClearWindowState(FLAG_WINDOW_UNDECORATED);
+                SetWindowSize(mw, mh);
                 if (!IsWindowFullscreen()) ToggleFullscreen();
             } else {
+                ClearWindowState(FLAG_WINDOW_UNDECORATED);
                 SetWindowSize(settings.resW, settings.resH);
-                if (lastAppliedWinMode == 1 || lastAppliedWinMode == 2) {
-                    int mon = GetCurrentMonitor();
-                    int mw = GetMonitorWidth(mon), mh = GetMonitorHeight(mon);
-                    SetWindowPosition(std::max(0, (mw - settings.resW) / 2), std::max(0, (mh - settings.resH) / 2));
-                }
+                SetWindowPosition((int)mpos.x + std::max(0, (mw - settings.resW) / 2), (int)mpos.y + std::max(0, (mh - settings.resH) / 2));
             }
             lastAppliedWinMode = settings.windowMode;
             lastAppliedW = settings.resW;
@@ -5727,31 +6021,33 @@ public:
             case 8: settings.vignette = !settings.vignette; break;
             case 9: settings.volume = std::max(0, std::min(10, settings.volume + d)); break;
             case 10: settings.difficulty = (settings.difficulty + d + 3) % 3; break;
+            case 11: settings.language = (settings.language + d + 2) % 2; break;
         }
     }
 
     std::string SettingValue(int row) {
 #ifdef __ANDROID__
-        if (row <= 2) return "Auto";
+        if (row <= 2) return L("Auto", "Tự động");
 #endif
         switch (row) {
-            case 0: return settings.windowMode == 1 ? "Desktop (Borderless)" : (settings.windowMode == 2 ? "Native (Fullscreen)" : std::to_string(settings.resW) + " x " + std::to_string(settings.resH));
-            case 1: return settings.windowMode == 0 ? "Windowed" : (settings.windowMode == 1 ? "Windowed Fullscreen" : "Fullscreen");
-            case 2: return settings.vsync ? "ON" : "OFF";
-            case 3: return kFpsOptions[settings.fpsIndex] == 0 ? "Unlimited" : std::to_string(kFpsOptions[settings.fpsIndex]);
-            case 4: return settings.showFps ? "ON" : "OFF";
-            case 5: return settings.vibration ? "ON" : "OFF";
-            case 6: return settings.lighting ? "ON" : "OFF";
-            case 7: return settings.particles == 0 ? "Low" : (settings.particles == 1 ? "Medium" : "High");
-            case 8: return settings.vignette ? "ON" : "OFF";
+            case 0: return settings.windowMode == 1 ? L("Desktop (Borderless)", "Màn hình (Không viền)") : (settings.windowMode == 2 ? L("Native (Fullscreen)", "Gốc (Toàn màn hình)") : std::to_string(settings.resW) + " x " + std::to_string(settings.resH));
+            case 1: return settings.windowMode == 0 ? L("Windowed", "Cửa sổ") : (settings.windowMode == 1 ? L("Windowed Fullscreen", "Toàn màn hình không viền") : L("Fullscreen", "Toàn màn hình"));
+            case 2: return settings.vsync ? L("ON", "BẬT") : L("OFF", "TẮT");
+            case 3: return kFpsOptions[settings.fpsIndex] == 0 ? L("Unlimited", "Không giới hạn") : std::to_string(kFpsOptions[settings.fpsIndex]);
+            case 4: return settings.showFps ? L("ON", "BẬT") : L("OFF", "TẮT");
+            case 5: return settings.vibration ? L("ON", "BẬT") : L("OFF", "TẮT");
+            case 6: return settings.lighting ? L("ON", "BẬT") : L("OFF", "TẮT");
+            case 7: return settings.particles == 0 ? L("Low", "Thấp") : (settings.particles == 1 ? L("Medium", "Trung bình") : L("High", "Cao"));
+            case 8: return settings.vignette ? L("ON", "BẬT") : L("OFF", "TẮT");
             case 9: return std::to_string(settings.volume * 10) + "%";
-            case 10: return settings.difficulty == 0 ? "Easy" : (settings.difficulty == 1 ? "Normal" : "Hard");
+            case 10: return settings.difficulty == 0 ? L("Easy", "Dễ") : (settings.difficulty == 1 ? L("Normal", "Thường") : L("Hard", "Khó"));
+            case 11: return settings.language == 1 ? "Tiếng Việt" : "English";
         }
         return "";
     }
 
     void UpdateSettingsMenu() {
-        const int rows = 12; // 11 mục + Back
+        const int rows = 13; // 12 mục + Quay lại
         if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) setSel = (setSel + 1) % rows;
         if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) setSel = (setSel + rows - 1) % rows;
         int delta = 0;
@@ -5760,7 +6056,7 @@ public:
 
         Vector2 m = GetMousePosition();
         for (int i = 0; i < rows; ++i) {
-            Rectangle r = { 330.0f, 138.0f + i * 36.0f, 620.0f, 32.0f };
+            Rectangle r = { 330.0f, 120.0f + i * 34.0f, 620.0f, 30.0f };
             if (CheckCollisionPointRec(m, r)) {
                 if (GetMouseDelta().x != 0 || GetMouseDelta().y != 0) setSel = i;
                 if (setSel == i) {
@@ -5771,7 +6067,7 @@ public:
         }
         if (EscPressed() || IsKeyPressed(KEY_BACKSPACE)) { state = settingsReturn; return; }
         if (delta != 0) {
-            if (setSel == 11) { state = settingsReturn; return; }
+            if (setSel == 12) { state = settingsReturn; return; }
             ChangeSetting(setSel, delta);
             SaveSettings();
             ApplySettings();
@@ -5780,42 +6076,55 @@ public:
 
     void DrawSettingsScreen() {
         DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.86f));
-        const char* title = "SETTINGS";
-        OutlinedText(title, 1280 / 2 - MeasureText(title, 48) / 2, 70, 48, GOLD, { 90, 50, 10, 255 });
-        static const char* labels[11] = { "Resolution", "Display Mode", "VSync", "FPS Limit", "Show FPS", "Vibration (shake + controller)", "Lighting", "Particles", "Vignette", "Volume", "Difficulty (next floors)" };
-        for (int i = 0; i < 12; ++i) {
-            Rectangle r = { 330.0f, 138.0f + i * 36.0f, 620.0f, 32.0f };
+        const char* title = L("SETTINGS", "CÀI ĐẶT");
+        OutlinedText(title, 1280 / 2 - MeasureText(title, 48) / 2, 54, 48, GOLD, { 90, 50, 10, 255 });
+        static const char* labelsEn[12] = { "Resolution", "Display Mode", "VSync", "FPS Limit", "Show FPS", "Vibration (shake + controller)", "Lighting", "Particles", "Vignette", "Volume", "Difficulty (next floors)", "Language" };
+        static const char* labelsVi[12] = { "Độ Phân Giải", "Chế Độ Màn Hình", "Đồng Bộ Dọc (VSync)", "Giới Hạn FPS", "Hiện FPS", "Rung (màn hình + tay cầm)", "Ánh Sáng", "Hiệu Ứng Hạt", "Viền Tối Màn Hình", "Âm Lượng", "Độ Khó (tầng tiếp theo)", "Ngôn Ngữ" };
+        for (int i = 0; i < 13; ++i) {
+            Rectangle r = { 330.0f, 120.0f + i * 34.0f, 620.0f, 30.0f };
             bool sel = (setSel == i);
             DrawRectangleRec(r, sel ? Color{ 40, 52, 84, 255 } : Color{ 20, 26, 42, 255 });
             if (sel) DrawRectangleLinesEx(r, 2.0f, GOLD);
-            if (i < 11) {
-                DrawText(labels[i], (int)r.x + 16, (int)r.y + 6, 20, sel ? WHITE : Color{ 190, 205, 235, 255 });
+            if (i < 12) {
+                DrawText(settings.language == 1 ? labelsVi[i] : labelsEn[i], (int)r.x + 16, (int)r.y + 5, 19, sel ? WHITE : Color{ 190, 205, 235, 255 });
                 std::string v = SettingValue(i);
-                Color vc = (v == "ON") ? Color{ 120, 235, 140, 255 } : (v == "OFF" ? Color{ 255, 130, 130, 255 } : Color{ 255, 215, 90, 255 });
+                bool isOn = (v == "ON" || v == "BẬT");
+                bool isOff = (v == "OFF" || v == "TẮT");
+                Color vc = isOn ? Color{ 120, 235, 140, 255 } : (isOff ? Color{ 255, 130, 130, 255 } : Color{ 255, 215, 90, 255 });
                 if (i == 1) vc = (settings.windowMode == 1) ? Color{ 110, 235, 195, 255 } : (settings.windowMode == 2 ? Color{ 120, 235, 140, 255 } : SKYBLUE);
-                int vw = MeasureText(v.c_str(), 20);
+                int vw = MeasureText(v.c_str(), 19);
                 if (i == 10) vc = settings.difficulty == 0 ? Color{ 120, 235, 140, 255 } : (settings.difficulty == 2 ? Color{ 255, 120, 110, 255 } : Color{ 255, 215, 90, 255 });
-                DrawText(v.c_str(), (int)(r.x + r.width) - 40 - vw, (int)r.y + 6, 20, vc);
+                if (i == 11) vc = Color{ 130, 220, 255, 255 };
+                DrawText(v.c_str(), (int)(r.x + r.width) - 40 - vw, (int)r.y + 5, 19, vc);
                 if (sel) {
-                    DrawText("<", (int)(r.x + r.width) - 40 - vw - 22, (int)r.y + 6, 20, GOLD);
-                    DrawText(">", (int)(r.x + r.width) - 28, (int)r.y + 6, 20, GOLD);
+                    DrawText("<", (int)(r.x + r.width) - 40 - vw - 22, (int)r.y + 5, 19, GOLD);
+                    DrawText(">", (int)(r.x + r.width) - 28, (int)r.y + 5, 19, GOLD);
                 }
                 if (i == 9) { // thanh âm lượng
                     for (int b = 0; b < 10; ++b)
-                        DrawRectangle((int)r.x + 220 + b * 12, (int)r.y + 9, 9, 14, b < settings.volume ? Color{ 255, 215, 90, 255 } : Color{ 50, 58, 84, 255 });
+                        DrawRectangle((int)r.x + 220 + b * 12, (int)r.y + 8, 9, 14, b < settings.volume ? Color{ 255, 215, 90, 255 } : Color{ 50, 58, 84, 255 });
                 }
             } else {
-                const char* back = "Back";
-                DrawText(back, (int)(r.x + r.width / 2) - MeasureText(back, 22) / 2, (int)r.y + 5, 22, sel ? WHITE : Color{ 190, 205, 235, 255 });
+                const char* back = L("Back", "Quay Lại");
+                DrawText(back, (int)(r.x + r.width / 2) - MeasureText(back, 21) / 2, (int)r.y + 5, 21, sel ? WHITE : Color{ 190, 205, 235, 255 });
             }
         }
-        DrawText("W/S or mouse: select     A/D, Enter or click: change     Esc: back", 1280 / 2 - MeasureText("W/S or mouse: select     A/D, Enter or click: change     Esc: back", 16) / 2, 590, 16, { 150, 165, 200, 255 });
-        DrawText("Resolution applies in windowed mode; fullscreen uses your desktop resolution. Settings are saved automatically.", 1280 / 2 - MeasureText("Resolution applies in windowed mode; fullscreen uses your desktop resolution. Settings are saved automatically.", 14) / 2, 616, 14, { 120, 135, 165, 255 });
+        const char* f1 = L("W/S or mouse: select     A/D, Enter or click: change     Esc: back", "W/S hoặc chuột: chọn     A/D, Enter hoặc nhấp: đổi     Esc: quay lại");
+        const char* f2 = L("Resolution applies in windowed mode; fullscreen uses your desktop resolution. Settings are saved automatically.", "Độ phân giải áp dụng ở chế độ Cửa sổ; Toàn màn hình dùng độ phân giải màn hình chính. Cài đặt tự lưu.");
+        DrawText(f1, 1280 / 2 - MeasureText(f1, 16) / 2, 582, 16, { 150, 165, 200, 255 });
+        DrawText(f2, 1280 / 2 - MeasureText(f2, 14) / 2, 610, 14, { 120, 135, 165, 255 });
     }
 
     // Vẽ khung 1280x720 lên cửa sổ với viền đen giữ tỉ lệ, và ánh xạ chuột về toạ độ ảo
     void Present() {
         int sw = GetScreenWidth(), sh = GetScreenHeight();
+#ifndef __ANDROID__
+        if (settings.windowMode == 1) {
+            int mon = GetCurrentMonitor();
+            sw = GetMonitorWidth(mon);
+            sh = GetMonitorHeight(mon);
+        }
+#endif
         float scale = std::min(sw / 1280.0f, sh / 720.0f);
         float dw = 1280.0f * scale, dh = 720.0f * scale;
         float dx = (sw - dw) * 0.5f, dy = (sh - dh) * 0.5f;
@@ -6018,10 +6327,10 @@ public:
         int px = 70, py = 46, pw = 1140, ph = 632;
         DrawRectangle(px, py, pw, ph, { 14, 18, 30, 248 });
         DrawRectangleLines(px, py, pw, ph, GOLD);
-        std::string title = std::string("EQUIPMENT & SKILLS  -  ") + HeroTitle();
+        std::string title = std::string(L("EQUIPMENT & SKILLS  -  ", "TRANG BỊ & KỸ NĂNG  -  ")) + HeroTitle();
         DrawText(title.c_str(), 1280 / 2 - MeasureText(title.c_str(), 30) / 2, py + 14, 30, HeroColor());
 
-        static const char* slotNames[4] = { "WEAPON", "ARMOR", "BOOTS", "RING" };
+        const char* slotNames[4] = { L("WEAPON", "VŨ KHÍ"), L("ARMOR", "ÁO GIÁP"), L("BOOTS", "GIÀY"), L("RING", "NHẪN") };
         int cw = 260, gap = 14, cx0 = px + (pw - (cw * 4 + gap * 3)) / 2, cy = py + 58, ch = 228;
         for (int i = 0; i < 4; ++i) {
             int cx = cx0 + i * (cw + gap);
@@ -6039,57 +6348,60 @@ public:
                 for (size_t k = 0; k < lines.size(); ++k) DrawText(lines[k].c_str(), cx + 12, cy + 148 + (int)k * 18, 15, RAYWHITE);
             } else {
                 DrawItemIcon(i, { (float)cx + cw / 2.0f, (float)cy + 66 }, 52.0f, { 60, 68, 90, 255 }, 0);
-                DrawText("- Empty -", cx + cw / 2 - MeasureText("- Empty -", 18) / 2, cy + 128, 18, { 110, 120, 145, 255 });
+                const char* empTxt = L("- Empty -", "- Trống -");
+                DrawText(empTxt, cx + cw / 2 - MeasureText(empTxt, 18) / 2, cy + 128, 18, { 110, 120, 145, 255 });
             }
         }
 
         // Chỉ số nhân vật
         int sy = cy + ch + 18;
-        DrawText("CHARACTER", px + 36, sy, 20, SKYBLUE);
+        DrawText(L("CHARACTER", "CHỈ SỐ NHÂN VẬT"), px + 36, sy, 20, SKYBLUE);
         char buf[96];
         auto stat = [&](int col, int row, const char* label, const std::string& val) {
             DrawText(label, px + 36 + col * 345, sy + 28 + row * 24, 16, { 170, 185, 215, 255 });
             DrawText(val.c_str(), px + 36 + col * 345 + 155, sy + 28 + row * 24, 16, WHITE);
         };
-        snprintf(buf, sizeof(buf), "%d / %d", (int)player.hp, (int)player.maxHp); stat(0, 0, "Health", buf);
-        snprintf(buf, sizeof(buf), "%.0f", player.baseDmg); stat(0, 1, "Damage", buf);
-        snprintf(buf, sizeof(buf), "%.1f", EffectiveArmor()); stat(0, 2, "Armor", buf);
-        snprintf(buf, sizeof(buf), "%.0f", EffectiveMoveSpeed()); stat(1, 0, "Move Speed", buf);
-        snprintf(buf, sizeof(buf), "%.2f /s", EffectiveAttackRate()); stat(1, 1, "Attack Speed", buf);
-        snprintf(buf, sizeof(buf), "%d%%", (int)roundf(std::min(0.6f, player.critChance) * 100)); stat(1, 2, "Crit Chance", buf);
-        stat(2, 0, "Lifesteal", FmtPct(std::min(LifestealCap() + 0.05f, player.lifesteal)));
-        snprintf(buf, sizeof(buf), "%.1fs", player.dashCooldown); stat(2, 1, "Dash Cooldown", buf);
-        snprintf(buf, sizeof(buf), "%.1fs / %.1fs", Skill1MaxCd(), Skill2MaxCd()); stat(2, 2, "Q / E Cooldown", buf);
-        std::string extra = "Rage: " + std::to_string((int)player.rage) + "/100   Ember Lv" + std::to_string(player.igniteLevel) + "   Frost Lv" + std::to_string(player.frostLevel);
+        snprintf(buf, sizeof(buf), "%d / %d", (int)player.hp, (int)player.maxHp); stat(0, 0, L("Health", "Máu"), buf);
+        snprintf(buf, sizeof(buf), "%.0f", player.baseDmg); stat(0, 1, L("Damage", "Sát Thương"), buf);
+        snprintf(buf, sizeof(buf), "%.1f", EffectiveArmor()); stat(0, 2, L("Armor", "Giáp"), buf);
+        snprintf(buf, sizeof(buf), "%.0f", EffectiveMoveSpeed()); stat(1, 0, L("Move Speed", "Tốc Chạy"), buf);
+        snprintf(buf, sizeof(buf), "%.2f /s", EffectiveAttackRate()); stat(1, 1, L("Attack Speed", "Tốc Đánh"), buf);
+        snprintf(buf, sizeof(buf), "%d%%", (int)roundf(std::min(0.6f, player.critChance) * 100)); stat(1, 2, L("Crit Chance", "Chí Mạng"), buf);
+        stat(2, 0, L("Lifesteal", "Hút Máu"), FmtPct(std::min(LifestealCap() + 0.05f, player.lifesteal)));
+        snprintf(buf, sizeof(buf), "%.1fs", player.dashCooldown); stat(2, 1, L("Dash Cooldown", "Hồi Lướt"), buf);
+        snprintf(buf, sizeof(buf), "%.1fs / %.1fs", Skill1MaxCd(), Skill2MaxCd()); stat(2, 2, L("Q / E Cooldown", "Hồi Chiêu Q/E"), buf);
+        std::string extra = std::string(L("Rage: ", "Nộ: ")) + std::to_string((int)player.rage) + "/100   "
+                          + L("Ember Lv", "Lửa Cấp ") + std::to_string(player.igniteLevel) + "   "
+                          + L("Frost Lv", "Băng Cấp ") + std::to_string(player.frostLevel);
         DrawText(extra.c_str(), px + pw - 36 - MeasureText(extra.c_str(), 15), sy + 2, 15, { 150, 165, 200, 255 });
 
         // Bộ 4 kỹ năng của Class / Nhánh phụ
         int ky = sy + 106;
-        DrawText("SKILLS", px + 36, ky, 18, HeroAccent());
-        const char* tags[4] = { "[PASSIVE]", "[Q]", "[E]", "[R] RAGE" };
+        DrawText(L("SKILLS", "BỘ KỸ NĂNG"), px + 36, ky, 18, HeroAccent());
+        const char* tags[4] = { L("[PASSIVE]", "[NỘI TẠI]"), "[Q]", "[E]", L("[R] RAGE", "[R] NỘ") };
         const char* sNames[4] = { PassiveName(), QName(), EName(), RName() };
         const char* sDescs[4] = { PassiveDesc(), QDesc(), EDesc(), RDesc() };
         for (int s = 0; s < 4; ++s) {
             int rowY = ky + 24 + s * 22;
             DrawText(tags[s], px + 36, rowY, 15, s == 3 ? ORANGE : (s == 0 ? HeroColor() : SKYBLUE));
             DrawText(sNames[s], px + 132, rowY, 15, WHITE);
-            DrawText(sDescs[s], px + 315, rowY, 14, { 190, 205, 230, 255 });
+            DrawText(sDescs[s], px + 325, rowY, 14, { 190, 205, 230, 255 });
         }
 
         if (!player.relics.empty()) {
-            DrawText("RELICS", px + 36, py + ph - 92, 15, SKYBLUE);
-            int rx = px + 110, ry = py + ph - 92;
+            DrawText(L("RELICS", "THÁNH TÍCH"), px + 36, py + ph - 92, 15, SKYBLUE);
+            int rx = px + 132, ry = py + ph - 92;
             for (const auto& r : player.relics) {
                 std::string label = r.name + " (" + RelicDesc(r.type) + ")";
                 int w = MeasureText(label.c_str(), 13) + 24;
-                if (rx + w > px + pw - 20) { rx = px + 110; ry += 16; }
+                if (rx + w > px + pw - 20) { rx = px + 132; ry += 16; }
                 DrawCircle(rx + 5, ry + 7, 4.5f, r.color);
                 DrawText(label.c_str(), rx + 14, ry + 1, 13, r.color);
                 rx += w + 12;
             }
         }
-        DrawText("Gear drops from enemies. Better gear equips automatically; weaker gear sells for gold.", px + 36, py + ph - 46, 15, { 170, 185, 215, 255 });
-        DrawText("Press I or Esc to close", px + 36, py + ph - 24, 15, { 120, 135, 165, 255 });
+        DrawText(L("Gear drops from enemies. Better gear equips automatically; weaker gear sells for gold.", "Trang bị rơi từ quái. Đồ mạnh hơn tự mặc ngay; đồ yếu hơn tự bán thành vàng."), px + 36, py + ph - 46, 15, { 170, 185, 215, 255 });
+        DrawText(L("Press I or Esc to close", "Nhấn I hoặc Esc để đóng"), px + 36, py + ph - 24, 15, { 120, 135, 165, 255 });
     }
 
     // ── Môi trường: tường gạch, decal, đuốc, cột, ánh sáng ──
@@ -6105,13 +6417,14 @@ public:
             torches.push_back({ -hw - 22.0f, y });
             torches.push_back({ hw + 22.0f, y + 120.0f });
         }
-        for (int i = 0; i < 34; ++i) {
+        for (int i = 0; i < 52; ++i) {
             Decal d;
-            d.pos = { (Rand01() - 0.5f) * (roomW - 90.0f), (Rand01() - 0.5f) * (roomH - 90.0f) };
+            d.pos = { (Rand01() - 0.5f) * (roomW - 96.0f), (Rand01() - 0.5f) * (roomH - 96.0f) };
+            if (Vector2Length(d.pos) < 92.0f) d.pos.x += (d.pos.x >= 0 ? 110.0f : -110.0f);
             d.angle = Rand01() * 360.0f;
-            d.size = 10.0f + 24.0f * Rand01();
+            d.size = 11.0f + 24.0f * Rand01();
             float r = Rand01();
-            d.type = r < 0.35f ? 0 : (r < 0.55f ? 1 : (r < 0.72f ? 2 : 3));
+            d.type = r < 0.25f ? 0 : (r < 0.45f ? 1 : (r < 0.65f ? 2 : 3));
             decals.push_back(d);
         }
     }
@@ -6142,73 +6455,105 @@ public:
     }
 
     void DrawDecals(const BiomeColors& biome) {
-        int bi = ((floor - 1) / 3) % 4;
+        int bi = BiomeIdx();
+        float tm = (float)GetTime();
         for (const auto& d : decals) {
             Vector2 p = d.pos;
             float a = d.angle * DEG2RAD, s = d.size;
-            if (d.type == 0) { // vết nứt
+            if (d.type == 0) { // vết nứt / mạch năng lượng
                 Vector2 p1 = { p.x + cosf(a) * s, p.y + sinf(a) * s };
                 Vector2 p2 = { p1.x + cosf(a + 0.7f) * s * 0.7f, p1.y + sinf(a + 0.7f) * s * 0.7f };
                 Vector2 p0 = { p.x - cosf(a - 0.4f) * s * 0.8f, p.y - sinf(a - 0.4f) * s * 0.8f };
-                Color cc = (bi == 2) ? Color{ 255, 120, 40, 210 } : Fade(BLACK, 0.40f);
+                Color cc = (bi == 2) ? Color{ 255, 130, 45, 220 } : (bi == 5 ? Fade(biome.trimCol, 0.50f) : Fade(BLACK, 0.38f));
                 DrawLineEx(p0, p, 2.0f, cc);
                 DrawLineEx(p, p1, 2.0f, cc);
                 DrawLineEx(p1, p2, 1.5f, cc);
-            } else if (d.type == 1) { // vết bẩn
-                DrawEllipse((int)p.x, (int)p.y, s * 1.2f, s * 0.7f, Fade(bi == 1 ? Color{ 20, 80, 30, 255 } : BLACK, 0.18f));
-            } else if (d.type == 2) { // sỏi
+            } else if (d.type == 1) { // thảm cỏ, vệt dầu, vệt rune
+                Color pc = (bi == 1) ? Color{ 55, 155, 72, 95 }
+                         : (bi == 3 ? Color{ 165, 225, 255, 55 }
+                         : (bi == 4 ? Color{ 35, 175, 185, 95 }
+                         : (bi == 5 ? Fade(biome.trimCol, 0.22f) : Fade(BLACK, 0.20f))));
+                DrawEllipse((int)p.x, (int)p.y, s * 1.25f, s * 0.75f, pc);
+                if (bi == 4 || bi == 5) DrawEllipseLines((int)p.x, (int)p.y, s * 1.25f, s * 0.75f, Fade(biome.accentCol, 0.42f));
+            } else if (d.type == 2) { // cụm sỏi / tinh thể nhỏ / cánh hoa
                 for (int i = 0; i < 3; ++i) {
                     Vector2 q = { p.x + cosf(a + i * 2.1f) * s * 0.5f, p.y + sinf(a + i * 2.1f) * s * 0.35f };
-                    DrawCircleV({ q.x, q.y + 1.5f }, 3.0f + i, Fade(BLACK, 0.3f));
-                    DrawCircleV(q, 2.6f + i, Shade(biome.tileA, 1.45f));
+                    DrawCircleV({ q.x, q.y + 1.5f }, 3.0f + i, Fade(BLACK, 0.28f));
+                    Color gc = (bi == 1 && i == 1) ? biome.accentCol : (bi == 3 ? biome.trimCol : Shade(biome.tileA, 1.55f));
+                    DrawCircleV(q, 2.6f + i, gc);
                 }
-            } else { // đồ trang trí theo bioma
-                if (bi == 0) { // xương
-                    Vector2 d1 = { cosf(a) * s * 0.6f, sinf(a) * s * 0.6f };
-                    Vector2 d2 = { cosf(a + 1.2f) * s * 0.6f, sinf(a + 1.2f) * s * 0.6f };
-                    Color bone = { 214, 208, 190, 255 };
-                    DrawLineEx({ p.x - d1.x, p.y - d1.y }, { p.x + d1.x, p.y + d1.y }, 3.0f, bone);
-                    DrawLineEx({ p.x - d2.x, p.y - d2.y }, { p.x + d2.x, p.y + d2.y }, 3.0f, bone);
-                    DrawCircleV({ p.x + d1.x, p.y + d1.y }, 2.5f, bone);
-                    DrawCircleV({ p.x - d2.x, p.y - d2.y }, 2.5f, bone);
-                } else if (bi == 1) { // rêu
-                    for (int i = 0; i < 5; ++i)
-                        DrawCircleV({ p.x + cosf(a + i * 1.3f) * s * 0.6f, p.y + sinf(a + i * 1.3f) * s * 0.4f }, 4.0f + (i % 3) * 2.0f, Fade({ 90, 170, 80, 255 }, 0.32f));
-                } else if (bi == 2) { // vũng dung nham
-                    DrawEllipse((int)p.x, (int)p.y, s * 0.9f, s * 0.5f, Fade({ 255, 90, 20, 255 }, 0.35f));
-                    DrawEllipse((int)p.x, (int)p.y, s * 0.5f, s * 0.28f, Fade({ 255, 200, 60, 255 }, 0.45f));
-                } else { // mảnh băng
+            } else { // phong cảnh đặc trưng cho từng Biome
+                if (bi == 0) { // Royal Crypt: ấn ký cổ & xương chiến binh
+                    DrawCircleLines((int)p.x, (int)p.y, s * 0.75f, Fade(biome.accentCol, 0.45f));
+                    Diamond(p, s * 0.30f, s * 0.30f, Fade(biome.trimCol, 0.70f), Fade(biome.accentCol, 0.85f));
+                    Vector2 d1 = { cosf(a) * s * 0.55f, sinf(a) * s * 0.55f };
+                    Color bone = { 218, 212, 196, 255 };
+                    DrawLineEx({ p.x - d1.x, p.y - d1.y }, { p.x + d1.x, p.y + d1.y }, 2.6f, bone);
+                    DrawCircleV({ p.x + d1.x, p.y + d1.y }, 2.4f, bone);
+                } else if (bi == 1) { // Emerald Grove: bụi dương xỉ & hoa pha lê nở rực rỡ
+                    for (int i = 0; i < 5; ++i) {
+                        float aa = a + i * 1.25f;
+                        DrawEllipse((int)(p.x + cosf(aa) * s * 0.35f), (int)(p.y + sinf(aa) * s * 0.35f), s * 0.34f, s * 0.18f, { 55, 165, 78, 215 });
+                    }
+                    float sway = sinf(tm * 2.5f + p.x) * 1.5f;
+                    Diamond({ p.x + sway, p.y - 2.0f }, 5.5f, 5.5f, biome.accentCol, WHITE);
+                    DrawCircleV({ p.x + sway, p.y - 2.0f }, 2.2f, GOLD);
+                } else if (bi == 2) { // Molten Forge: hồ dung nham sôi & vỉ sắt đồng
+                    DrawEllipse((int)p.x, (int)p.y, s * 0.95f, s * 0.55f, Fade({ 255, 85, 20, 255 }, 0.48f));
+                    DrawEllipse((int)p.x, (int)p.y, s * 0.52f, s * 0.28f, Fade({ 255, 215, 75, 255 }, 0.65f));
+                    DrawEllipseLines((int)p.x, (int)p.y, s * 0.95f, s * 0.55f, { 110, 75, 50, 200 });
+                } else if (bi == 3) { // Crystal Frost: cụm tinh thể băng & hoa tuyết
                     for (int i = 0; i < 3; ++i) {
                         float aa = a + i * 2.1f;
-                        Tri({ p.x, p.y }, { p.x + cosf(aa) * s * 0.7f, p.y + sinf(aa) * s * 0.7f }, { p.x + cosf(aa + 0.35f) * s * 0.4f, p.y + sinf(aa + 0.35f) * s * 0.4f }, Fade({ 220, 240, 255, 255 }, 0.55f));
+                        Tri({ p.x, p.y }, { p.x + cosf(aa) * s * 0.72f, p.y + sinf(aa) * s * 0.72f },
+                            { p.x + cosf(aa + 0.38f) * s * 0.45f, p.y + sinf(aa + 0.38f) * s * 0.45f },
+                            i == 0 ? Fade(biome.accentCol, 0.75f) : Fade({ 185, 238, 255, 255 }, 0.72f));
                     }
+                    Diamond(p, 4.0f, 6.0f, WHITE, biome.trimCol);
+                } else if (bi == 4) { // Golden Sun Temple: hồ nước ngọc ốc đảo & biểu tượng mặt trời vàng
+                    DrawEllipse((int)p.x, (int)p.y, s * 1.05f, s * 0.62f, Fade({ 35, 195, 205, 255 }, 0.42f));
+                    DrawEllipseLines((int)p.x, (int)p.y, s * (0.65f + 0.12f * sinf(tm * 3.0f + p.x)), s * 0.38f, Fade({ 180, 255, 245, 255 }, 0.55f));
+                    DrawCircleLines((int)p.x, (int)p.y, s * 0.36f, Fade(GOLD, 0.75f));
+                    DrawCircleV(p, 3.0f, GOLD);
+                } else { // Astral Void: chòm sao phát sáng & mảnh tinh tú
+                    Vector2 p1 = { p.x + cosf(a) * s * 0.8f, p.y + sinf(a) * s * 0.8f };
+                    Vector2 p2 = { p.x + cosf(a + 2.2f) * s * 0.75f, p.y + sinf(a + 2.2f) * s * 0.75f };
+                    DrawLineEx(p, p1, 1.6f, Fade(biome.accentCol, 0.55f));
+                    DrawLineEx(p1, p2, 1.4f, Fade(biome.trimCol, 0.50f));
+                    Diamond(p, 4.5f, 4.5f, biome.trimCol, WHITE);
+                    Diamond(p1, 3.5f, 3.5f, biome.accentCol, WHITE);
+                    Diamond(p2, 3.0f, 3.0f, WHITE, biome.trimCol);
                 }
             }
         }
     }
 
     void DrawPillar(Vector2 p, const BiomeColors& biome) {
-        int bi = ((floor - 1) / 3) % 4;
-        Color stone = Shade(biome.wall, 1.18f);
+        int bi = BiomeIdx();
+        Color stone = Shade(biome.wall, 1.22f);
         Color ink = Shade(stone, 0.32f);
         DrawEllipse((int)p.x + 3, (int)p.y + 15, 32.0f, 13.0f, Fade(BLACK, 0.42f));
         // Chân cột đá vuông vát cạnh + thân bát giác + đỉnh cột chạm khắc 3D
-        BoxRot({ p.x, p.y + 4.0f }, 52.0f, 44.0f, 0.0f, Shade(stone, 0.58f), ink, 1.8f);
-        DrawPoly({ p.x, p.y - 2.0f }, 8, 24.5f, 22.5f, Shade(stone, 0.80f));
+        BoxRot({ p.x, p.y + 4.0f }, 52.0f, 44.0f, 0.0f, Shade(stone, 0.60f), ink, 1.8f);
+        DrawPoly({ p.x, p.y - 2.0f }, 8, 24.5f, 22.5f, Shade(stone, 0.82f));
         DrawPolyLinesEx({ p.x, p.y - 2.0f }, 8, 24.5f, 22.5f, 1.8f, ink);
         BoxRot({ p.x, p.y - 10.0f }, 42.0f, 36.0f, 0.0f, stone, ink, 1.8f);
-        BoxRot({ p.x, p.y - 11.0f }, 26.0f, 22.0f, 0.0f, Shade(stone, 1.24f), Shade(stone, 0.65f), 1.4f);
+        BoxRot({ p.x, p.y - 11.0f }, 26.0f, 22.0f, 0.0f, Shade(stone, 1.24f), biome.trimCol, 1.4f);
         DrawLineEx({ p.x - 20.0f, p.y - 28.0f }, { p.x + 20.0f, p.y - 28.0f }, 2.0f, Fade(WHITE, 0.25f));
-        DrawLineEx({ p.x + 5.0f, p.y - 14.0f }, { p.x + 12.0f, p.y - 3.0f }, 2.0f, Fade(BLACK, 0.35f));
-        DrawLineEx({ p.x + 12.0f, p.y - 3.0f }, { p.x + 7.0f, p.y + 9.0f }, 2.0f, Fade(BLACK, 0.35f));
-        if (bi == 1) { // rêu phủ góc cột
-            Tri({ p.x + 6.0f, p.y + 8.0f }, { p.x + 22.0f, p.y + 6.0f }, { p.x + 17.0f, p.y + 20.0f }, Fade({ 85, 175, 78, 255 }, 0.72f));
-        }
-        if (bi == 2) { // mạch dung nham nứt
+        if (bi == 0) {
+            Diamond({ p.x, p.y - 11.0f }, 5.0f, 5.0f, biome.trimCol, WHITE);
+        } else if (bi == 1) { // rêu & hoa trên cột
+            Tri({ p.x + 6.0f, p.y + 8.0f }, { p.x + 22.0f, p.y + 6.0f }, { p.x + 17.0f, p.y + 20.0f }, Fade({ 85, 195, 88, 255 }, 0.82f));
+            Diamond({ p.x + 15.0f, p.y + 11.0f }, 3.2f, 3.2f, biome.accentCol, WHITE);
+        } else if (bi == 2) { // mạch dung nham nứt
             DrawLineEx({ p.x - 10.0f, p.y + 5.0f }, { p.x + 3.0f, p.y + 16.0f }, 2.5f, { 255, 130, 40, 255 });
-        }
-        if (bi == 3) { // mảnh băng trên đỉnh cột
-            Tri({ p.x - 14.0f, p.y - 18.0f }, { p.x - 2.0f, p.y - 26.0f }, { p.x + 10.0f, p.y - 16.0f }, Fade({ 220, 244, 255, 255 }, 0.75f));
+        } else if (bi == 3) { // mảnh băng trên đỉnh cột
+            Tri({ p.x - 14.0f, p.y - 18.0f }, { p.x - 2.0f, p.y - 26.0f }, { p.x + 10.0f, p.y - 16.0f }, Fade({ 220, 244, 255, 255 }, 0.82f));
+        } else if (bi == 4) { // biểu tượng mặt trời vàng
+            DrawCircleV({ p.x, p.y - 11.0f }, 6.0f, GOLD);
+            DrawCircleV({ p.x, p.y - 11.0f }, 2.8f, biome.accentCol);
+        } else { // tinh thể tím phát sáng
+            Diamond({ p.x, p.y - 11.0f }, 5.5f, 7.0f, biome.trimCol, biome.accentCol);
         }
     }
 
@@ -6234,8 +6579,15 @@ public:
     // Bản đồ ánh sáng nhân với cảnh: xa nguồn sáng thì tối dần
     void RenderLightmap() {
         if (lightmap.id == 0) return;
-        static const Color ambients[4] = { { 134, 142, 172, 255 }, { 136, 158, 138, 255 }, { 170, 132, 120, 255 }, { 142, 164, 196, 255 } };
-        Color amb = ambients[((floor - 1) / 3) % 4];
+        static const Color ambients[6] = {
+            { 148, 156, 188, 255 }, // 0: Crypt
+            { 150, 178, 152, 255 }, // 1: Emerald Grove
+            { 182, 144, 132, 255 }, // 2: Molten Forge
+            { 152, 178, 210, 255 }, // 3: Crystal Frost
+            { 188, 168, 138, 255 }, // 4: Golden Sun
+            { 156, 140, 194, 255 }  // 5: Astral Void
+        };
+        Color amb = ambients[BiomeIdx()];
         float tm = (float)GetTime();
 
         BeginTextureMode(lightmap);
@@ -6433,13 +6785,17 @@ public:
     void DrawClassSelectScreen() {
         float t = (float)GetTime();
         DrawRectangleGradientV(0, 0, 1280, 720, Fade({ 8, 10, 18, 255 }, 0.92f), Fade({ 12, 16, 28, 255 }, 0.88f));
-        const char* hdr = "CHOOSE YOUR HERO";
+        const char* hdr = L("CHOOSE YOUR HERO", "CHỌN NHÂN VẬT");
         OutlinedText(hdr, 1280 / 2 - MeasureText(hdr, 42) / 2, 22, 42, GOLD, { 80, 40, 10, 255 });
 
         const int cardW = 285, gap = 16, x0 = (1280 - (cardW * 4 + gap * 3)) / 2, cy = 84, cardH = 532;
-        static const char* wpNames[8] = { "Sword", "Dagger", "Axe", "Spear", "Hammer", "Scythe", "Bow", "Staff" };
+        static const char* wpNamesEn[8] = { "Sword", "Dagger", "Axe", "Spear", "Hammer", "Scythe", "Bow", "Staff" };
+        static const char* wpNamesVi[8] = { "Kiếm", "Dao Găm", "Rìu", "Thương", "Búa", "Lưỡi Hái", "Cung", "Quyền Trượng" };
         for (int i = 0; i < 4; ++i) {
             const ClassDef& cd = kClasses[i];
+            const ClassTextVi& vi = kClassesVi[i];
+            const char* cname = settings.language == 1 ? vi.name : cd.name;
+            const char* crole = settings.language == 1 ? vi.role : cd.role;
             int cx = x0 + i * (cardW + gap);
             bool sel = (classSel == i);
             Rectangle r = { (float)cx, (float)cy, (float)cardW, (float)cardH };
@@ -6448,8 +6804,8 @@ public:
             DrawRectangleLinesEx(r, sel ? 3.0f : 1.5f, sel ? GOLD : Fade(cd.color, 0.55f));
 
             DrawText(TextFormat("[%d]", i + 1), cx + 10, cy + 12, 16, GOLD);
-            DrawText(cd.name, cx + 40, cy + 8, 20, sel ? WHITE : cd.color);
-            DrawText(cd.role, cx + 40, cy + 28, 12, { 185, 198, 225, 255 });
+            DrawText(cname, cx + 40, cy + 8, 20, sel ? WHITE : cd.color);
+            DrawText(crole, cx + 40, cy + 28, 12, { 185, 198, 225, 255 });
 
             // Xem trước nhân vật sống động
             Vector2 prevPos = { cx + cardW / 2.0f, (float)cy + 102.0f };
@@ -6460,18 +6816,28 @@ public:
             // Chỉ số cơ bản + nhánh Chuyển Chức Lv.5
             int stY = cy + 146;
             DrawRectangle(cx + 10, stY, cardW - 20, 68, { 12, 15, 26, 220 });
-            DrawText(TextFormat("HP: %d   DMG: %d   ARM: %.1f", (int)cd.baseHp, (int)cd.baseDmg, cd.baseArmor), cx + 18, stY + 6, 13, RAYWHITE);
-            DrawText(TextFormat("SPD: %d   ATK: %.1f/s   CRIT: %d%%", (int)cd.baseSpeed, cd.baseAtkRate, (int)roundf(cd.baseCrit * 100)), cx + 18, stY + 21, 13, SKYBLUE);
-            DrawText(TextFormat("Weapon: %s", wpNames[cd.startWeapon]), cx + 18, stY + 36, 13, GOLD);
-            std::string brTxt = std::string("Lv.5: ") + kSubclasses[i][0].name + " / " + kSubclasses[i][1].name;
-            if ((int)brTxt.size() > 38) brTxt = std::string("Lv.5: ") + kSubclasses[i][0].name + " | ...";
+            DrawText(TextFormat(L("HP: %d   DMG: %d   ARM: %.1f", "Máu: %d  ST: %d  Giáp: %.1f"), (int)cd.baseHp, (int)cd.baseDmg, cd.baseArmor), cx + 18, stY + 6, 13, RAYWHITE);
+            DrawText(TextFormat(L("SPD: %d   ATK: %.1f/s   CRIT: %d%%", "Chạy: %d  Đánh: %.1f/s  CM: %d%%"), (int)cd.baseSpeed, cd.baseAtkRate, (int)roundf(cd.baseCrit * 100)), cx + 18, stY + 21, 13, SKYBLUE);
+            DrawText(TextFormat(L("Weapon: %s", "Vũ Khí: %s"), settings.language == 1 ? wpNamesVi[cd.startWeapon] : wpNamesEn[cd.startWeapon]), cx + 18, stY + 36, 13, GOLD);
+            std::string brTxt = std::string(L("Lv.5: ", "Cấp 5: ")) + SubDisplayName(i, 1) + " / " + SubDisplayName(i, 2);
+            if (MeasureText(brTxt.c_str(), 11) > cardW - 28) brTxt = std::string(L("Lv.5: ", "Cấp 5: ")) + SubDisplayName(i, 1) + " | ...";
             DrawText(brTxt.c_str(), cx + 18, stY + 51, 11, cd.accent);
 
             // 4 kỹ năng: 1 Passive, 2 thường (Q, E), 1 Nộ (R)
             int sy = stY + 74;
-            const char* tags[4] = { "PASSIVE", "SKILL [Q]", "SKILL [E]", "ULTIMATE [R]" };
-            const char* sn[4] = { cd.passiveName, cd.qName, cd.eName, cd.rName };
-            const char* sd[4] = { cd.passiveDesc, cd.qDesc, cd.eDesc, cd.rDesc };
+            const char* tags[4] = { L("PASSIVE", "NỘI TẠI"), L("SKILL [Q]", "CHIÊU [Q]"), L("SKILL [E]", "CHIÊU [E]"), L("ULTIMATE [R]", "TUYỆT KỸ [R]") };
+            const char* sn[4] = {
+                settings.language == 1 ? vi.passiveName : cd.passiveName,
+                settings.language == 1 ? vi.qName       : cd.qName,
+                settings.language == 1 ? vi.eName       : cd.eName,
+                settings.language == 1 ? vi.rName       : cd.rName
+            };
+            const char* sd[4] = {
+                settings.language == 1 ? vi.passiveDesc : cd.passiveDesc,
+                settings.language == 1 ? vi.qDesc       : cd.qDesc,
+                settings.language == 1 ? vi.eDesc       : cd.eDesc,
+                settings.language == 1 ? vi.rDesc       : cd.rDesc
+            };
             Color sCol[4] = { cd.color, SKYBLUE, { 110, 235, 175, 255 }, ORANGE };
             for (int k = 0; k < 4; ++k) {
                 int boxY = sy + k * 76;
@@ -6484,13 +6850,12 @@ public:
             }
         }
 
-        const ClassDef& cur = kClasses[classSel];
         Rectangle startBtn = { 1280 / 2.0f - 180.0f, 634.0f, 360.0f, 46.0f };
         DrawRectangleRec(startBtn, { 34, 88, 56, 255 });
         DrawRectangleLinesEx(startBtn, 2.0f, GOLD);
-        std::string bTxt = std::string("PLAY AS ") + cur.name + " [ENTER]";
+        std::string bTxt = std::string(L("PLAY AS ", "CHỌN ")) + ClassDisplayName(classSel) + " [ENTER]";
         DrawText(bTxt.c_str(), 1280 / 2 - MeasureText(bTxt.c_str(), 18) / 2, 648, 18, WHITE);
-        const char* foot = "1-4 / A-D / Click: select hero     Enter / Double-Click: start     Esc: back";
+        const char* foot = L("1-4 / A-D / Click: select hero     Enter / Double-Click: start     Esc: back", "1-4 / A-D / Nhấp: chọn tướng     Enter / Nhấp đúp: bắt đầu     Esc: quay lại");
         DrawText(foot, 1280 / 2 - MeasureText(foot, 15) / 2, 692, 15, { 150, 165, 200, 255 });
     }
 
@@ -6829,7 +7194,7 @@ public:
     void DrawSaveLoadScreen() {
         float t = (float)GetTime();
         DrawRectangleGradientV(0, 0, 1280, 720, Fade({ 8, 12, 22, 255 }, 0.94f), Fade({ 14, 18, 32, 255 }, 0.92f));
-        const char* hdr = (saveLoadReturn == PAUSED) ? "SAVE & LOAD GAME (4 SLOTS)" : "LOAD SAVED GAME (4 SLOTS)";
+        const char* hdr = (saveLoadReturn == PAUSED) ? L("SAVE & LOAD GAME (4 SLOTS)", "LƯU & TẢI GAME (4 Ô LƯU)") : L("LOAD SAVED GAME (4 SLOTS)", "TẢI GAME ĐÃ LƯU (4 Ô LƯU)");
         OutlinedText(hdr, 1280 / 2 - MeasureText(hdr, 38) / 2, 26, 38, GOLD, { 70, 40, 10, 255 });
 
         const int cardW = 280, gap = 18, x0 = (1280 - (cardW * 4 + gap * 3)) / 2, cy = 98, cardH = 505;
@@ -6842,14 +7207,14 @@ public:
             int hc = std::max(0, std::min(3, info.heroClass));
             const ClassDef& cd = kClasses[hc];
             const SubclassDef* sc = (info.subClass == 1 || info.subClass == 2) ? &kSubclasses[hc][info.subClass - 1] : nullptr;
-            const char* slotClsName = sc ? sc->name : cd.name;
+            const char* slotClsName = sc ? SubDisplayName(hc, info.subClass) : ClassDisplayName(hc);
             Color accent = info.exists ? (sc ? sc->color : cd.color) : Color{ 95, 110, 140, 255 };
 
             DrawRectangleRec(r, sel ? Color{ 26, 34, 56, 252 } : Color{ 16, 20, 34, 240 });
             DrawRectangle(cx, cy, cardW, 42, Fade(accent, sel ? 0.35f : 0.18f));
             DrawRectangleLinesEx(r, sel ? 3.0f : 1.5f, sel ? GOLD : Fade(accent, 0.6f));
-            DrawText(TextFormat("[%d] SLOT %d", i + 1, i + 1), cx + 14, cy + 11, 20, sel ? WHITE : accent);
-            const char* tag = info.exists ? "SAVED" : "EMPTY";
+            DrawText(TextFormat(L("[%d] SLOT %d", "[%d] Ô LƯU %d"), i + 1, i + 1), cx + 14, cy + 11, 20, sel ? WHITE : accent);
+            const char* tag = info.exists ? L("SAVED", "ĐÃ LƯU") : L("EMPTY", "TRỐNG");
             DrawText(tag, cx + cardW - 14 - MeasureText(tag, 14), cy + 14, 14, info.exists ? Color{ 120, 235, 150, 255 } : GRAY);
 
             if (info.exists) {
@@ -6861,16 +7226,18 @@ public:
                 DrawText(slotClsName, cx + cardW / 2 - MeasureText(slotClsName, 19) / 2, iy, 19, accent);
                 DrawRectangle(cx + 16, iy + 32, cardW - 32, 138, { 12, 16, 28, 225 });
                 DrawRectangleLines(cx + 16, iy + 32, cardW - 32, 138, Fade(accent, 0.35f));
-                DrawText(TextFormat("Floor %d   -   Level %d", info.floor, info.level), cx + 26, iy + 42, 17, GOLD);
-                DrawText(TextFormat("HP: %d / %d", info.hp, info.maxHp), cx + 26, iy + 68, 16, { 245, 110, 120, 255 });
-                DrawText(TextFormat("Gold: %d   Slain: %d", info.gold, info.enemiesSlain), cx + 26, iy + 92, 16, RAYWHITE);
-                std::string wTxt = "Weapon: " + info.weaponName;
-                if ((int)wTxt.size() > 26) wTxt = wTxt.substr(0, 24) + "..";
+                DrawText(TextFormat(L("Floor %d   -   Level %d", "Tầng %d   -   Cấp %d"), info.floor, info.level), cx + 26, iy + 42, 17, GOLD);
+                DrawText(TextFormat(L("HP: %d / %d", "Máu: %d / %d"), info.hp, info.maxHp), cx + 26, iy + 68, 16, { 245, 110, 120, 255 });
+                DrawText(TextFormat(L("Gold: %d   Slain: %d", "Vàng: %d   Đã hạ: %d"), info.gold, info.enemiesSlain), cx + 26, iy + 92, 16, RAYWHITE);
+                std::string wn = info.weaponName;
+                if ((int)wn.size() > 18) wn = wn.substr(0, 16) + "..";
+                std::string wTxt = std::string(L("Weapon: ", "Vũ khí: ")) + wn;
                 DrawText(wTxt.c_str(), cx + 26, iy + 116, 15, SKYBLUE);
                 DrawText(info.timestamp.c_str(), cx + 26, iy + 142, 13, { 150, 165, 195, 255 });
             } else {
-                DrawText("EMPTY SLOT", cx + cardW / 2 - MeasureText("EMPTY SLOT", 20) / 2, cy + 196, 20, { 110, 122, 150, 255 });
-                const char* sub = (saveLoadReturn == PAUSED) ? "Click SAVE HERE below" : "No saved run yet";
+                const char* empSlot = L("EMPTY SLOT", "Ô LƯU TRỐNG");
+                DrawText(empSlot, cx + cardW / 2 - MeasureText(empSlot, 20) / 2, cy + 196, 20, { 110, 122, 150, 255 });
+                const char* sub = (saveLoadReturn == PAUSED) ? L("Click SAVE HERE below", "Nhấn LƯU TẠI ĐÂY bên dưới") : L("No saved run yet", "Chưa có dữ liệu lưu");
                 DrawText(sub, cx + cardW / 2 - MeasureText(sub, 15) / 2, cy + 230, 15, { 130, 145, 175, 255 });
             }
 
@@ -6880,7 +7247,7 @@ public:
                 Color sCol = info.exists ? Color{ 160, 102, 24, 255 } : Color{ 34, 106, 62, 255 };
                 DrawRectangleRec(saveBtn, hovS ? Shade(sCol, 1.3f) : sCol);
                 DrawRectangleLinesEx(saveBtn, 2.0f, hovS ? WHITE : (info.exists ? GOLD : Color{ 110, 235, 145, 255 }));
-                const char* sLbl = info.exists ? "OVERWRITE SAVE" : "SAVE HERE";
+                const char* sLbl = info.exists ? L("OVERWRITE SAVE", "GHI ĐÈ BẢN LƯU") : L("SAVE HERE", "LƯU TẠI ĐÂY");
                 DrawText(sLbl, (int)(saveBtn.x + saveBtn.width / 2) - MeasureText(sLbl, 17) / 2, (int)saveBtn.y + 10, 17, WHITE);
 
                 if (info.exists) {
@@ -6890,15 +7257,18 @@ public:
                     bool hovD = CheckCollisionPointRec(m, delBtn);
                     DrawRectangleRec(loadBtn, hovL ? Color{ 48, 104, 165, 255 } : Color{ 34, 76, 124, 255 });
                     DrawRectangleLinesEx(loadBtn, 1.6f, hovL ? WHITE : SKYBLUE);
-                    DrawText("LOAD", (int)(loadBtn.x + loadBtn.width / 2) - MeasureText("LOAD", 17) / 2, (int)loadBtn.y + 9, 17, WHITE);
+                    const char* lLbl = L("LOAD", "TẢI");
+                    const char* dLbl = L("DEL", "XÓA");
+                    DrawText(lLbl, (int)(loadBtn.x + loadBtn.width / 2) - MeasureText(lLbl, 17) / 2, (int)loadBtn.y + 9, 17, WHITE);
                     DrawRectangleRec(delBtn, hovD ? Color{ 155, 50, 62, 255 } : Color{ 110, 36, 46, 255 });
                     DrawRectangleLinesEx(delBtn, 1.6f, hovD ? WHITE : Color{ 240, 120, 130, 255 });
-                    DrawText("DEL", (int)(delBtn.x + delBtn.width / 2) - MeasureText("DEL", 15) / 2, (int)delBtn.y + 10, 15, WHITE);
+                    DrawText(dLbl, (int)(delBtn.x + delBtn.width / 2) - MeasureText(dLbl, 15) / 2, (int)delBtn.y + 10, 15, WHITE);
                 } else {
                     Rectangle noBtn = { r.x + 16.0f, r.y + r.height - 50.0f, r.width - 32.0f, 36.0f };
                     DrawRectangleRec(noBtn, { 28, 34, 50, 220 });
                     DrawRectangleLinesEx(noBtn, 1.2f, { 60, 70, 95, 255 });
-                    DrawText("NO SAVE TO LOAD", (int)(noBtn.x + noBtn.width / 2) - MeasureText("NO SAVE TO LOAD", 14) / 2, (int)noBtn.y + 11, 14, { 110, 120, 145, 255 });
+                    const char* noLbl = L("NO SAVE TO LOAD", "CHƯA CÓ BẢN LƯU");
+                    DrawText(noLbl, (int)(noBtn.x + noBtn.width / 2) - MeasureText(noLbl, 14) / 2, (int)noBtn.y + 11, 14, { 110, 120, 145, 255 });
                 }
             } else {
                 if (info.exists) {
@@ -6908,15 +7278,18 @@ public:
                     bool hovD = CheckCollisionPointRec(m, delBtn);
                     DrawRectangleRec(loadBtn, hovL ? Color{ 44, 130, 82, 255 } : Color{ 32, 98, 60, 255 });
                     DrawRectangleLinesEx(loadBtn, 2.0f, hovL ? WHITE : Color{ 120, 240, 160, 255 });
-                    DrawText("LOAD GAME", (int)(loadBtn.x + loadBtn.width / 2) - MeasureText("LOAD GAME", 18) / 2, (int)loadBtn.y + 11, 18, WHITE);
+                    const char* lgLbl = L("LOAD GAME", "TẢI GAME");
+                    const char* dLbl = L("DEL", "XÓA");
+                    DrawText(lgLbl, (int)(loadBtn.x + loadBtn.width / 2) - MeasureText(lgLbl, 18) / 2, (int)loadBtn.y + 11, 18, WHITE);
                     DrawRectangleRec(delBtn, hovD ? Color{ 155, 50, 62, 255 } : Color{ 110, 36, 46, 255 });
                     DrawRectangleLinesEx(delBtn, 1.6f, hovD ? WHITE : Color{ 240, 120, 130, 255 });
-                    DrawText("DEL", (int)(delBtn.x + delBtn.width / 2) - MeasureText("DEL", 15) / 2, (int)delBtn.y + 12, 15, WHITE);
+                    DrawText(dLbl, (int)(delBtn.x + delBtn.width / 2) - MeasureText(dLbl, 15) / 2, (int)delBtn.y + 12, 15, WHITE);
                 } else {
                     Rectangle noBtn = { r.x + 16.0f, r.y + r.height - 54.0f, r.width - 32.0f, 40.0f };
                     DrawRectangleRec(noBtn, { 28, 34, 50, 220 });
                     DrawRectangleLinesEx(noBtn, 1.2f, { 60, 70, 95, 255 });
-                    DrawText("EMPTY", (int)(noBtn.x + noBtn.width / 2) - MeasureText("EMPTY", 16) / 2, (int)noBtn.y + 12, 16, { 110, 120, 145, 255 });
+                    const char* eLbl = L("EMPTY", "TRỐNG");
+                    DrawText(eLbl, (int)(noBtn.x + noBtn.width / 2) - MeasureText(eLbl, 16) / 2, (int)noBtn.y + 12, 16, { 110, 120, 145, 255 });
                 }
             }
         }
@@ -6925,8 +7298,8 @@ public:
             DrawText(saveStatusMsg.c_str(), 1280 / 2 - MeasureText(saveStatusMsg.c_str(), 24) / 2, 626, 24, GOLD);
         }
         const char* foot = (saveLoadReturn == PAUSED)
-            ? "1-4 / A-D: select slot     Enter: save/overwrite     L: load     Del/X: delete     Esc: back"
-            : "1-4 / A-D: select slot     Enter / Click: load game     Del/X: delete     Esc: back";
+            ? L("1-4 / A-D: select slot     Enter: save/overwrite     L: load     Del/X: delete     Esc: back", "1-4 / A-D: chọn ô     Enter: lưu/ghi đè     L: tải     Del/X: xóa     Esc: quay lại")
+            : L("1-4 / A-D: select slot     Enter / Click: load game     Del/X: delete     Esc: back", "1-4 / A-D: chọn ô     Enter / Nhấp: tải game     Del/X: xóa     Esc: quay lại");
         DrawText(foot, 1280 / 2 - MeasureText(foot, 16) / 2, 678, 16, { 150, 165, 200, 255 });
     }
 
@@ -6942,8 +7315,9 @@ public:
         int w = 860, h = 612, x = 1280 / 2 - w / 2, y = 54;
         DrawRectangle(x, y, w, h, { 14, 18, 30, 245 });
         DrawRectangleLines(x, y, w, h, GOLD);
-        DrawText("CONTROLS", x + w / 2 - MeasureText("CONTROLS", 30) / 2, y + 16, 30, GOLD);
-        const char* rows[][2] = {
+        const char* hdr = L("CONTROLS", "HƯỚNG DẪN ĐIỀU KHIỂN");
+        DrawText(hdr, x + w / 2 - MeasureText(hdr, 30) / 2, y + 16, 30, GOLD);
+        static const char* rowsEn[15][2] = {
             { "W A S D / Arrows", "Move" },
             { "Mouse", "Aim weapon & skills" },
             { "Left Click / Space / J", "Basic Attack (Class-Exclusive Weapon)" },
@@ -6960,11 +7334,28 @@ public:
             { "F5 / L", "Save & Load Game (4 slots with overwrite)" },
             { "M / Esc / F1", "Radar / Pause & Back / Controls" },
         };
+        static const char* rowsVi[15][2] = {
+            { "W A S D / Phím Mũi Tên", "Di chuyển nhân vật" },
+            { "Chuột", "Ngắm hướng đánh & kỹ năng" },
+            { "Chuột Trái / Space / J", "Tấn công cơ bản (Vũ khí đặc trưng hệ)" },
+            { "Chuột Phải / Shift / K", "Lướt né đòn (miễn sát thương ngắn)" },
+            { "Q / U", "Kỹ năng 1" },
+            { "E / L", "Kỹ năng 2" },
+            { "R / Chuột Giữa", "Tuyệt Kỹ Nộ Khí (khi đủ 100 Nộ)" },
+            { "1 / 2 / 3", "Chọn nâng cấp hoặc nhánh thức tỉnh" },
+            { "I", "Xem trang bị, chỉ số & bộ kỹ năng" },
+            { "F", "Giao dịch Thương Nhân / Thử Thách / Bệ Thờ" },
+            { "Tay Cầm", "Cần gạt, RT/A đánh, B lướt, X/Y chiêu, LB Tuyệt Kỹ" },
+            { "O / F2 / F11", "Cài Đặt / Toàn Màn Hình Không Viền" },
+            { "S", "Thánh Điện: nâng cấp vĩnh viễn" },
+            { "F5 / L", "Lưu & Tải Game (tối đa 4 ô ghi đè)" },
+            { "M / Esc / F1", "Bản đồ nhỏ / Tạm dừng & Quay lại / Hướng dẫn" },
+        };
         for (int i = 0; i < 15; ++i) {
-            DrawText(rows[i][0], x + 36, y + 70 + i * 32, 18, SKYBLUE);
-            DrawText(rows[i][1], x + 340, y + 70 + i * 32, 18, RAYWHITE);
+            DrawText(settings.language == 1 ? rowsVi[i][0] : rowsEn[i][0], x + 36, y + 70 + i * 32, 18, SKYBLUE);
+            DrawText(settings.language == 1 ? rowsVi[i][1] : rowsEn[i][1], x + 340, y + 70 + i * 32, 18, RAYWHITE);
         }
-        DrawText("Clear a room, enter the portal. Hit enemies to build 100 Rage for [R] Ultimate!", x + 36, y + h - 42, 16, { 190, 200, 220, 255 });
+        DrawText(L("Clear a room, enter the portal. Hit enemies to build 100 Rage for [R] Ultimate!", "Dọn sạch quái trong phòng rồi bước vào cổng. Đánh địch tích 100 Nộ để tung Tuyệt Kỹ [R]!"), x + 36, y + h - 42, 16, { 190, 200, 220, 255 });
     }
 
     void DrawTitleScreen() {
@@ -6976,21 +7367,22 @@ public:
         int ty = 100 + (int)(sinf(t * 1.6f) * 5.0f);
         DrawText(title, 1280 / 2 - tw / 2 + 4, ty + 5, 72, Fade(BLACK, 0.8f));
         OutlinedText(title, 1280 / 2 - tw / 2, ty, 72, GOLD, { 120, 60, 10, 255 });
-        const char* sub = "4 Classes  -  8 Weapons  -  Rage Ultimates";
+        const char* sub = L("4 Classes  -  8 Weapons  -  Rage Ultimates", "4 Hệ Tướng  -  8 Vũ Khí  -  Tuyệt Kỹ Nộ Khí");
         DrawText(sub, 1280 / 2 - MeasureText(sub, 22) / 2, ty + 88, 22, { 170, 190, 230, 255 });
 
-        std::string rec = "Best Record: Floor " + std::to_string(bestFloor);
+        std::string rec = std::string(L("Best Record: Floor ", "Kỷ Lục Cao Nhất: Tầng ")) + std::to_string(bestFloor);
         DrawText(rec.c_str(), 1280 / 2 - MeasureText(rec.c_str(), 22) / 2, 292, 22, SKYBLUE);
 
-        const ClassDef& cd = kClasses[std::max(0, std::min(3, selectedClass))];
-        std::string heroTxt = std::string("Hero: ") + cd.name;
+        int selCls = std::max(0, std::min(3, selectedClass));
+        const ClassDef& cd = kClasses[selCls];
+        std::string heroTxt = std::string(L("Hero: ", "Tướng Đang Chọn: ")) + ClassDisplayName(selCls);
         DrawText(heroTxt.c_str(), 1280 / 2 - MeasureText(heroTxt.c_str(), 20) / 2, 324, 20, cd.color);
 
-        const char* diffName = settings.difficulty == 0 ? "Easy" : (settings.difficulty == 1 ? "Normal" : "Hard");
-        std::string prog = std::string(diffName) + "     Souls: " + std::to_string(souls) + "     Runs: " + std::to_string(runs);
+        const char* diffName = settings.difficulty == 0 ? L("Easy", "Dễ") : (settings.difficulty == 1 ? L("Normal", "Thường") : L("Hard", "Khó"));
+        std::string prog = std::string(diffName) + L("     Souls: ", "     Linh Hồn: ") + std::to_string(souls) + L("     Runs: ", "     Lượt Chơi: ") + std::to_string(runs);
         DrawText(prog.c_str(), 1280 / 2 - MeasureText(prog.c_str(), 20) / 2, 354, 20, { 190, 150, 255, 255 });
 #ifndef __ANDROID__
-        const char* hint = "Enter: New Game    L: Load Save    S: Sanctuary    O: Settings    F1: Controls";
+        const char* hint = L("Enter: New Game    L: Load Save    S: Sanctuary    O: Settings    F1: Controls", "Enter: Chơi Mới    L: Tải Game    S: Thánh Điện    O: Cài Đặt    F1: Điều Khiển");
         DrawText(hint, 1280 / 2 - MeasureText(hint, 18) / 2, 628, 18, { 130, 145, 180, 255 });
 #endif
     }
@@ -6998,9 +7390,9 @@ public:
     void DrawPauseScreen() {
         DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.72f));
         if (showHelp) { DrawHelpPanel(); return; }
-        const char* t1 = "PAUSED";
+        const char* t1 = L("PAUSED", "TẠM DỪNG");
         OutlinedText(t1, 1280 / 2 - MeasureText(t1, 56) / 2, 108, 56, WHITE, { 20, 24, 40, 255 });
-        std::string info = std::string(HeroTitle()) + "   Floor " + std::to_string(floor) + "   Level " + std::to_string(player.level) + "   Slain " + std::to_string(enemiesSlain);
+        std::string info = std::string(HeroTitle()) + L("   Floor ", "   Tầng ") + std::to_string(floor) + L("   Level ", "   Cấp ") + std::to_string(player.level) + L("   Slain ", "   Đã Hạ ") + std::to_string(enemiesSlain);
         DrawText(info.c_str(), 1280 / 2 - MeasureText(info.c_str(), 20) / 2, 170, 20, HeroColor());
     }
 
@@ -7013,7 +7405,7 @@ public:
 
         BeginMode2D(camera);
 
-        // 1. Tường gạch, sàn đá vát cạnh, bóng viền, decal, đuốc, cột
+        // 1. Tường gạch, sàn đa sắc vùng hành lang/viền/trung tâm, bóng viền, huy hiệu, cảnh quan biome, đuốc, cột
         int halfW = (int)roomW / 2;
         int halfH = (int)roomH / 2;
         int tileSize = 48;
@@ -7022,23 +7414,44 @@ public:
             for (int x = -halfW; x < halfW; x += tileSize) {
                 int tx = x / tileSize, ty = y / tileSize;
                 bool alt = ((tx + ty) & 1) == 0;
-                Color tileCol = alt ? biome.tileA : biome.tileB;
+                float cxT = x + tileSize * 0.5f, cyT = y + tileSize * 0.5f;
+                bool isBorder = (x <= -halfW + tileSize || x >= halfW - tileSize * 2 || y <= -halfH + tileSize || y >= halfH - tileSize * 2);
+                bool isPath = (fabsf(cxT) < 72.0f || fabsf(cyT) < 72.0f);
+                bool isCornerPlaza = (fabsf(cxT) > halfW - 150.0f && fabsf(cyT) > halfH - 150.0f);
+                Color tileCol = (isPath || isBorder || isCornerPlaza)
+                              ? (alt ? biome.pathCol : Shade(biome.pathCol, 0.88f))
+                              : (alt ? biome.tileA : biome.tileB);
                 int th = ((tx * 73856093) ^ (ty * 19349663)) & 15;
                 tileCol = Shade(tileCol, 0.96f + (th & 3) * 0.025f);
                 DrawRectangle(x, y, tileSize, tileSize, tileCol);
-                DrawRectangle(x, y, tileSize, 2, Fade(WHITE, 0.04f));
-                DrawRectangle(x, y, 2, tileSize, Fade(WHITE, 0.03f));
+                if (isPath || isCornerPlaza) {
+                    DrawRectangleLines(x + 4, y + 4, tileSize - 8, tileSize - 8, Fade(biome.trimCol, 0.22f));
+                }
+                DrawRectangle(x, y, tileSize, 2, Fade(WHITE, 0.05f));
+                DrawRectangle(x, y, 2, tileSize, Fade(WHITE, 0.04f));
                 DrawRectangleLines(x, y, tileSize, tileSize, Fade(BLACK, 0.16f));
                 if (th == 0) DrawRectangle(x + 12, y + 16, 6, 4, Fade(BLACK, 0.12f));
-                else if (th == 7) DrawRectangle(x + 28, y + 30, 5, 5, Fade(WHITE, 0.04f));
+                else if (th == 7) DrawRectangle(x + 26, y + 26, 6, 6, Fade(biome.accentCol, 0.16f));
             }
         }
+        // Đường viền hành lang chữ thập & Huy hiệu Đấu Trường trung tâm đa sắc
+        DrawRectangleLinesEx({ -68.0f, (float)-halfH + 48.0f, 136.0f, roomH - 96.0f }, 2.0f, Fade(biome.trimCol, 0.28f));
+        DrawRectangleLinesEx({ (float)-halfW + 48.0f, -68.0f, roomW - 96.0f, 136.0f }, 2.0f, Fade(biome.trimCol, 0.28f));
+        DrawPoly({ 0, 0 }, 8, 148.0f, 22.5f, Fade(biome.pathCol, 0.85f));
+        DrawPolyLinesEx({ 0, 0 }, 8, 148.0f, 22.5f, 3.0f, Fade(biome.trimCol, 0.65f));
+        DrawPolyLinesEx({ 0, 0 }, 8, 108.0f, 0.0f, 2.0f, Fade(biome.accentCol, 0.45f));
+        for (int ci = 0; ci < 8; ++ci) {
+            float ca = ci * (PI / 4.0f);
+            DrawLineEx({ cosf(ca) * 32.0f, sinf(ca) * 32.0f }, { cosf(ca) * 102.0f, sinf(ca) * 102.0f }, 2.0f, Fade(biome.trimCol, 0.35f));
+        }
+        Diamond({ 0, 0 }, 24.0f, 24.0f, Fade(biome.trimCol, 0.45f), Fade(biome.accentCol, 0.75f));
+
         // Bóng đổ từ tường xuống sàn
         DrawRectangleGradientV(-halfW, -halfH, (int)roomW, 46, Fade(BLACK, 0.50f), Fade(BLACK, 0.0f));
         DrawRectangleGradientV(-halfW, halfH - 46, (int)roomW, 46, Fade(BLACK, 0.0f), Fade(BLACK, 0.50f));
         DrawRectangleGradientH(-halfW, -halfH, 46, (int)roomH, Fade(BLACK, 0.50f), Fade(BLACK, 0.0f));
         DrawRectangleGradientH(halfW - 46, -halfH, 46, (int)roomH, Fade(BLACK, 0.0f), Fade(BLACK, 0.50f));
-        DrawRectangleLinesEx({ -roomW / 2.0f, -roomH / 2.0f, roomW, roomH }, 3.0f, Shade(biome.wall, 1.25f));
+        DrawRectangleLinesEx({ -roomW / 2.0f, -roomH / 2.0f, roomW, roomH }, 3.0f, biome.trimCol);
 
         DrawDecals(biome);
 
@@ -7085,7 +7498,7 @@ public:
                     DrawCircleV(h.pos, h.radius, Fade({ 80, 220, 255, 255 }, inside ? 0.18f : 0.09f));
                     DrawPolyLinesEx(h.pos, 6, h.radius, tm * 35.0f, 2.0f, inside ? GOLD : Color{ 95, 230, 255, 220 });
                     DrawRing(h.pos, h.radius * 0.58f, h.radius * 0.66f, -tm * 55.0f, -tm * 55.0f + 280.0f, 18, Fade(GOLD, 0.70f));
-                    const char* lt = "LEYLINE +SPD/+RAGE";
+                    const char* lt = L("LEYLINE +SPD/+RAGE", "MẠCH MA PHÁP +TỐC/+NỘ");
                     DrawText(lt, (int)h.pos.x - MeasureText(lt, 11) / 2, (int)(h.pos.y + h.radius + 4.0f), 11, inside ? GOLD : SKYBLUE);
                 }
             }
@@ -7139,9 +7552,10 @@ public:
             QuadOut({ tp.x - 11.0f, tp.y - 24.0f }, { tp.x + 11.0f, tp.y - 24.0f }, { tp.x + 14.0f, tp.y + 10.0f }, { tp.x - 14.0f, tp.y + 10.0f }, trialUsed ? Color{ 56, 54, 68, 255 } : Color{ 126, 92, 178, 255 }, GOLD, 1.6f);
             if (!trialUsed) {
                 Diamond({ tp.x, tp.y - 36.0f + sinf(tm * 3.5f) * 3.0f }, 7.5f, 10.5f, GOLD, WHITE);
-                DrawText("TRIAL TOTEM", (int)tp.x - MeasureText("TRIAL TOTEM", 13) / 2, (int)tp.y + 25, 13, GOLD);
+                const char* ttLbl = L("TRIAL TOTEM", "CỘT THỬ THÁCH");
+                DrawText(ttLbl, (int)tp.x - MeasureText(ttLbl, 13) / 2, (int)tp.y + 25, 13, GOLD);
                 if (Vector2Distance(tp, player.pos) < 120.0f) {
-                    const char* pr = "[F] Start Ambush (Vault Chest)";
+                    const char* pr = L("[F] Start Ambush (Vault Chest)", "[F] Mở Phục Kích (Rương Kho Báu)");
                     OutlinedText(pr, (int)tp.x - MeasureText(pr, 16) / 2, (int)tp.y + 42, 16, WHITE, { 20, 24, 40, 255 });
                 }
             }
@@ -7171,7 +7585,8 @@ public:
                 DrawCircle((int)sx, (int)sy - 42, 18 + 3 * sinf(shrinePulse), Fade({ 255, 40, 70, 255 }, 0.18f));
                 DrawCircle((int)sx, (int)sy - 42, 9, { 255, (unsigned char)(90 * k), (unsigned char)(100 * k), 255 });
                 DrawCircleLines((int)sx, (int)sy - 42, 9, { 255, 170, 180, 255 });
-                DrawText("BLOOD SHRINE", (int)sx - 52, (int)sy + 34, 14, { 255, 120, 130, 255 });
+                const char* bsLbl = L("BLOOD SHRINE", "BỆ THỜ HUYẾT TẾ");
+                DrawText(bsLbl, (int)sx - MeasureText(bsLbl, 14) / 2, (int)sy + 34, 14, { 255, 120, 130, 255 });
             } else {
                 DrawCircle((int)sx, (int)sy - 42, 8, { 64, 50, 56, 255 });
             }
@@ -7428,7 +7843,7 @@ public:
         DrawRectangle(20, 14, 320, 22, { 18, 22, 34, 225 });
         DrawRectangleLines(20, 14, 320, 22, Fade(hCol, 0.75f));
         DrawText(hTitle, 28, 17, 15, hCol);
-        std::string clsRight = "LVL " + std::to_string(player.level);
+        std::string clsRight = std::string(L("LVL ", "CẤP ")) + std::to_string(player.level);
         DrawText(clsRight.c_str(), 332 - MeasureText(clsRight.c_str(), 15), 17, 15, GOLD);
 
         DrawRectangle(20, 40, 320, 24, { 35, 38, 48, 220 });
@@ -7436,14 +7851,14 @@ public:
         float hpPct = std::max(0.0f, std::min(1.0f, player.hp / std::max(1.0f, player.maxHp)));
         DrawRectangle(22, 42, (int)(316 * lagPct), 20, { 245, 220, 220, 210 });
         DrawRectangle(22, 42, (int)(316 * hpPct), 20, { 225, 48, 62, 255 });
-        std::string hpTxt = "HP " + std::to_string((int)player.hp) + " / " + std::to_string((int)player.maxHp);
-        DrawText(hpTxt.c_str(), 116, 44, 16, WHITE);
+        std::string hpTxt = std::string(L("HP ", "MÁU ")) + std::to_string((int)player.hp) + " / " + std::to_string((int)player.maxHp);
+        DrawText(hpTxt.c_str(), 180 - MeasureText(hpTxt.c_str(), 16) / 2, 44, 16, WHITE);
 
         DrawRectangle(20, 68, 320, 14, { 35, 38, 48, 220 });
         float xpPct = std::min(1.0f, (float)player.xp / std::max(1, player.xpNext));
         DrawRectangle(22, 70, (int)(316 * xpPct), 10, SKYBLUE);
-        std::string xpTxt = "XP " + std::to_string(player.xp) + "/" + std::to_string(player.xpNext);
-        DrawText(xpTxt.c_str(), 134, 69, 12, WHITE);
+        std::string xpTxt = std::string(L("XP ", "KN ")) + std::to_string(player.xp) + "/" + std::to_string(player.xpNext);
+        DrawText(xpTxt.c_str(), 180 - MeasureText(xpTxt.c_str(), 12) / 2, 69, 12, WHITE);
 
         // Thanh Nộ (Rage Bar)
         DrawRectangle(20, 86, 320, 16, { 35, 26, 22, 225 });
@@ -7452,18 +7867,19 @@ public:
         Color rageCol = rageReady ? ((int)(GetTime() * 8.0f) % 2 == 0 ? GOLD : ORANGE) : Color{ 235, 110, 35, 255 };
         DrawRectangle(22, 88, (int)(316 * ragePct), 12, rageCol);
         DrawRectangleLines(20, 86, 320, 16, rageReady ? GOLD : Color{ 90, 60, 40, 255 });
-        std::string rageTxt = rageReady ? "RAGE 100/100  [R] ULTIMATE READY!" : ("RAGE " + std::to_string((int)player.rage) + " / 100");
+        std::string rageTxt = rageReady ? L("RAGE 100/100  [R] ULTIMATE READY!", "NỘ 100/100  [R] TUYỆT KỸ SẴN SÀNG!") : (std::string(L("RAGE ", "NỘ ")) + std::to_string((int)player.rage) + " / 100");
         DrawText(rageTxt.c_str(), 180 - MeasureText(rageTxt.c_str(), 12) / 2, 88, 12, WHITE);
 
-        std::string goldTxt = "Gold: " + std::to_string(player.gold);
+        std::string goldTxt = std::string(L("Gold: ", "Vàng: ")) + std::to_string(player.gold);
         DrawText(goldTxt.c_str(), 24, 108, 18, GOLD);
 
         // Relics Row
-        DrawText("Relics:", 24, 132, 15, SKYBLUE);
+        const char* relPrefix = L("Relics: ", "Thánh Tích: ");
+        DrawText(relPrefix, 24, 132, 15, SKYBLUE);
         if (player.relics.empty()) {
-            DrawText("None", 24 + MeasureText("Relics: ", 15), 132, 15, SKYBLUE);
+            DrawText(L("None", "Chưa có"), 24 + MeasureText(relPrefix, 15), 132, 15, SKYBLUE);
         } else {
-            int rx = 24 + MeasureText("Relics: ", 15);
+            int rx = 24 + MeasureText(relPrefix, 15);
             for (const auto& r : player.relics) {
                 DrawCircle(rx + 6, 139, 5.5f, r.color);
                 DrawCircleLines(rx + 6, 139, 5.5f, WHITE);
@@ -7472,22 +7888,20 @@ public:
             }
         }
 
-        // Top-Center: Floor & Combo
-        std::string floorStr = "FLOOR " + std::to_string(floor);
-        DrawText(floorStr.c_str(), 1280 / 2 - MeasureText(floorStr.c_str(), 32) / 2, 20, 32, RAYWHITE);
+        // Top-Center: Floor, Biome & Combo
+        std::string floorStr = std::string(L("FLOOR ", "TẦNG ")) + std::to_string(floor);
+        DrawText(floorStr.c_str(), 1280 / 2 - MeasureText(floorStr.c_str(), 30) / 2, 14, 30, RAYWHITE);
+        const char* biomeName = L(biome.nameEn, biome.nameVi);
+        DrawText(biomeName, 1280 / 2 - MeasureText(biomeName, 14) / 2, 46, 14, biome.accentCol);
 
         if (comboCount > 1) {
             std::string comboStr = "COMBO x" + std::to_string(comboCount) + "!";
             Color cCol = comboCount >= 20 ? RED : (comboCount >= 10 ? ORANGE : YELLOW);
             DrawText(comboStr.c_str(), 1280 - 240, 154, 26, cCol);
             if (comboCount >= 10) {
-                DrawText("FRENZY OVERDRIVE!", 1280 - 240, 182, 14, GOLD);
-                DrawText("+20% ATK SPD  +18% SPD", 1280 - 240, 198, 12, { 255, 200, 110, 255 });
+                DrawText(L("FRENZY OVERDRIVE!", "CUỒNG NỘ BÙNG NỔ!"), 1280 - 240, 182, 14, GOLD);
+                DrawText(L("+20% ATK SPD  +18% SPD", "+20% Tốc Đánh  +18% Chạy"), 1280 - 240, 198, 12, { 255, 200, 110, 255 });
             }
-        }
-        if (trialActive) {
-            const char* tt = "TRIAL AMBUSH ACTIVE!";
-            DrawText(tt, 1280 / 2 - MeasureText(tt, 18) / 2, 54, 18, GOLD);
         }
 
         // Trang bị đang đeo (HUD)
@@ -7498,22 +7912,30 @@ public:
             DrawRectangleLines(hx, hy, 30, 30, rc);
             DrawItemIcon(i, { hx + 15.0f, hy + 15.0f }, 17.0f, hasEquip[i] ? rc : Color{ 70, 78, 100, 255 }, hasEquip[i] ? equipped[i].weaponType : 0);
         }
-        DrawText("[I] Gear & Skills", 24 + 4 * 36 + 4, 164, 14, { 150, 165, 200, 255 });
+        DrawText(L("[I] Gear & Skills", "[I] Đồ & Kỹ Năng"), 24 + 4 * 36 + 4, 164, 14, { 150, 165, 200, 255 });
 
         if (touchMode && state == PLAYING) DrawTouchControls();
 
         // Thanh máu boss
+        bool bossBarActive = false;
         for (const auto& e : enemies) {
             if (e.type == BOSS && e.hp > 0) {
+                bossBarActive = true;
                 int bw = 460, bx = 1280 / 2 - bw / 2, by = 66;
                 float pct = std::max(0.0f, e.hp / e.maxHp);
                 DrawRectangle(bx - 3, by - 3, bw + 6, 22, { 10, 12, 20, 230 });
                 DrawRectangle(bx, by, (int)(bw * pct), 16, (e.bossKind == 1) ? (e.enraged ? Color{ 255, 90, 30, 255 } : Color{ 255, 150, 40, 255 }) : (e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 190, 60, 200, 255 }));
                 DrawRectangleLines(bx - 3, by - 3, bw + 6, 22, GOLD);
-                const char* nm = (e.bossKind == 1) ? (e.enraged ? "THE MOLTEN COLOSSUS - ENRAGED" : "THE MOLTEN COLOSSUS") : (e.enraged ? "THE VOID SOVEREIGN - ENRAGED" : "THE VOID SOVEREIGN");
+                const char* nm = (e.bossKind == 1)
+                    ? (e.enraged ? L("THE MOLTEN COLOSSUS - ENRAGED", "KHỔNG LỒ DUNG NHAM - CUỒNG NỘ") : L("THE MOLTEN COLOSSUS", "KHỔNG LỒ DUNG NHAM"))
+                    : (e.enraged ? L("THE VOID SOVEREIGN - ENRAGED", "CHÚA TỂ HƯ KHÔNG - CUỒNG NỘ") : L("THE VOID SOVEREIGN", "CHÚA TỂ HƯ KHÔNG"));
                 DrawText(nm, 1280 / 2 - MeasureText(nm, 14) / 2, by + 1, 14, WHITE);
                 break;
             }
+        }
+        if (trialActive) {
+            const char* tt = L("TRIAL AMBUSH ACTIVE!", "ĐANG TRONG PHỤC KÍCH THỬ THÁCH!");
+            DrawText(tt, 1280 / 2 - MeasureText(tt, 17) / 2, bossBarActive ? 92 : 66, 17, GOLD);
         }
 
         // Mini-Map Radar (Top-Right)
@@ -7524,7 +7946,8 @@ public:
             int mapH = 110;
             DrawRectangle(mapX, mapY, mapW, mapH, { 15, 20, 30, 220 });
             DrawRectangleLines(mapX, mapY, mapW, mapH, { 70, 90, 130, 255 });
-            DrawText("RADAR [M]", mapX + 48, mapY + 4, 11, SKYBLUE);
+            const char* radLbl = L("RADAR [M]", "BẢN ĐỒ [M]");
+            DrawText(radLbl, mapX + mapW / 2 - MeasureText(radLbl, 11) / 2, mapY + 4, 11, SKYBLUE);
 
             float sX = (mapW - 16) / roomW;
             float sY = (mapH - 16) / roomH;
@@ -7554,7 +7977,7 @@ public:
             const int dockY = 720 - 80;
             struct SlotUI { const char* key; int iconKind; Color col; float cd; float maxCd; bool isUlt; bool ready; };
             SlotUI slots[5] = {
-                { "PSV", 0, hCol, 0.0f, 1.0f, false, true },
+                { L("PSV", "NT"), 0, hCol, 0.0f, 1.0f, false, true },
                 { "RMB", -1, YELLOW, player.dashTimer, player.dashCooldown, false, player.dashTimer <= 0.0f },
                 { "Q", 1, SKYBLUE, player.specialTimer, std::max(0.1f, player.specialCooldown), false, player.specialTimer <= 0.0f },
                 { "E", 2, { 110, 235, 175, 255 }, player.skill2Timer, std::max(0.1f, player.skill2Cooldown), false, player.skill2Timer <= 0.0f },
@@ -7599,9 +8022,9 @@ public:
             if (subclassChoosing) {
                 float tm = (float)GetTime();
                 int hc = std::max(0, std::min(3, player.heroClass));
-                const char* hdr = "LEVEL 5 AWAKENING! CHOOSE YOUR SUBCLASS";
+                const char* hdr = L("LEVEL 5 AWAKENING! CHOOSE YOUR SUBCLASS", "THỨC TỈNH CẤP 5! CHỌN NHÁNH CHUYỂN CHỨC");
                 OutlinedText(hdr, 1280 / 2 - MeasureText(hdr, 34) / 2, 42, 34, GOLD, { 80, 42, 10, 255 });
-                std::string sub = std::string(kClasses[hc].name) + " Evolution — Permanent Class Branch & Signature Weapon";
+                std::string sub = std::string(ClassDisplayName(hc)) + L(" Evolution — Permanent Class Branch & Signature Weapon", " Tiến Hóa — Nhánh Chức Vĩnh Viễn & Vũ Khí Trấn Phái");
                 DrawText(sub.c_str(), 1280 / 2 - MeasureText(sub.c_str(), 18) / 2, 84, 18, SKYBLUE);
 
                 const float cw = 450.0f, gap = 36.0f, ch = 515.0f;
@@ -7609,29 +8032,40 @@ public:
                 Vector2 mp = GetMousePosition();
                 for (int i = 0; i < 2; ++i) {
                     const SubclassDef& sc = kSubclasses[hc][i];
+                    const ClassTextVi& scVi = kSubclassesVi[hc][i];
                     Rectangle r = { sx + i * (cw + gap), cy, cw, ch };
                     bool hov = CheckCollisionPointRec(mp, r);
                     DrawRectangleRec(r, hov ? Color{ 28, 36, 62, 252 } : Color{ 18, 24, 42, 246 });
                     DrawRectangle((int)r.x, (int)r.y, (int)cw, 48, Fade(sc.color, hov ? 0.35f : 0.22f));
                     DrawRectangleLinesEx(r, hov ? 3.0f : 2.0f, hov ? GOLD : sc.color);
 
-                    DrawText(TextFormat("[%d] %s", i + 1, sc.name), (int)r.x + 18, (int)r.y + 8, 22, sc.color);
-                    DrawText(sc.role, (int)r.x + 18, (int)r.y + 32, 13, { 215, 225, 245, 255 });
+                    DrawText(TextFormat("[%d] %s", i + 1, SubDisplayName(hc, i + 1)), (int)r.x + 18, (int)r.y + 8, 22, sc.color);
+                    DrawText(settings.language == 1 ? scVi.role : sc.role, (int)r.x + 18, (int)r.y + 32, 13, { 215, 225, 245, 255 });
 
                     // Xem trước nhân vật với vũ khí trấn phái mới
                     Vector2 pv = { r.x + cw - 72.0f, r.y + 102.0f };
                     DrawCircleV(pv, 42.0f, Fade(sc.color, 0.16f));
                     DrawHeroModel(pv, hc, sc.signatureWeapon, { 0.85f, sinf(tm * 2.2f + i) * 0.3f }, false, tm * 6.0f, true, sinf(tm * 5.0f) * 0.3f, false, true, 0.0f, 0.0f, i + 1, 0.0f);
 
-                    DrawText(TextFormat("Signature Weapon: %s", sc.weaponTitle), (int)r.x + 18, (int)r.y + 62, 16, GOLD);
-                    DrawText(TextFormat("+%d HP  +%d DMG  +%.1f ARM  +%.2f ATK/s", (int)sc.bonusHp, (int)sc.bonusDmg, sc.bonusArmor, sc.bonusAtkRate), (int)r.x + 18, (int)r.y + 84, 14, RAYWHITE);
+                    DrawText(TextFormat(L("Signature Weapon: %s", "Vũ Khí Trấn Phái: %s"), settings.language == 1 ? scVi.weaponTitle : sc.weaponTitle), (int)r.x + 18, (int)r.y + 62, 16, GOLD);
+                    DrawText(TextFormat(L("+%d HP  +%d DMG  +%.1f ARM  +%.2f ATK/s", "+%d Máu  +%d ST  +%.1f Giáp  +%.2f Đánh/s"), (int)sc.bonusHp, (int)sc.bonusDmg, sc.bonusArmor, sc.bonusAtkRate), (int)r.x + 18, (int)r.y + 84, 14, RAYWHITE);
                     std::string lsStr = FmtPct(sc.bonusLifesteal * LifestealScale());
-                    DrawText(TextFormat("+%d SPD  +%d%% CRIT  +%s Lifesteal", (int)sc.bonusSpeed, (int)roundf(sc.bonusCrit * 100), lsStr.c_str()), (int)r.x + 18, (int)r.y + 104, 14, SKYBLUE);
-                    DrawText("+35% HP Recovery & +30 Rage immediately", (int)r.x + 18, (int)r.y + 124, 13, { 120, 235, 160, 255 });
+                    DrawText(TextFormat(L("+%d SPD  +%d%% CRIT  +%s Lifesteal", "+%d Chạy  +%d%% Chí Mạng  +%s Hút Máu"), (int)sc.bonusSpeed, (int)roundf(sc.bonusCrit * 100), lsStr.c_str()), (int)r.x + 18, (int)r.y + 104, 14, SKYBLUE);
+                    DrawText(L("+35% HP Recovery & +30 Rage immediately", "Hồi ngay +35% Máu & +30 Nộ"), (int)r.x + 18, (int)r.y + 124, 13, { 120, 235, 160, 255 });
 
-                    const char* tags[4] = { "PASSIVE", "SKILL [Q]", "SKILL [E]", "ULTIMATE [R]" };
-                    const char* sn[4] = { sc.passiveName, sc.qName, sc.eName, sc.rName };
-                    const char* sd[4] = { sc.passiveDesc, sc.qDesc, sc.eDesc, sc.rDesc };
+                    const char* tags[4] = { L("PASSIVE", "NỘI TẠI"), L("SKILL [Q]", "CHIÊU [Q]"), L("SKILL [E]", "CHIÊU [E]"), L("ULTIMATE [R]", "TUYỆT KỸ [R]") };
+                    const char* sn[4] = {
+                        settings.language == 1 ? scVi.passiveName : sc.passiveName,
+                        settings.language == 1 ? scVi.qName       : sc.qName,
+                        settings.language == 1 ? scVi.eName       : sc.eName,
+                        settings.language == 1 ? scVi.rName       : sc.rName
+                    };
+                    const char* sd[4] = {
+                        settings.language == 1 ? scVi.passiveDesc : sc.passiveDesc,
+                        settings.language == 1 ? scVi.qDesc       : sc.qDesc,
+                        settings.language == 1 ? scVi.eDesc       : sc.eDesc,
+                        settings.language == 1 ? scVi.rDesc       : sc.rDesc
+                    };
                     Color cols[4] = { sc.color, SKYBLUE, { 110, 235, 175, 255 }, ORANGE };
                     int ky = (int)r.y + 150;
                     for (int k = 0; k < 4; ++k) {
@@ -7646,11 +8080,13 @@ public:
                     Rectangle btn = { r.x + 24.0f, r.y + ch - 52.0f, cw - 48.0f, 38.0f };
                     DrawRectangleRec(btn, hov ? Shade(sc.color, 0.55f) : Color{ 32, 76, 118, 255 });
                     DrawRectangleLinesEx(btn, 2.0f, hov ? GOLD : sc.color);
-                    std::string bTxt = touchMode ? std::string("TAP TO AWAKEN ") + sc.name : TextFormat("PRESS [%d] OR CLICK TO AWAKEN", i + 1);
+                    std::string bTxt = touchMode ? std::string(L("TAP TO AWAKEN ", "CHẠM ĐỂ THỨC TỈNH ")) + SubDisplayName(hc, i + 1)
+                                                 : std::string(TextFormat(L("PRESS [%d] OR CLICK TO AWAKEN", "NHẤN [%d] HOẶC NHẤP ĐỂ THỨC TỈNH"), i + 1));
                     DrawText(bTxt.c_str(), (int)(btn.x + btn.width / 2) - MeasureText(bTxt.c_str(), 16) / 2, (int)btn.y + 11, 16, WHITE);
                 }
             } else {
-                DrawText("LEVEL UP! CHOOSE AN UPGRADE", 1280 / 2 - 250, 150, 34, GOLD);
+                const char* luHdr = L("LEVEL UP! CHOOSE AN UPGRADE", "LÊN CẤP! CHỌN NÂNG CẤP");
+                DrawText(luHdr, 1280 / 2 - MeasureText(luHdr, 34) / 2, 150, 34, GOLD);
 
                 float cardW = 240;
                 float startX = 1280 / 2 - (cardW * 3 + 40) / 2;
@@ -7664,10 +8100,10 @@ public:
                     std::string title = UpgradeTitle(levelChoices[i]);
                     std::string desc = UpgradeDesc(levelChoices[i]);
 
-                    DrawText(title.c_str(), (int)cx + 20, (int)cy + 30, 22, GOLD);
-                    DrawText(desc.c_str(), (int)cx + 20, (int)cy + 85, 17, RAYWHITE);
+                    DrawText(title.c_str(), (int)cx + 18, (int)cy + 28, 21, GOLD);
+                    DrawWrappedText(desc.c_str(), (int)cx + 18, (int)cy + 78, (int)cardW - 36, 16, 20, RAYWHITE);
 
-                    std::string btn = touchMode ? std::string("TAP TO CHOOSE") : "PRESS [" + std::to_string(i + 1) + "]";
+                    std::string btn = touchMode ? std::string(L("TAP TO CHOOSE", "CHẠM ĐỂ CHỌN")) : std::string(L("PRESS [", "NHẤN [")) + std::to_string(i + 1) + "]";
                     DrawRectangle((int)cx + 30, (int)cy + 210, 180, 42, DARKBLUE);
                     DrawText(btn.c_str(), (int)cx + 120 - MeasureText(btn.c_str(), 18) / 2, (int)cy + 222, 18, WHITE);
                 }
@@ -7677,24 +8113,25 @@ public:
         // ── Game Over Modal ──
         if (state == GAME_OVER) {
             DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.88f));
-            DrawText("YOU HAVE FALLEN", 1280 / 2 - 180, 160, 44, RED);
+            const char* goHdr = L("YOU HAVE FALLEN", "BẠN ĐÃ GỤC NGÃ");
+            DrawText(goHdr, 1280 / 2 - MeasureText(goHdr, 44) / 2, 160, 44, RED);
 
-            std::string st0 = std::string("Class: ") + HeroTitle();
-            std::string st1 = "Floor Reached: " + std::to_string(floor);
-            std::string st2 = "Final Level: " + std::to_string(player.level);
-            std::string st3 = "Enemies Slain: " + std::to_string(enemiesSlain);
-            std::string st4 = "Gold Accumulated: " + std::to_string(player.gold);
-            std::string st5 = "Best Record: Floor " + std::to_string(bestFloor) + (newRecord ? "  (NEW RECORD!)" : "");
+            std::string st0 = std::string(L("Class: ", "Hệ Tướng: ")) + HeroTitle();
+            std::string st1 = std::string(L("Floor Reached: ", "Tầng Đạt Được: ")) + std::to_string(floor);
+            std::string st2 = std::string(L("Final Level: ", "Cấp Độ Cuối: ")) + std::to_string(player.level);
+            std::string st3 = std::string(L("Enemies Slain: ", "Kẻ Địch Đã Hạ: ")) + std::to_string(enemiesSlain);
+            std::string st4 = std::string(L("Gold Accumulated: ", "Vàng Tích Lũy: ")) + std::to_string(player.gold);
+            std::string st5 = std::string(L("Best Record: Floor ", "Kỷ Lục Cao Nhất: Tầng ")) + std::to_string(bestFloor) + (newRecord ? L("  (NEW RECORD!)", "  (KỶ LỤC MỚI!)") : "");
 
-            DrawText(st0.c_str(), 1280 / 2 - 140, 226, 22, hCol);
-            DrawText(st1.c_str(), 1280 / 2 - 140, 260, 22, RAYWHITE);
-            DrawText(st2.c_str(), 1280 / 2 - 140, 295, 22, RAYWHITE);
-            DrawText(st3.c_str(), 1280 / 2 - 140, 330, 22, RAYWHITE);
-            DrawText(st4.c_str(), 1280 / 2 - 140, 365, 22, GOLD);
-            DrawText(st5.c_str(), 1280 / 2 - 140, 400, 22, newRecord ? GREEN : SKYBLUE);
+            DrawText(st0.c_str(), 1280 / 2 - 150, 226, 22, hCol);
+            DrawText(st1.c_str(), 1280 / 2 - 150, 260, 22, RAYWHITE);
+            DrawText(st2.c_str(), 1280 / 2 - 150, 295, 22, RAYWHITE);
+            DrawText(st3.c_str(), 1280 / 2 - 150, 330, 22, RAYWHITE);
+            DrawText(st4.c_str(), 1280 / 2 - 150, 365, 22, GOLD);
+            DrawText(st5.c_str(), 1280 / 2 - 150, 400, 22, newRecord ? GREEN : SKYBLUE);
             if (bestCombo >= 2) {
-                std::string st6 = "Best Combo: x" + std::to_string(bestCombo);
-                DrawText(st6.c_str(), 1280 / 2 - 140, 428, 22, ORANGE);
+                std::string st6 = std::string(L("Best Combo: x", "Combo Cao Nhất: x")) + std::to_string(bestCombo);
+                DrawText(st6.c_str(), 1280 / 2 - 150, 428, 22, ORANGE);
             }
 
             std::string st7 = "Souls earned: +" + std::to_string(lastRunSouls) + "   (total " + std::to_string(souls) + ")";
@@ -7747,6 +8184,7 @@ int main() {
 
     game.StopRumble();
     game.snd.Close();
+    CloseGameFont();
     CloseWindow();
     return 0;
 }
