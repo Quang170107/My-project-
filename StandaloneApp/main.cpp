@@ -9,46 +9,110 @@
 #include <random>
 #include <ctime>
 
-// ── Phông chữ Unicode hỗ trợ đầy đủ Tiếng Việt ──────────────────────────────
-static Font gUiFont = { 0 };
+// ── Phông chữ Unicode đậm sắc nét đa kích thước hỗ trợ đầy đủ Tiếng Việt ──
+static const int kFontBuckets[7] = { 15, 18, 21, 24, 28, 34, 46 };
+static Font gUiFonts[7] = { { 0 } };
+static bool gFontLoaded = false;
+static bool gDrawingOutlinePass = false;
+
+static void AppendUtf8(std::string& dst, int cp) {
+    if (cp <= 0x7F) {
+        dst.push_back((char)cp);
+    } else if (cp <= 0x7FF) {
+        dst.push_back((char)(0xC0 | ((cp >> 6) & 0x1F)));
+        dst.push_back((char)(0x80 | (cp & 0x3F)));
+    } else if (cp <= 0xFFFF) {
+        dst.push_back((char)(0xE0 | ((cp >> 12) & 0x0F)));
+        dst.push_back((char)(0x80 | ((cp >> 6) & 0x3F)));
+        dst.push_back((char)(0x80 | (cp & 0x3F)));
+    } else {
+        dst.push_back((char)(0xF0 | ((cp >> 18) & 0x07)));
+        dst.push_back((char)(0x80 | ((cp >> 12) & 0x3F)));
+        dst.push_back((char)(0x80 | ((cp >> 6) & 0x3F)));
+        dst.push_back((char)(0x80 | (cp & 0x3F)));
+    }
+}
+
+static void PopUtf8Char(std::string& s) {
+    while (!s.empty() && ((unsigned char)s.back() & 0xC0) == 0x80) s.pop_back();
+    if (!s.empty()) s.pop_back();
+}
 
 static void InitGameFont() {
-    if (IsWindowState(FLAG_WINDOW_HIDDEN) || gUiFont.baseSize > 0) return;
+    if (gFontLoaded) return;
     std::vector<int> cps;
     for (int c = 0x0020; c <= 0x007E; ++c) cps.push_back(c);
     for (int c = 0x00A0; c <= 0x024F; ++c) cps.push_back(c);
     for (int c = 0x1E00; c <= 0x1EFF; ++c) cps.push_back(c);
-    for (int c = 0x2010; c <= 0x2027; ++c) cps.push_back(c);
+    for (int c = 0x2010; c <= 0x203A; ++c) cps.push_back(c);
+    cps.push_back(0x20AB);
     static const char* kFontPaths[] = {
+        "C:/Windows/Fonts/segoeuib.ttf",
+        "C:/Windows/Fonts/tahomabd.ttf",
+        "C:/Windows/Fonts/arialbd.ttf",
         "C:/Windows/Fonts/segoeui.ttf",
         "C:/Windows/Fonts/tahoma.ttf",
         "C:/Windows/Fonts/arial.ttf",
+        "/system/fonts/Roboto-Bold.ttf",
+        "/system/fonts/NotoSans-Bold.ttf",
         "/system/fonts/Roboto-Regular.ttf",
         "/system/fonts/NotoSans-Regular.ttf"
     };
+    const char* chosen = nullptr;
     for (const char* path : kFontPaths) {
-        if (FileExists(path)) {
-            Font f = LoadFontEx(path, 32, cps.data(), (int)cps.size());
-            if (f.texture.id > 0 && f.baseSize > 0) {
-                gUiFont = f;
-                SetTextureFilter(gUiFont.texture, TEXTURE_FILTER_BILINEAR);
-                break;
-            }
+        if (FileExists(path)) { chosen = path; break; }
+    }
+    if (!chosen) return;
+    for (int i = 0; i < 7; ++i) {
+        Font f = LoadFontEx(chosen, kFontBuckets[i], cps.data(), (int)cps.size());
+        if (f.texture.id > 0 && f.baseSize > 0) {
+            gUiFonts[i] = f;
+            SetTextureFilter(gUiFonts[i].texture, TEXTURE_FILTER_POINT);
         }
     }
+    gFontLoaded = (gUiFonts[0].texture.id > 0 && gUiFonts[0].baseSize > 0);
 }
 
 static void CloseGameFont() {
-    if (gUiFont.texture.id > 0 && gUiFont.baseSize > 0) {
-        UnloadFont(gUiFont);
-        gUiFont = { 0 };
+    for (int i = 0; i < 7; ++i) {
+        if (gUiFonts[i].texture.id > 0 && gUiFonts[i].baseSize > 0) {
+            UnloadFont(gUiFonts[i]);
+            gUiFonts[i] = { 0 };
+        }
     }
+    gFontLoaded = false;
+}
+
+static int EffectiveFontSize(int fontSize) {
+    if (fontSize <= 11) return fontSize + 3;
+    if (fontSize <= 15) return fontSize + 2;
+    if (fontSize <= 20) return fontSize + 1;
+    return fontSize;
+}
+
+static const Font& PickGameFont(int effSize) {
+    int best = 0;
+    int bestDiff = 9999;
+    for (int i = 0; i < 7; ++i) {
+        if (gUiFonts[i].baseSize <= 0) continue;
+        int d = abs(gUiFonts[i].baseSize - effSize);
+        if (d < bestDiff) { bestDiff = d; best = i; }
+    }
+    return gUiFonts[best];
 }
 
 static void GameDrawText(const char* text, int posX, int posY, int fontSize, Color color) {
     if (!text) return;
-    if (gUiFont.texture.id > 0 && gUiFont.baseSize > 0) {
-        DrawTextEx(gUiFont, text, { (float)posX, (float)posY }, (float)fontSize, 1.0f, color);
+    int eff = EffectiveFontSize(fontSize);
+    if (gFontLoaded) {
+        const Font& f = PickGameFont(eff);
+        const float sp = (eff >= 28) ? 0.8f : 0.4f;
+        if (!gDrawingOutlinePass && ((int)color.r + (int)color.g + (int)color.b) > 75 && color.a > 60) {
+            Color sh = { 6, 8, 16, (unsigned char)std::min(235, (int)color.a) };
+            DrawTextEx(f, text, { (float)(posX + 1), (float)(posY + 1) }, (float)eff, sp, sh);
+            DrawTextEx(f, text, { (float)posX, (float)(posY + 1) }, (float)eff, sp, sh);
+        }
+        DrawTextEx(f, text, { (float)posX, (float)posY }, (float)eff, sp, color);
     } else {
         ::DrawText(text, posX, posY, fontSize, color);
     }
@@ -56,8 +120,11 @@ static void GameDrawText(const char* text, int posX, int posY, int fontSize, Col
 
 static int GameMeasureText(const char* text, int fontSize) {
     if (!text) return 0;
-    if (gUiFont.texture.id > 0 && gUiFont.baseSize > 0) {
-        return (int)ceilf(MeasureTextEx(gUiFont, text, (float)fontSize, 1.0f).x);
+    int eff = EffectiveFontSize(fontSize);
+    if (gFontLoaded) {
+        const Font& f = PickGameFont(eff);
+        const float sp = (eff >= 28) ? 0.8f : 0.4f;
+        return (int)ceilf(MeasureTextEx(f, text, (float)eff, sp).x);
     }
     return ::MeasureText(text, fontSize);
 }
@@ -560,6 +627,7 @@ struct Player {
     float lifesteal = 0.0f;
     float armor = 2.0f;
     int level = 1;
+    int titleTierClaimed = 0;
     int xp = 0;
     int xpNext = 50;
     int gold = 0;
@@ -1047,6 +1115,37 @@ struct ChildInfo {
     float bonusSpeed = 0.0f;
 };
 
+static constexpr int kMaxPlayerLevel = 100;
+
+struct LevelTitleDef {
+    int minLevel;
+    const char* nameEn;
+    const char* nameVi;
+    const char* bonusEn;
+    const char* bonusVi;
+    Color color;
+    float hpBonus;
+    float dmgBonus;
+    float armorBonus;
+    float critBonus;
+    float atkRateBonus;
+};
+
+static const LevelTitleDef kLevelTitles[6] = {
+    {   1, "Dungeon Novice",           "Tân Binh Hầm Ngục",       "Adventurer Start",                 "Khởi đầu hành trình",             { 180, 195, 220, 255 },   0.0f,  0.0f, 0.0f, 0.00f, 0.00f },
+    {  20, "Elite Vanguard",           "Chiến Binh Tinh Anh",     "+30 HP  +5 DMG",                   "+30 Máu  +5 Sát Thương",          { 110, 235, 160, 255 },  30.0f,  5.0f, 0.0f, 0.00f, 0.00f },
+    {  40, "Grand Warlord",            "Thống Lĩnh Chiến Trường", "+50 HP  +8 DMG  +1 ARM",           "+50 Máu  +8 ST  +1 Giáp",         {  95, 215, 255, 255 },  50.0f,  8.0f, 1.0f, 0.00f, 0.00f },
+    {  60, "Dungeon Overlord",         "Bá Chủ Hầm Ngục",         "+70 HP  +12 DMG  +5% CRIT",        "+70 Máu  +12 ST  +5% CM",         { 205, 120, 255, 255 },  70.0f, 12.0f, 0.0f, 0.05f, 0.00f },
+    {  80, "Immortal Demigod",         "Bán Thần Bất Diệt",       "+100 HP +16 DMG +1.5ARM +ATK",     "+100 Máu +16 ST +1.5G +Tốc",      { 255, 145,  55, 255 }, 100.0f, 16.0f, 1.5f, 0.00f, 0.25f },
+    { 100, "Eternal Mythic Sovereign", "Thần Thoại Vĩnh Hằng",    "+150 HP +25 DMG +2.5ARM +8%CM",    "+150 Máu +25 ST +2.5G +8%CM",     { 255, 215,  70, 255 }, 150.0f, 25.0f, 2.5f, 0.08f, 0.35f }
+};
+
+static int XpRequiredForNextLevel(int lvl) {
+    int lv = std::max(1, std::min(kMaxPlayerLevel, lvl));
+    if (lv < 10) return 50 + (lv - 1) * 25 + (lv - 1) * (lv - 1) * 6;
+    return std::min(4500, 760 + (lv - 10) * 60);
+}
+
 struct AncestorRecord {
     int generation = 1;
     std::string name;
@@ -1055,6 +1154,7 @@ struct AncestorRecord {
     bool wasNoble = false;
     std::string spouseName;
     int floorReached = 1;
+    int levelReached = 1;
     int enemiesSlain = 0;
 };
 
@@ -1112,6 +1212,7 @@ public:
         int gold = 0;
         int enemiesSlain = 0;
         int weaponType = 0;
+        std::string heroName = "";
         std::string weaponName = "Sword";
         std::string timestamp = "";
     };
@@ -1221,6 +1322,18 @@ public:
     int royalQuestBosses = 0;
     bool hasSpouse = false;
     int spouseIdx = -1;
+    bool spouseUnlocked[4] = { false, false, false, false };
+    int spouseQuestProgress = 0;
+    bool hasCaptiveEvent = false;
+    bool captiveRescued = false;
+    int captiveSpouseIdx = 0;
+    Vector2 captivePos = { 0.0f, 0.0f };
+    float timeOfDay = 8.5f;
+    int dayCount = 1;
+    int heroAge = 18;
+    int namingMode = 0; // 0: off, 1: New Hero, 2: Child Name, 3: New Save Name
+    int namingChildIdx = -1;
+    std::string nameInputBuf = "";
     std::vector<ChildInfo> children;
     std::vector<AncestorRecord> familyTree;
     float legacyHp = 0.0f;
@@ -1234,6 +1347,167 @@ public:
     State familyTreeReturn = PLAYING;
 
     const char* L(const char* en, const char* vi) const { return settings.language == 1 ? vi : en; }
+    int TimePhase() const {
+        if (timeOfDay >= 5.0f && timeOfDay < 8.0f) return 0;  // Dawn
+        if (timeOfDay >= 8.0f && timeOfDay < 17.0f) return 1; // Day
+        if (timeOfDay >= 17.0f && timeOfDay < 20.0f) return 2; // Dusk
+        return 3; // Night
+    }
+    const char* TimePhaseName() const {
+        switch (TimePhase()) {
+            case 0: return L("Dawn", "Bình Minh");
+            case 1: return L("Day", "Ban Ngày");
+            case 2: return L("Dusk", "Hoàng Hôn");
+            default: return L("Night", "Ban Đêm");
+        }
+    }
+    std::string ClockString() const {
+        int totMin = std::max(0, (int)floorf(timeOfDay * 60.0f)) % (24 * 60);
+        int hh = totMin / 60, mm = totMin % 60;
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%02d:%02d", hh, mm);
+        return std::string(buf);
+    }
+    void AdvanceTime(float hours) {
+        if (hours <= 0.0f) return;
+        timeOfDay += hours;
+        while (timeOfDay >= 24.0f) {
+            timeOfDay -= 24.0f;
+            dayCount++;
+            if (dayCount % 3 == 0) heroAge++;
+        }
+    }
+    void SetHeroName(const std::string& nm) {
+        if (!nm.empty()) heroGivenName = nm;
+    }
+    void SetChildName(int idx, const std::string& nm) {
+        if (idx >= 0 && idx < (int)children.size() && !nm.empty()) children[idx].name = nm;
+    }
+    const char* SpouseUnlockConditionText(int idx) const {
+        switch (idx) {
+            case 0: return L("Event: Rescue her from Dungeon Cage", "Sự kiện: Giải cứu ở Hầm Ngục");
+            case 1: return TextFormat(L("Event/Quest: Rescue or Slay %d/15 Monsters", "Sự kiện/NV: Cứu hoặc Hạ %d/15 Quái"), std::min(15, spouseQuestProgress));
+            case 2: return L("Event/Quest: Rescue or Conquer Trial/Boss", "Sự kiện/NV: Cứu hoặc Thắng Thử Thách/Trùm");
+            default: return L("Quest: King's Commission or Royal Rescue", "NV/Sự kiện: Hoàn thành Ủy Thác Của Vua");
+        }
+    }
+    void UnlockSpouse(int idx, const char* msgEn, const char* msgVi) {
+        if (idx < 0 || idx >= 4 || spouseUnlocked[idx]) return;
+        spouseUnlocked[idx] = true;
+        PlaySound(snd.sndLevelUp);
+        Burst(player.pos, kSpouses[idx].dressCol, 34, 290.0f, 0.85f);
+        ShowBanner(L(msgEn, msgVi), 4.2f);
+    }
+    void RescueCaptiveSpouse() {
+        if (!hasCaptiveEvent || captiveRescued) return;
+        captiveRescued = true;
+        int idx = std::max(0, std::min(3, captiveSpouseIdx));
+        player.hp = std::min(player.maxHp, player.hp + 35.0f);
+        AddRage(25.0f);
+        SpawnPopup(captivePos, L("RESCUED!", "ĐÃ GIẢI CỨU!"), kSpouses[idx].dressCol);
+        Burst(captivePos, GOLD, 28, 260.0f, 0.75f);
+        std::string en = std::string("RESCUED ") + kSpouses[idx].nameEn + "! She now awaits you at Family Home!";
+        std::string vi = std::string("ĐÃ GIẢI CỨU ") + kSpouses[idx].nameVi + "! Nàng đang đợi bạn tại Tổ Ấm!";
+        UnlockSpouse(idx, en.c_str(), vi.c_str());
+    }
+    void OpenNameModal(int mode, int childOrSlotIdx, const std::string& defName) {
+        namingMode = mode;
+        namingChildIdx = childOrSlotIdx;
+        nameInputBuf = defName;
+        StopRumble();
+    }
+    void ConfirmNameModal() {
+        std::string finalName = nameInputBuf;
+        while (!finalName.empty() && finalName.front() == ' ') finalName.erase(finalName.begin());
+        while (!finalName.empty() && finalName.back() == ' ') finalName.pop_back();
+        if (finalName.empty()) finalName = kHeirNames[rand() % 10];
+        if (namingMode == 1) {
+            heroGivenName = finalName;
+            namingMode = 0;
+            state = PLAYING;
+            PlaySound(snd.sndLevelUp);
+            ShowBanner(std::string(L("HERO NAMED: ", "ĐẶT TÊN NHÂN VẬT: ")) + heroGivenName + "!", 2.8f);
+        } else if (namingMode == 2) {
+            SetChildName(namingChildIdx, finalName);
+            namingMode = 0;
+            PlaySound(snd.sndLevelUp);
+            ShowBanner(std::string(L("CHILD NAMED: ", "ĐÃ ĐẶT TÊN CON: ")) + finalName + "!", 2.8f);
+        } else if (namingMode == 3) {
+            int slot = std::max(0, std::min(3, namingChildIdx));
+            heroGivenName = finalName;
+            namingMode = 0;
+            SaveGameToSlot(slot);
+        } else {
+            namingMode = 0;
+        }
+    }
+    void UpdateNameModal() {
+        int cp = GetCharPressed();
+        while (cp > 0) {
+            if (cp >= 0x20 && nameInputBuf.size() < 26) AppendUtf8(nameInputBuf, cp);
+            cp = GetCharPressed();
+        }
+        if (IsKeyPressed(KEY_BACKSPACE) || IsKeyPressedRepeat(KEY_BACKSPACE)) {
+            PopUtf8Char(nameInputBuf);
+        }
+        if (IsKeyPressed(KEY_TAB)) {
+            nameInputBuf = kHeirNames[rand() % 10];
+            PlaySound(snd.sndCoin);
+        }
+        Vector2 m = GetMousePosition();
+        Rectangle okBtn = { 1280 / 2.0f - 210.0f, 488.0f, 195.0f, 44.0f };
+        Rectangle randBtn = { 1280 / 2.0f + 15.0f, 488.0f, 195.0f, 44.0f };
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            if (CheckCollisionPointRec(m, okBtn)) { ConfirmNameModal(); return; }
+            if (CheckCollisionPointRec(m, randBtn)) { nameInputBuf = kHeirNames[rand() % 10]; PlaySound(snd.sndCoin); return; }
+        }
+        if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_ESCAPE)) {
+            ConfirmNameModal();
+        }
+    }
+    void DrawNameModal() {
+        if (namingMode == 0) return;
+        DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.80f));
+        int mw = 580, mh = 340, mx = 1280 / 2 - mw / 2, my = 720 / 2 - mh / 2;
+        DrawRectangle(mx, my, mw, mh, { 16, 22, 38, 252 });
+        DrawRectangleLinesEx({ (float)mx, (float)my, (float)mw, (float)mh }, 2.5f, GOLD);
+
+        const char* hdr = (namingMode == 1) ? L("NAME YOUR HERO", "ĐẶT TÊN CHO NHÂN VẬT")
+                        : (namingMode == 2 ? L("NAME YOUR CHILD", "ĐẶT TÊN CHO CON NỐI DÕI")
+                                           : L("NAME NEW SAVE FILE", "ĐẶT TÊN BẢN LƯU MỚI"));
+        OutlinedText(hdr, 1280 / 2 - MeasureText(hdr, 26) / 2, my + 24, 26, GOLD, { 60, 35, 10, 255 });
+
+        int pvClass = player.heroClass;
+        int pvSub = player.subClass;
+        if (namingMode == 2 && namingChildIdx >= 0 && namingChildIdx < (int)children.size()) {
+            pvClass = children[namingChildIdx].heroClass;
+            pvSub = 0;
+        }
+        DrawHeroModel({ 1280 / 2.0f, (float)my + 106.0f }, pvClass, ClassWeaponType(pvClass), { 0.8f, 0.2f }, false, (float)GetTime() * 4.0f, true, 0.3f, false, false, 0.0f, 0.0f, pvSub, 0.0f);
+
+        const char* subHint = (namingMode == 2) ? L("Type a custom name or roll [Tab]:", "Nhập tên cho con bằng bàn phím hoặc [Tab] chọn ngẫu nhiên:")
+                                                : L("Type hero/save name or press [Tab] for random:", "Nhập tên nhân vật/save hoặc nhấn [Tab] để chọn tên ngẫu nhiên:");
+        DrawText(subHint, 1280 / 2 - MeasureText(subHint, 14) / 2, my + 148, 14, SKYBLUE);
+
+        Rectangle box = { (float)mx + 56.0f, (float)my + 178.0f, (float)mw - 112.0f, 48.0f };
+        DrawRectangleRec(box, { 10, 14, 24, 255 });
+        DrawRectangleLinesEx(box, 2.0f, SKYBLUE);
+        bool blink = ((int)(GetTime() * 2.5f) % 2) == 0;
+        std::string disp = nameInputBuf + (blink ? "_" : "");
+        DrawText(disp.c_str(), (int)box.x + 16, (int)box.y + 13, 20, WHITE);
+
+        Rectangle okBtn = { 1280 / 2.0f - 210.0f, 488.0f, 195.0f, 44.0f };
+        Rectangle randBtn = { 1280 / 2.0f + 15.0f, 488.0f, 195.0f, 44.0f };
+        DrawRectangleRec(okBtn, { 34, 98, 56, 255 });
+        DrawRectangleLinesEx(okBtn, 2.0f, { 120, 245, 160, 255 });
+        const char* okTxt = L("CONFIRM [ENTER]", "XÁC NHẬN [ENTER]");
+        DrawText(okTxt, (int)(okBtn.x + okBtn.width / 2) - MeasureText(okTxt, 16) / 2, (int)okBtn.y + 13, 16, WHITE);
+
+        DrawRectangleRec(randBtn, { 42, 56, 98, 255 });
+        DrawRectangleLinesEx(randBtn, 1.8f, SKYBLUE);
+        const char* rdTxt = L("RANDOM [TAB]", "NGẪU NHIÊN [TAB]");
+        DrawText(rdTxt, (int)(randBtn.x + randBtn.width / 2) - MeasureText(rdTxt, 16) / 2, (int)randBtn.y + 13, 16, GOLD);
+    }
     const char* SpouseName(int idx) const {
         if (idx < 0 || idx >= 4) return L("None", "Chưa có");
         return settings.language == 1 ? kSpouses[idx].nameVi : kSpouses[idx].nameEn;
@@ -1280,6 +1554,17 @@ public:
         royalQuestBosses = 0;
         hasSpouse = false;
         spouseIdx = -1;
+        for (int i = 0; i < 4; ++i) spouseUnlocked[i] = false;
+        spouseQuestProgress = 0;
+        hasCaptiveEvent = false;
+        captiveRescued = false;
+        captiveSpouseIdx = 0;
+        timeOfDay = 8.5f;
+        dayCount = 1;
+        heroAge = 18;
+        namingMode = 0;
+        namingChildIdx = -1;
+        nameInputBuf = "";
         children.clear();
         familyTree.clear();
         legacyHp = legacyDmg = legacyArmor = legacySpeed = 0.0f;
@@ -1308,6 +1593,22 @@ public:
         if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].name : kSubclasses[hc][player.subClass - 1].name;
         return settings.language == 1 ? kClassesVi[hc].name : kClasses[hc].name;
     }
+    static int LevelTitleTierForLevel(int lv) {
+        if (lv >= 100) return 5;
+        if (lv >= 80)  return 4;
+        if (lv >= 60)  return 3;
+        if (lv >= 40)  return 2;
+        if (lv >= 20)  return 1;
+        return 0;
+    }
+    int CurrentTitleTier() const { return LevelTitleTierForLevel(player.level); }
+    const char* LevelTitleNameForLevel(int lv) const {
+        int t = LevelTitleTierForLevel(lv);
+        return settings.language == 1 ? kLevelTitles[t].nameVi : kLevelTitles[t].nameEn;
+    }
+    const char* CurrentLevelTitle() const { return LevelTitleNameForLevel(player.level); }
+    Color LevelTitleColorForLevel(int lv) const { return kLevelTitles[LevelTitleTierForLevel(lv)].color; }
+    Color CurrentLevelTitleColor() const { return LevelTitleColorForLevel(player.level); }
     const char* HeroRole() const {
         int hc = std::max(0, std::min(3, player.heroClass));
         if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].role : kSubclasses[hc][player.subClass - 1].role;
@@ -1942,8 +2243,8 @@ public:
     }
 
     int SpouseCost(int idx) const {
-        if (idx < 0 || idx >= 4) return 0;
-        return MealPrice(kSpouses[idx].cost);
+        (void)idx;
+        return 0; // Vợ không mua bằng vàng — chỉ mở khóa qua giải cứu / nhiệm vụ!
     }
 
     void OpenSurfaceModal(int tab) {
@@ -1994,6 +2295,7 @@ public:
         }
         foodRations--;
         hunger = std::min(maxHunger, hunger + 45.0f);
+        AdvanceTime(0.5f);
         float hl = roundf(player.maxHp * 0.25f);
         player.hp = std::min(player.maxHp, player.hp + hl);
         PlaySound(snd.sndPotion);
@@ -2012,6 +2314,7 @@ public:
         }
         player.gold -= price;
         PlaySound(snd.sndPotion);
+        AdvanceTime(1.0f);
         if (kind == 0) {
             hunger = std::min(maxHunger, hunger + 35.0f);
             player.hp = std::min(player.maxHp, player.hp + 18.0f);
@@ -2070,15 +2373,14 @@ public:
             return;
         }
         if (idx < 0 || idx >= 4) return;
-        int cost = SpouseCost(idx);
-        if (player.gold < cost) {
-            ShowBanner(L("Not enough Gold for the wedding ceremony!", "Không đủ Vàng tổ chức hôn lễ!"), 2.0f);
+        if (!spouseUnlocked[idx]) {
+            ShowBanner(std::string(L("Cannot buy a spouse! ", "Không thể dùng Vàng mua vợ! ")) + SpouseUnlockConditionText(idx), 3.4f);
             PlaySound(snd.sndHurt);
             return;
         }
-        player.gold -= cost;
         hasSpouse = true;
         spouseIdx = idx;
+        AdvanceTime(2.0f);
         const SpouseDef& sp = kSpouses[idx];
         player.maxHp += sp.hpBonus;
         player.hp = std::min(player.maxHp, player.hp + sp.hpBonus);
@@ -2087,7 +2389,7 @@ public:
         player.attackRate += sp.atkSpdBonus;
         PlaySound(snd.sndLevelUp);
         Burst(player.pos, sp.dressCol, 32, 260.0f, 0.8f);
-        ShowBanner(std::string(L("MARRIED ", "ĐÃ CƯỚI ")) + SpouseName(idx) + "!", 3.4f);
+        ShowBanner(std::string(L("MARRIED ", "KẾT HÔN CÙNG ")) + SpouseName(idx) + "!", 3.4f);
     }
 
     void TryHaveChild() {
@@ -2109,6 +2411,7 @@ public:
             return;
         }
         player.gold -= cost;
+        AdvanceTime(1.5f);
         ChildInfo ch;
         int nameIdx = (generation * 3 + (int)children.size() + (int)familyTree.size()) % 10;
         ch.name = kHeirNames[nameIdx];
@@ -2121,6 +2424,9 @@ public:
         PlaySound(snd.sndLevelUp);
         Burst(player.pos, SKYBLUE, 28, 250.0f, 0.75f);
         ShowBanner(std::string(L("CHILD BORN: ", "SINH CON THÀNH CÔNG: ")) + ch.name + " (" + ClassDisplayName(ch.heroClass) + ")!", 3.5f);
+        if (!ctl.external && !IsWindowState(FLAG_WINDOW_HIDDEN) && gFontLoaded) {
+            OpenNameModal(2, (int)children.size() - 1, ch.name);
+        }
     }
 
     void AcceptRoyalCommission() {
@@ -2153,8 +2459,8 @@ public:
         GiveRandomRelic();
         PlaySound(snd.sndLevelUp);
         Shake(0.35f, 6.0f);
-        ShowBanner(L("ROYAL DECREE: KING'S COMMISSION COMPLETE! YOU ARE NOW NOBLE (+300G & RELIC)!",
-                     "HOÀN THÀNH ỦY THÁC CỦA VUA! ĐƯỢC PHONG QUÝ TỘC (+300 Vàng & Thánh Tích)!"), 4.5f);
+        UnlockSpouse(3, "ROYAL DECREE: NOBILITY & PRINCESS BAO NGOC BETROTHED TO YOU!",
+                        "NHIỆM VỤ HOÀNG GIA HOÀN TẤT: PHONG QUÝ TỘC & VUA GẢ CÔNG CHÚA BẢO NGỌC!");
     }
 
     void BuyNobleTitleDirect() {
@@ -2194,6 +2500,7 @@ public:
         rec.wasNoble = isNoble;
         rec.spouseName = (hasSpouse && spouseIdx >= 0) ? SpouseName(spouseIdx) : L("Unmarried", "Độc Thân");
         rec.floorReached = std::max(floor, nextDungeonFloor);
+        rec.levelReached = player.level;
         rec.enemiesSlain = enemiesSlain;
         familyTree.push_back(rec);
 
@@ -2214,6 +2521,17 @@ public:
         legacySpeed += heir.bonusSpeed;
         hasSpouse = false;
         spouseIdx = -1;
+        for (int i = 0; i < 4; ++i) spouseUnlocked[i] = false;
+        spouseQuestProgress = 0;
+        hasCaptiveEvent = false;
+        captiveRescued = false;
+        captiveSpouseIdx = 0;
+        dayCount += 30;
+        timeOfDay = 8.5f;
+        heroAge = 18;
+        namingMode = 0;
+        namingChildIdx = -1;
+        nameInputBuf = "";
         children.clear();
 
         player = Player();
@@ -2519,6 +2837,20 @@ public:
             }
         }
 
+        // Sự kiện ngẫu nhiên: Giải cứu người đẹp bị giam cầm trong Hầm Ngục
+        hasCaptiveEvent = false;
+        captiveRescued = false;
+        if (!isBoss && !shopFloor && floorMod != MOD_TREASURE && floor >= 2) {
+            std::vector<int> locked;
+            for (int i = 0; i < 4; ++i) if (!spouseUnlocked[i]) locked.push_back(i);
+            if (!locked.empty() && (floor % 2 == 0 || Rand01() < 0.65f)) {
+                hasCaptiveEvent = true;
+                captiveSpouseIdx = locked[rand() % locked.size()];
+                captivePos = { (Rand01() < 0.5f ? -230.0f : 230.0f), -65.0f };
+                ResolvePillars(captivePos, 42.0f);
+            }
+        }
+
         if (portalOpen) BuildPortalChoices();
     }
 
@@ -2677,6 +3009,12 @@ public:
         // Hit-stop: khựng khung hình rất ngắn khi chí mạng
         if (hitStop > 0) { hitStop -= dt; return; }
 
+        if (namingMode != 0) {
+            UpdateEffects(dt);
+            UpdateNameModal();
+            return;
+        }
+
 #ifndef __ANDROID__
         if (IsKeyPressed(KEY_F11)) {
             settings.windowMode = (settings.windowMode == 1) ? 0 : 1;
@@ -2821,8 +3159,9 @@ public:
             return;
         }
 
-        // Toggle radar with M
+        // Toggle radar with M & cập nhật đồng hồ thời gian + tuổi
         if (IsKeyPressed(KEY_M)) showMiniMap = !showMiniMap;
+        AdvanceTime(dt * 0.08f);
 
         // Player Timers
         if (player.dashTimer > 0) player.dashTimer -= dt;
@@ -3005,6 +3344,15 @@ public:
                         if (bestAct >= 1 && bestAct <= 3) BuyHouseUpgrade(bestAct);
                         else if (bestAct == 10) { OpenSurfaceModal(1); return; }
                     } else if (surfaceRoom == 3) {
+                        if (IsKeyPressed(KEY_N) && !children.empty() && !ctl.external && !IsWindowState(FLAG_WINDOW_HIDDEN) && gFontLoaded) {
+                            int bestK = 0; float minKD = 9999.0f;
+                            for (size_t k = 0; k < children.size(); ++k) {
+                                float d = Vector2Distance(player.pos, HeirPosInHome((int)k));
+                                if (d < minKD) { minKD = d; bestK = (int)k; }
+                            }
+                            OpenNameModal(2, bestK, children[bestK].name);
+                            return;
+                        }
                         if (!hasSpouse) {
                             for (int i = 0; i < 4; ++i) checkCand(i, SpouseCandPos(i), 85.0f);
                         } else {
@@ -3542,15 +3890,28 @@ public:
                 l.pos = Vector2Add(l.pos, Vector2Scale(pull, 420.0f * dt));
             }
             if (d < 24.0f) {
-                if (l.type == 0) { // XP
-                    player.xp += std::max(1, (int)roundf(l.value * xpMul));
-                    Burst(l.pos, SKYBLUE, 3, 100.0f, 0.3f);
-                    PlaySound(snd.sndCoin);
-                    while (player.xp >= player.xpNext) {
-                        player.xp -= player.xpNext;
-                        player.level++;
-                        player.xpNext = (int)(player.xpNext * 1.45f);
-                        TriggerLevelUp();
+                if (l.type == 0) { // XP (tối đa Cấp 100)
+                    if (player.level >= kMaxPlayerLevel) {
+                        player.level = kMaxPlayerLevel;
+                        player.xp = player.xpNext;
+                        player.hp = std::min(player.maxHp, player.hp + 2.0f);
+                        Burst(l.pos, GOLD, 3, 100.0f, 0.3f);
+                        PlaySound(snd.sndCoin);
+                    } else {
+                        player.xp += std::max(1, (int)roundf(l.value * xpMul));
+                        Burst(l.pos, SKYBLUE, 3, 100.0f, 0.3f);
+                        PlaySound(snd.sndCoin);
+                        while (player.level < kMaxPlayerLevel && player.xp >= player.xpNext) {
+                            player.xp -= player.xpNext;
+                            player.level++;
+                            player.xpNext = XpRequiredForNextLevel(player.level);
+                            CheckAndGrantLevelTitleMilestones();
+                            TriggerLevelUp();
+                        }
+                        if (player.level >= kMaxPlayerLevel) {
+                            player.level = kMaxPlayerLevel;
+                            player.xp = player.xpNext;
+                        }
                     }
                 } else if (l.type == 1) { // Gold
                     int gVal = HasRelic(RELIC_MIDAS) ? (int)roundf(l.value * 1.5f) : l.value;
@@ -3714,6 +4075,17 @@ public:
             chests.push_back(vc);
             player.gold += isNoble ? 44 : 35;
             AddRage(50.0f);
+            UnlockSpouse(2, "TRIAL CONQUERED: PRIESTESS THIEN THANH WILL NOW MARRY YOU!",
+                            "CHIẾN THẮNG THỬ THÁCH: THÁNH NỮ THIÊN THANH ĐÃ ĐỒNG Ý KẾT DUYÊN!");
+        }
+
+        // Giải cứu người đẹp bị giam cầm trong Hầm Ngục
+        if (hasCaptiveEvent && !captiveRescued) {
+            float cd = Vector2Distance(player.pos, captivePos);
+            if ((cd < 92.0f && (IsKeyPressed(KEY_F) || IsKeyPressed(KEY_ENTER) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_UP)))
+                || (portalOpen && cd < 64.0f)) {
+                RescueCaptiveSpouse();
+            }
         }
 
         bool anyAlive = (aliveCount > 0) || !pendingSpawns.empty() || !wave2Spawns.empty();
@@ -3729,6 +4101,7 @@ public:
             for (const auto& pc : portalChoices) {
                 if (pc.nextMod == -99) {
                     if (Vector2Distance(player.pos, pc.pos) < 75.0f && (IsKeyPressed(KEY_F) || IsKeyPressed(KEY_G) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_UP))) {
+                        AdvanceTime(1.5f);
                         EnterSurface(floor + 1);
                         break;
                     }
@@ -3738,6 +4111,7 @@ public:
                     forcedNextMod = pc.nextMod;
                     forcedNextReward = pc.rewardKind;
                     floor++;
+                    AdvanceTime(1.5f);
                     if (isNoble) {
                         player.gold += 30;
                         SpawnPopup(player.pos, L("+30G NOBLE", "+30V QUÝ TỘC"), GOLD);
@@ -3948,6 +4322,17 @@ public:
             royalQuestKills++;
             if (e.type == BOSS) royalQuestBosses++;
             if (royalQuestKills >= 35 && royalQuestBosses >= 1) CompleteRoyalCommission();
+        }
+        if (!(e.type == SPLITTER && e.splitLevel > 0)) {
+            spouseQuestProgress++;
+            if (spouseQuestProgress == 15 && !spouseUnlocked[1]) {
+                UnlockSpouse(1, "MERCHANT QUEST COMPLETE: VAN ANH HAS BEEN BETROTHED TO YOU!",
+                                "HOÀN THÀNH ỦY THÁC THƯƠNG NHÂN: PHÚ ÔNG GẢ CON GÁI VÂN ANH CHO BẠN!");
+            }
+            if (e.type == BOSS && !spouseUnlocked[2]) {
+                UnlockSpouse(2, "BOSS SLAIN! PRIESTESS THIEN THANH AGREES TO MARRY YOU!",
+                                "HẠ TRÙM HẦM NGỤC! THÁNH NỮ THIÊN THANH CẢM PHỤC ĐỒNG Ý KẾT DUYÊN!");
+            }
         }
 
         // Nội tại Sát Thủ: hạ gục hoàn 50% hồi chiêu Dash và tăng 25% tốc chạy trong 2s
@@ -4173,7 +4558,32 @@ public:
         damagePulse = 0.6f;
     }
 
+    void CheckAndGrantLevelTitleMilestones() {
+        player.level = std::max(1, std::min(kMaxPlayerLevel, player.level));
+        if (player.level >= kMaxPlayerLevel) player.xp = player.xpNext;
+        int targetTier = LevelTitleTierForLevel(player.level);
+        while (player.titleTierClaimed < targetTier) {
+            player.titleTierClaimed++;
+            const LevelTitleDef& td = kLevelTitles[player.titleTierClaimed];
+            player.maxHp += td.hpBonus;
+            player.hp = std::min(player.maxHp, player.hp + td.hpBonus);
+            player.baseDmg += td.dmgBonus;
+            player.armor += td.armorBonus;
+            player.critChance = std::min(0.75f, player.critChance + td.critBonus);
+            player.attackRate += td.atkRateBonus;
+            if (player.titleTierClaimed == 5) {
+                player.hp = player.maxHp;
+                AddRage(100.0f);
+            }
+            PlaySound(snd.sndSpecial);
+            Burst(player.pos, td.color, 36, 320.0f, 0.9f);
+            ShowBanner(std::string(L("TITLE UNLOCKED [LV.", "ĐẠT DANH HIỆU [CẤP ")) + std::to_string(td.minLevel) + "]: " + LevelTitleNameForLevel(td.minLevel) + "!", 3.8f);
+        }
+    }
+
     void TriggerLevelUp() {
+        player.level = std::min(kMaxPlayerLevel, player.level);
+        CheckAndGrantLevelTitleMilestones();
         state = LEVEL_UP;
         subclassChoosing = (player.level >= 5 && player.subClass == 0);
         PlaySound(snd.sndLevelUp);
@@ -7734,49 +8144,51 @@ public:
 
     void DrawInventory() {
         DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.84f));
-        int px = 70, py = 46, pw = 1140, ph = 632;
+        int px = 60, py = 24, pw = 1160, ph = 674;
         DrawRectangle(px, py, pw, ph, { 14, 18, 30, 248 });
         DrawRectangleLines(px, py, pw, ph, GOLD);
-        std::string title = std::string(L("EQUIPMENT & SKILLS  -  ", "TRANG BỊ & KỸ NĂNG  -  ")) + HeroTitle();
-        DrawText(title.c_str(), 1280 / 2 - MeasureText(title.c_str(), 30) / 2, py + 14, 30, HeroColor());
+        std::string title = std::string(L("EQUIPMENT & SKILLS  -  ", "TRANG BỊ & KỸ NĂNG  -  ")) + HeroTitle() + "  [" + CurrentLevelTitle() + "]";
+        DrawText(title.c_str(), 1280 / 2 - MeasureText(title.c_str(), 26) / 2, py + 12, 26, CurrentLevelTitleColor());
+        std::string lvSub = TextFormat(L("Level %d / %d%s", "Cấp %d / %d%s"), player.level, kMaxPlayerLevel, player.level >= kMaxPlayerLevel ? L(" (MAX LEVEL)", " (CẤP TỐI ĐA)") : "");
+        DrawText(lvSub.c_str(), 1280 / 2 - MeasureText(lvSub.c_str(), 14) / 2, py + 41, 14, player.level >= kMaxPlayerLevel ? GOLD : SKYBLUE);
 
         const char* slotNames[4] = { L("WEAPON", "VŨ KHÍ"), L("ARMOR", "ÁO GIÁP"), L("BOOTS", "GIÀY"), L("RING", "NHẪN") };
-        int cw = 260, gap = 14, cx0 = px + (pw - (cw * 4 + gap * 3)) / 2, cy = py + 58, ch = 228;
+        int cw = 266, gap = 14, cx0 = px + (pw - (cw * 4 + gap * 3)) / 2, cy = py + 60, ch = 196;
         for (int i = 0; i < 4; ++i) {
             int cx = cx0 + i * (cw + gap);
             Color rc = hasEquip[i] ? equipped[i].RarityColor() : Color{ 70, 80, 105, 255 };
             DrawRectangle(cx, cy, cw, ch, { 22, 28, 44, 255 });
             DrawRectangleLines(cx, cy, cw, ch, rc);
-            DrawRectangle(cx, cy, cw, 26, Fade(rc, 0.25f));
-            DrawText(slotNames[i], cx + 12, cy + 5, 17, rc);
+            DrawRectangle(cx, cy, cw, 24, Fade(rc, 0.25f));
+            DrawText(slotNames[i], cx + 12, cy + 4, 16, rc);
             if (hasEquip[i]) {
-                DrawCircleV({ (float)cx + cw / 2.0f, (float)cy + 66 }, 32.0f, Fade(rc, 0.18f));
-                DrawItemIcon(i, { (float)cx + cw / 2.0f, (float)cy + 66 }, 52.0f, rc, equipped[i].weaponType);
-                DrawText(equipped[i].name.c_str(), cx + 12, cy + 108, 17, rc);
-                DrawText(equipped[i].RarityName(), cx + 12, cy + 128, 13, Fade(rc, 0.8f));
+                DrawCircleV({ (float)cx + cw / 2.0f, (float)cy + 56 }, 28.0f, Fade(rc, 0.18f));
+                DrawItemIcon(i, { (float)cx + cw / 2.0f, (float)cy + 56 }, 44.0f, rc, equipped[i].weaponType);
+                DrawText(equipped[i].name.c_str(), cx + 12, cy + 92, 16, rc);
+                DrawText(equipped[i].RarityName(), cx + 12, cy + 111, 12, Fade(rc, 0.8f));
                 auto lines = equipped[i].StatLines();
-                for (size_t k = 0; k < lines.size(); ++k) DrawText(lines[k].c_str(), cx + 12, cy + 148 + (int)k * 18, 15, RAYWHITE);
+                for (size_t k = 0; k < lines.size(); ++k) DrawText(lines[k].c_str(), cx + 12, cy + 129 + (int)k * 16, 14, RAYWHITE);
             } else {
-                DrawItemIcon(i, { (float)cx + cw / 2.0f, (float)cy + 66 }, 52.0f, { 60, 68, 90, 255 }, 0);
+                DrawItemIcon(i, { (float)cx + cw / 2.0f, (float)cy + 56 }, 44.0f, { 60, 68, 90, 255 }, 0);
                 const char* empTxt = L("- Empty -", "- Trống -");
-                DrawText(empTxt, cx + cw / 2 - MeasureText(empTxt, 18) / 2, cy + 128, 18, { 110, 120, 145, 255 });
+                DrawText(empTxt, cx + cw / 2 - MeasureText(empTxt, 17) / 2, cy + 110, 17, { 110, 120, 145, 255 });
             }
         }
 
         // Chỉ số nhân vật
-        int sy = cy + ch + 18;
-        DrawText(L("CHARACTER", "CHỈ SỐ NHÂN VẬT"), px + 36, sy, 20, SKYBLUE);
+        int sy = cy + ch + 10;
+        DrawText(L("CHARACTER", "CHỈ SỐ NHÂN VẬT"), px + 32, sy, 18, SKYBLUE);
         char buf[96];
         auto stat = [&](int col, int row, const char* label, const std::string& val) {
-            DrawText(label, px + 36 + col * 345, sy + 28 + row * 24, 16, { 170, 185, 215, 255 });
-            DrawText(val.c_str(), px + 36 + col * 345 + 155, sy + 28 + row * 24, 16, WHITE);
+            DrawText(label, px + 32 + col * 355, sy + 24 + row * 22, 15, { 170, 185, 215, 255 });
+            DrawText(val.c_str(), px + 32 + col * 355 + 155, sy + 24 + row * 22, 15, WHITE);
         };
         snprintf(buf, sizeof(buf), "%d / %d", (int)player.hp, (int)player.maxHp); stat(0, 0, L("Health", "Máu"), buf);
         snprintf(buf, sizeof(buf), "%.0f", player.baseDmg); stat(0, 1, L("Damage", "Sát Thương"), buf);
         snprintf(buf, sizeof(buf), "%.1f", EffectiveArmor()); stat(0, 2, L("Armor", "Giáp"), buf);
         snprintf(buf, sizeof(buf), "%.0f", EffectiveMoveSpeed()); stat(1, 0, L("Move Speed", "Tốc Chạy"), buf);
         snprintf(buf, sizeof(buf), "%.2f /s", EffectiveAttackRate()); stat(1, 1, L("Attack Speed", "Tốc Đánh"), buf);
-        snprintf(buf, sizeof(buf), "%d%%", (int)roundf(std::min(0.6f, player.critChance) * 100)); stat(1, 2, L("Crit Chance", "Chí Mạng"), buf);
+        snprintf(buf, sizeof(buf), "%d%%", (int)roundf(std::min(0.75f, player.critChance) * 100)); stat(1, 2, L("Crit Chance", "Chí Mạng"), buf);
         stat(2, 0, L("Lifesteal", "Hút Máu"), FmtPct(std::min(LifestealCap() + 0.05f, player.lifesteal)));
         snprintf(buf, sizeof(buf), "%.1fs", player.dashCooldown); stat(2, 1, L("Dash Cooldown", "Hồi Lướt"), buf);
         if (player.subClass == 0) {
@@ -7787,26 +8199,26 @@ public:
         std::string extra = std::string(L("Rage: ", "Nộ: ")) + std::to_string((int)player.rage) + "/100   "
                           + L("Ember Lv", "Lửa Cấp ") + std::to_string(player.igniteLevel) + "   "
                           + L("Frost Lv", "Băng Cấp ") + std::to_string(player.frostLevel);
-        DrawText(extra.c_str(), px + pw - 36 - MeasureText(extra.c_str(), 15), sy + 2, 15, { 150, 165, 200, 255 });
+        DrawText(extra.c_str(), px + pw - 32 - MeasureText(extra.c_str(), 14), sy + 2, 14, { 150, 165, 200, 255 });
         std::string dynInfo = std::string(L("Gen ", "Đời ")) + std::to_string(generation)
                             + " | " + (isNoble ? L("NOBLE", "QUÝ TỘC") : L("Commoner", "Thường Dân"))
                             + " | " + HouseName(houseTier)
                             + " | " + L("Spouse: ", "Vợ: ") + SpouseName(hasSpouse ? spouseIdx : -1)
                             + " | " + L("Heirs: ", "Con: ") + std::to_string((int)children.size());
-        DrawText(dynInfo.c_str(), px + 225, sy + 2, 13, isNoble ? GOLD : Color{ 195, 225, 195, 255 });
+        DrawText(dynInfo.c_str(), px + 230, sy + 2, 13, isNoble ? GOLD : Color{ 195, 225, 195, 255 });
 
         // Bộ kỹ năng của Class (4) hoặc Nhánh Phụ (6)
-        int ky = sy + 104;
-        DrawText(player.subClass == 0 ? L("SKILLS (4)", "BỘ KỸ NĂNG (4)") : L("SUBCLASS SKILLS (6)", "BỘ KỸ NĂNG NHÁNH PHỤ (6)"), px + 36, ky, 18, HeroAccent());
+        int ky = sy + 94;
+        DrawText(player.subClass == 0 ? L("SKILLS (4)", "BỘ KỸ NĂNG (4)") : L("SUBCLASS SKILLS (6)", "BỘ KỸ NĂNG NHÁNH PHỤ (6)"), px + 32, ky, 17, HeroAccent());
         if (player.subClass == 0) {
             const char* tags[4] = { L("[PASSIVE]", "[NỘI TẠI]"), "[Q]", "[E]", L("[R] RAGE", "[R] NỘ") };
             const char* sNames[4] = { PassiveName(), QName(), EName(), RName() };
             const char* sDescs[4] = { PassiveDesc(), QDesc(), EDesc(), RDesc() };
             for (int s = 0; s < 4; ++s) {
-                int rowY = ky + 24 + s * 22;
-                DrawText(tags[s], px + 36, rowY, 15, s == 3 ? ORANGE : (s == 0 ? HeroColor() : SKYBLUE));
-                DrawText(sNames[s], px + 132, rowY, 15, WHITE);
-                DrawText(sDescs[s], px + 325, rowY, 14, { 190, 205, 230, 255 });
+                int rowY = ky + 22 + s * 22;
+                DrawText(tags[s], px + 32, rowY, 14, s == 3 ? ORANGE : (s == 0 ? HeroColor() : SKYBLUE));
+                DrawText(sNames[s], px + 126, rowY, 14, WHITE);
+                DrawText(sDescs[s], px + 318, rowY, 13, { 190, 205, 230, 255 });
             }
         } else {
             const char* tags[6] = { L("[PASSIVE]", "[NỘI TẠI]"), "[Q]", "[E]", "[C]", "[V]", L("[R] RAGE", "[R] NỘ") };
@@ -7814,28 +8226,48 @@ public:
             const char* sDescs[6] = { PassiveDesc(), QDesc(), EDesc(), CDesc(), VDesc(), RDesc() };
             Color sCols[6] = { HeroColor(), SKYBLUE, { 110, 235, 175, 255 }, { 245, 200, 95, 255 }, { 225, 115, 255, 255 }, ORANGE };
             for (int s = 0; s < 6; ++s) {
-                int colX = (s < 3) ? (px + 36) : (px + 588);
-                int rowY = ky + 22 + (s % 3) * 34;
-                DrawText(tags[s], colX, rowY, 14, sCols[s]);
-                DrawText(sNames[s], colX + 86, rowY, 14, WHITE);
-                DrawText(sDescs[s], colX + 10, rowY + 15, 12, { 190, 205, 230, 255 });
+                int colX = (s < 3) ? (px + 32) : (px + 588);
+                int rowY = ky + 20 + (s % 3) * 32;
+                DrawText(tags[s], colX, rowY, 13, sCols[s]);
+                DrawText(sNames[s], colX + 82, rowY, 13, WHITE);
+                DrawText(sDescs[s], colX + 8, rowY + 14, 11, { 190, 205, 230, 255 });
             }
         }
 
+        // Lộ trình Danh Hiệu theo Mốc Cấp Độ: 20 / 40 / 60 / 80 / 100 (MAX)
+        int ty = ky + 118;
+        DrawText(L("LEVEL MILESTONE TITLES (LV.100 MAX)", "DANH HIỆU THEO CẤP ĐỘ (CẤP 100 TỐI ĐA)"), px + 32, ty, 15, GOLD);
+        int mw = 212, mgap = 8, mx0 = px + 32;
+        for (int ti = 1; ti <= 5; ++ti) {
+            const LevelTitleDef& td = kLevelTitles[ti];
+            bool unlocked = (player.level >= td.minLevel);
+            int mx = mx0 + (ti - 1) * (mw + mgap);
+            int my = ty + 20;
+            DrawRectangle(mx, my, mw, 50, unlocked ? Fade(td.color, 0.16f) : Color{ 18, 22, 34, 220 });
+            DrawRectangleLinesEx({ (float)mx, (float)my, (float)mw, 50.0f }, unlocked ? 1.8f : 1.0f, unlocked ? td.color : Color{ 55, 64, 88, 255 });
+            std::string lvTag = TextFormat(L("LV.%d%s", "CẤP %d%s"), td.minLevel, td.minLevel == 100 ? " MAX" : "");
+            DrawText(lvTag.c_str(), mx + 8, my + 5, 11, unlocked ? td.color : GRAY);
+            DrawText(unlocked ? L("ACTIVE", "ĐÃ MỞ") : L("LOCKED", "CHƯA MỞ"), mx + mw - 54, my + 5, 11, unlocked ? Color{ 120, 240, 155, 255 } : DARKGRAY);
+            DrawText(settings.language == 1 ? td.nameVi : td.nameEn, mx + 8, my + 19, 12, unlocked ? WHITE : GRAY);
+            DrawText(settings.language == 1 ? td.bonusVi : td.bonusEn, mx + 8, my + 34, 10, unlocked ? td.color : Color{ 110, 120, 145, 255 });
+        }
+
         if (!player.relics.empty()) {
-            DrawText(L("RELICS", "THÁNH TÍCH"), px + 36, py + ph - 92, 15, SKYBLUE);
-            int rx = px + 132, ry = py + ph - 92;
+            int ry = ty + 78;
+            DrawText(L("RELICS", "THÁNH TÍCH"), px + 32, ry, 14, SKYBLUE);
+            int rx = px + 128;
             for (const auto& r : player.relics) {
                 std::string label = r.name + " (" + RelicDesc(r.type) + ")";
-                int w = MeasureText(label.c_str(), 13) + 24;
-                if (rx + w > px + pw - 20) { rx = px + 132; ry += 16; }
-                DrawCircle(rx + 5, ry + 7, 4.5f, r.color);
-                DrawText(label.c_str(), rx + 14, ry + 1, 13, r.color);
-                rx += w + 12;
+                int w = MeasureText(label.c_str(), 12) + 22;
+                if (rx + w > px + pw - 20) { rx = px + 128; ry += 15; }
+                DrawCircle(rx + 5, ry + 6, 4.0f, r.color);
+                DrawText(label.c_str(), rx + 13, ry + 1, 12, r.color);
+                rx += w + 10;
             }
         }
-        DrawText(L("Gear drops from enemies. Better gear equips automatically; weaker gear sells for gold.", "Trang bị rơi từ quái. Đồ mạnh hơn tự mặc ngay; đồ yếu hơn tự bán thành vàng."), px + 36, py + ph - 46, 15, { 170, 185, 215, 255 });
-        DrawText(L("Press I or Esc to close", "Nhấn I hoặc Esc để đóng"), px + 36, py + ph - 24, 15, { 120, 135, 165, 255 });
+        DrawText(L("Reach Lv.20 / 40 / 60 / 80 / 100 for permanent Titles & Stat Bonuses!   [I] or [Esc] Close",
+                   "Đạt Cấp 20 / 40 / 60 / 80 / 100 để mở Danh Hiệu & Cộng Chỉ Số Vĩnh Viễn!   [I] hoặc [Esc] Đóng"),
+                 px + 32, py + ph - 22, 13, { 150, 170, 205, 255 });
     }
 
     // ── Môi trường: tường gạch, decal, đuốc, cột, ánh sáng ──
@@ -8083,13 +8515,20 @@ public:
         Color amb = ambients[BiomeIdx()];
         if (inSurface) {
             static const Color surfAmb[5] = {
-                { 208, 204, 188, 255 }, // 0: Quảng trường nắng ấm
+                { 208, 204, 188, 255 }, // 0: Quảng trường
                 { 186, 164, 142, 255 }, // 1: Quán trọ lửa sưởi
-                { 184, 194, 212, 255 }, // 2: Phường Gia Trang sáng sủa
+                { 184, 194, 212, 255 }, // 2: Phường Gia Trang
                 { 196, 182, 174, 255 }, // 3: Tổ ấm gia đình
-                { 188, 172, 180, 255 }  // 4: Hoàng cung trang nghiêm
+                { 188, 172, 180, 255 }  // 4: Hoàng cung
             };
             amb = surfAmb[std::max(0, std::min(4, surfaceRoom))];
+            if (surfaceRoom == 0) {
+                int ph = TimePhase();
+                if (ph == 0) amb = { 215, 178, 142, 255 };      // Bình Minh ấm áp
+                else if (ph == 1) amb = { 218, 214, 198, 255 }; // Ban Ngày rực nắng
+                else if (ph == 2) amb = { 205, 138, 108, 255 }; // Hoàng Hôn ráng đỏ
+                else amb = { 96, 108, 156, 255 };               // Ban Đêm huyền ảo (đuốc & đèn sáng rõ!)
+            }
         }
         float tm = (float)GetTime();
 
@@ -8135,6 +8574,7 @@ public:
             AddLight(b.pos, 95.0f, bc, 0.40f);
         }
         if (hasTrialTotem && !trialUsed) AddLight(trialPos, 170.0f, { 255, 195, 70, 255 }, 0.55f);
+        if (hasCaptiveEvent && !inSurface) AddLight(captivePos, 210.0f, kSpouses[std::max(0, std::min(3, captiveSpouseIdx))].dressCol, captiveRescued ? 0.35f : 0.65f);
         if (hasShrine && !shrineUsed) AddLight({ shrinePos.x, shrinePos.y - 40.0f }, 190.0f, { 255, 50, 80, 255 }, 0.55f + 0.1f * sinf(shrinePulse));
         for (const auto& pr : projectiles) AddLight(pr.pos, pr.kind == 4 ? 130.0f : 80.0f, pr.color, pr.kind == 4 ? 0.85f : 0.7f);
         for (const auto& ge : groundEffects) AddLight(ge.pos, ge.radius * 1.15f + 40.0f, ge.color, 0.55f);
@@ -8329,6 +8769,9 @@ public:
             SaveSettings();
             RestartRun();
             PlaySound(snd.sndPotion);
+            if (!ctl.external && !IsWindowState(FLAG_WINDOW_HIDDEN) && gFontLoaded) {
+                OpenNameModal(1, -1, kHeirNames[(selectedClass * 2) % 10]);
+            }
         }
     }
 
@@ -8434,7 +8877,7 @@ public:
                     else if (k == "player_heroClass") info.heroClass = std::max(0, std::min(3, atoi(val.c_str())));
                     else if (k == "player_subClass") info.subClass = std::max(0, std::min(2, atoi(val.c_str())));
                     else if (k == "floor") info.floor = std::max(1, atoi(val.c_str()));
-                    else if (k == "player_level") info.level = std::max(1, atoi(val.c_str()));
+                    else if (k == "player_level") info.level = std::max(1, std::min(kMaxPlayerLevel, atoi(val.c_str())));
                     else if (k == "player_hp") info.hp = atoi(val.c_str());
                     else if (k == "player_maxHp") info.maxHp = std::max(1, atoi(val.c_str()));
                     else if (k == "player_gold") info.gold = atoi(val.c_str());
@@ -8442,6 +8885,7 @@ public:
                     else if (k == "hasEquip_0") hasW = atoi(val.c_str());
                     else if (k == "equip_0_weaponType") info.weaponType = std::max(0, std::min(7, atoi(val.c_str())));
                     else if (k == "equip_0_name") info.weaponName = val;
+                    else if (k == "heroGivenName") info.heroName = val;
                     else if (k == "timestamp") info.timestamp = val;
                 }
                 if (existsFlag == 1) {
@@ -8498,6 +8942,7 @@ public:
           << "player_lifesteal=" << player.lifesteal << "\n"
           << "player_armor=" << player.armor << "\n"
           << "player_level=" << player.level << "\n"
+          << "player_titleTierClaimed=" << player.titleTierClaimed << "\n"
           << "player_xp=" << player.xp << "\n"
           << "player_xpNext=" << player.xpNext << "\n"
           << "player_gold=" << player.gold << "\n"
@@ -8522,6 +8967,14 @@ public:
           << "royalQuestBosses=" << royalQuestBosses << "\n"
           << "hasSpouse=" << (hasSpouse ? 1 : 0) << "\n"
           << "spouseIdx=" << spouseIdx << "\n"
+          << "spouseQuestProgress=" << spouseQuestProgress << "\n"
+          << "spouseUnlocked_0=" << (spouseUnlocked[0] ? 1 : 0) << "\n"
+          << "spouseUnlocked_1=" << (spouseUnlocked[1] ? 1 : 0) << "\n"
+          << "spouseUnlocked_2=" << (spouseUnlocked[2] ? 1 : 0) << "\n"
+          << "spouseUnlocked_3=" << (spouseUnlocked[3] ? 1 : 0) << "\n"
+          << "timeOfDay=" << timeOfDay << "\n"
+          << "dayCount=" << dayCount << "\n"
+          << "heroAge=" << heroAge << "\n"
           << "legacyHp=" << legacyHp << "\n"
           << "legacyDmg=" << legacyDmg << "\n"
           << "legacyArmor=" << legacyArmor << "\n"
@@ -8545,6 +8998,7 @@ public:
               << "anc_" << i << "_noble=" << (familyTree[i].wasNoble ? 1 : 0) << "\n"
               << "anc_" << i << "_spouse=" << familyTree[i].spouseName << "\n"
               << "anc_" << i << "_floor=" << familyTree[i].floorReached << "\n"
+              << "anc_" << i << "_lvl=" << familyTree[i].levelReached << "\n"
               << "anc_" << i << "_slain=" << familyTree[i].enemiesSlain << "\n";
         }
         for (size_t i = 0; i < player.relics.size(); ++i) {
@@ -8600,9 +9054,13 @@ public:
         bool loadedPhoenix = false;
         int roomCleared = 0;
         int relicCount = 0;
+        bool hasLoadedTitleTier = false;
         std::vector<int> relicTypes;
         bool lSurfaceUnlocked = false, lInSurface = false, lNoble = false, lRqActive = false, lHasSpouse = false;
+        bool lSpUnlocked[4] = { false, false, false, false };
         int lNextFloor = 11, lRations = 2, lGen = 1, lHouseTier = 0, lRqKills = 0, lRqBosses = 0, lSpouseIdx = -1, lSurfaceRoom = 0;
+        int lSpQuest = 0, lDay = 1, lAge = 18;
+        float lTimeOfDay = 8.5f;
         Vector2 lTownRet = { 0.0f, 220.0f };
         float lHunger = 100.0f, lLegHp = 0.0f, lLegDmg = 0.0f, lLegArm = 0.0f, lLegSpd = 0.0f;
         std::string lHeroName = "";
@@ -8640,7 +9098,8 @@ public:
             else if (k == "player_critChance") loadedP.critChance = std::max(0.0f, std::min(0.9f, fv));
             else if (k == "player_lifesteal") loadedP.lifesteal = std::max(0.0f, std::min(0.5f, fv));
             else if (k == "player_armor") loadedP.armor = std::max(0.0f, fv);
-            else if (k == "player_level") loadedP.level = std::max(1, iv);
+            else if (k == "player_level") loadedP.level = std::max(1, std::min(kMaxPlayerLevel, iv));
+            else if (k == "player_titleTierClaimed") { loadedP.titleTierClaimed = std::max(0, std::min(5, iv)); hasLoadedTitleTier = true; }
             else if (k == "player_xp") loadedP.xp = std::max(0, iv);
             else if (k == "player_xpNext") loadedP.xpNext = std::max(10, iv);
             else if (k == "player_gold") loadedP.gold = std::max(0, iv);
@@ -8665,6 +9124,14 @@ public:
             else if (k == "royalQuestBosses") lRqBosses = std::max(0, iv);
             else if (k == "hasSpouse") lHasSpouse = (iv != 0);
             else if (k == "spouseIdx") lSpouseIdx = std::max(-1, std::min(3, iv));
+            else if (k == "spouseQuestProgress") lSpQuest = std::max(0, iv);
+            else if (k == "spouseUnlocked_0") lSpUnlocked[0] = (iv != 0);
+            else if (k == "spouseUnlocked_1") lSpUnlocked[1] = (iv != 0);
+            else if (k == "spouseUnlocked_2") lSpUnlocked[2] = (iv != 0);
+            else if (k == "spouseUnlocked_3") lSpUnlocked[3] = (iv != 0);
+            else if (k == "timeOfDay") lTimeOfDay = Clamp(fv, 0.0f, 23.99f);
+            else if (k == "dayCount") lDay = std::max(1, iv);
+            else if (k == "heroAge") lAge = std::max(1, iv);
             else if (k == "legacyHp") lLegHp = std::max(0.0f, fv);
             else if (k == "legacyDmg") lLegDmg = std::max(0.0f, fv);
             else if (k == "legacyArmor") lLegArm = std::max(0.0f, fv);
@@ -8697,6 +9164,7 @@ public:
                     else if (f == "noble") lAncestors[ai].wasNoble = (iv != 0);
                     else if (f == "spouse") lAncestors[ai].spouseName = v;
                     else if (f == "floor") lAncestors[ai].floorReached = std::max(1, iv);
+                    else if (f == "lvl") lAncestors[ai].levelReached = std::max(1, std::min(kMaxPlayerLevel, iv));
                     else if (f == "slain") lAncestors[ai].enemiesSlain = std::max(0, iv);
                 }
             }
@@ -8738,6 +9206,7 @@ public:
 
         loadedP.hp = std::max(1.0f, std::min(loadedP.maxHp, loadedP.hp));
         loadedP.hpDisplay = loadedP.hp;
+        if (!hasLoadedTitleTier) loadedP.titleTierClaimed = LevelTitleTierForLevel(loadedP.level);
         for (int i = 0; i < relicCount && i < (int)relicTypes.size(); ++i) {
             int rt = relicTypes[i];
             if (rt >= 0 && rt <= (int)RELIC_THORNS) loadedP.relics.push_back(MakeRelic((RelicType)rt));
@@ -8779,6 +9248,12 @@ public:
         royalQuestBosses = lRqBosses;
         hasSpouse = lHasSpouse;
         spouseIdx = lSpouseIdx;
+        for (int i = 0; i < 4; ++i) spouseUnlocked[i] = lSpUnlocked[i];
+        if (hasSpouse && spouseIdx >= 0 && spouseIdx < 4) spouseUnlocked[spouseIdx] = true;
+        spouseQuestProgress = lSpQuest;
+        timeOfDay = lTimeOfDay;
+        dayCount = lDay;
+        heroAge = lAge;
         legacyHp = lLegHp;
         legacyDmg = lLegDmg;
         legacyArmor = lLegArm;
@@ -8848,25 +9323,64 @@ public:
                 saveSlotSel = i;
                 if (saveLoadReturn == PAUSED) {
                     Rectangle saveBtn = { r.x + 16.0f, r.y + r.height - 96.0f, r.width - 32.0f, 38.0f };
-                    if (CheckCollisionPointRec(m, saveBtn)) { SaveGameToSlot(i); return; }
+                    if (CheckCollisionPointRec(m, saveBtn)) {
+                        if (!info.exists && !ctl.external && !IsWindowState(FLAG_WINDOW_HIDDEN) && gFontLoaded) {
+                            OpenNameModal(3, i, heroGivenName.empty() ? kHeirNames[(selectedClass * 2) % 10] : heroGivenName);
+                        } else {
+                            SaveGameToSlot(i);
+                        }
+                        return;
+                    }
                     if (info.exists) {
                         Rectangle loadBtn = { r.x + 16.0f, r.y + r.height - 50.0f, r.width - 94.0f, 36.0f };
                         Rectangle delBtn  = { r.x + r.width - 70.0f, r.y + r.height - 50.0f, 54.0f, 36.0f };
                         if (CheckCollisionPointRec(m, loadBtn)) { LoadGameFromSlot(i); return; }
                         if (CheckCollisionPointRec(m, delBtn)) { DeleteSaveSlot(i); return; }
                     }
-                } else if (info.exists) {
-                    Rectangle loadBtn = { r.x + 16.0f, r.y + r.height - 54.0f, r.width - 94.0f, 40.0f };
-                    Rectangle delBtn  = { r.x + r.width - 70.0f, r.y + r.height - 54.0f, 54.0f, 40.0f };
-                    if (CheckCollisionPointRec(m, loadBtn)) { LoadGameFromSlot(i); return; }
-                    if (CheckCollisionPointRec(m, delBtn)) { DeleteSaveSlot(i); return; }
+                } else {
+                    if (info.exists) {
+                        Rectangle loadBtn = { r.x + 16.0f, r.y + r.height - 54.0f, r.width - 94.0f, 40.0f };
+                        Rectangle delBtn  = { r.x + r.width - 70.0f, r.y + r.height - 54.0f, 54.0f, 40.0f };
+                        if (CheckCollisionPointRec(m, loadBtn)) { LoadGameFromSlot(i); return; }
+                        if (CheckCollisionPointRec(m, delBtn)) { DeleteSaveSlot(i); return; }
+                    } else {
+                        Rectangle newBtn = { r.x + 16.0f, r.y + r.height - 54.0f, r.width - 32.0f, 40.0f };
+                        if (CheckCollisionPointRec(m, newBtn)) {
+                            RestartRun();
+                            if (!ctl.external && !IsWindowState(FLAG_WINDOW_HIDDEN) && gFontLoaded) {
+                                OpenNameModal(3, i, kHeirNames[(selectedClass * 2) % 10]);
+                            } else {
+                                SaveGameToSlot(i);
+                            }
+                            return;
+                        }
+                    }
                 }
             }
         }
 
+        if (IsKeyPressed(KEY_N) && !ctl.external && !IsWindowState(FLAG_WINDOW_HIDDEN) && gFontLoaded) {
+            if (saveLoadReturn != PAUSED && !saveSlots[saveSlotSel].exists) RestartRun();
+            OpenNameModal(3, saveSlotSel, heroGivenName.empty() ? kHeirNames[(selectedClass * 2) % 10] : heroGivenName);
+            return;
+        }
         if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) {
-            if (saveLoadReturn == PAUSED) SaveGameToSlot(saveSlotSel);
-            else LoadGameFromSlot(saveSlotSel);
+            if (saveLoadReturn == PAUSED) {
+                if (!saveSlots[saveSlotSel].exists && !ctl.external && !IsWindowState(FLAG_WINDOW_HIDDEN) && gFontLoaded) {
+                    OpenNameModal(3, saveSlotSel, heroGivenName.empty() ? kHeirNames[(selectedClass * 2) % 10] : heroGivenName);
+                } else {
+                    SaveGameToSlot(saveSlotSel);
+                }
+            } else if (saveSlots[saveSlotSel].exists) {
+                LoadGameFromSlot(saveSlotSel);
+            } else {
+                RestartRun();
+                if (!ctl.external && !IsWindowState(FLAG_WINDOW_HIDDEN) && gFontLoaded) {
+                    OpenNameModal(3, saveSlotSel, kHeirNames[(selectedClass * 2) % 10]);
+                } else {
+                    SaveGameToSlot(saveSlotSel);
+                }
+            }
         } else if (IsKeyPressed(KEY_L) && saveLoadReturn == PAUSED) {
             LoadGameFromSlot(saveSlotSel);
         } else if (IsKeyPressed(KEY_DELETE) || IsKeyPressed(KEY_X)) {
@@ -8906,17 +9420,19 @@ public:
                 DrawHeroModel(prev, info.heroClass, info.weaponType, { 0.9f, sinf(t * 2.0f + i) * 0.2f }, false, t * (sel ? 5.0f : 0.0f), sel, 0.35f, false, false, 0.0f, 0.0f, info.subClass, 0.0f);
 
                 int iy = cy + 190;
-                DrawText(slotClsName, cx + cardW / 2 - MeasureText(slotClsName, 19) / 2, iy, 19, accent);
+                std::string cardTitle = (!info.heroName.empty() ? (info.heroName + " - ") : std::string("")) + slotClsName;
+                DrawText(cardTitle.c_str(), cx + cardW / 2 - MeasureText(cardTitle.c_str(), 17) / 2, iy, 17, accent);
                 DrawRectangle(cx + 16, iy + 32, cardW - 32, 138, { 12, 16, 28, 225 });
                 DrawRectangleLines(cx + 16, iy + 32, cardW - 32, 138, Fade(accent, 0.35f));
-                DrawText(TextFormat(L("Floor %d   -   Level %d", "Tầng %d   -   Cấp %d"), info.floor, info.level), cx + 26, iy + 42, 17, GOLD);
-                DrawText(TextFormat(L("HP: %d / %d", "Máu: %d / %d"), info.hp, info.maxHp), cx + 26, iy + 68, 16, { 245, 110, 120, 255 });
-                DrawText(TextFormat(L("Gold: %d   Slain: %d", "Vàng: %d   Đã hạ: %d"), info.gold, info.enemiesSlain), cx + 26, iy + 92, 16, RAYWHITE);
+                DrawText(TextFormat(L("Floor %d  -  Lv %d/100", "Tầng %d  -  Cấp %d/100"), info.floor, info.level), cx + 26, iy + 38, 16, GOLD);
+                DrawText(LevelTitleNameForLevel(info.level), cx + 26, iy + 58, 13, LevelTitleColorForLevel(info.level));
+                DrawText(TextFormat(L("HP: %d / %d", "Máu: %d / %d"), info.hp, info.maxHp), cx + 26, iy + 78, 15, { 245, 110, 120, 255 });
+                DrawText(TextFormat(L("Gold: %d   Slain: %d", "Vàng: %d   Đã hạ: %d"), info.gold, info.enemiesSlain), cx + 26, iy + 99, 15, RAYWHITE);
                 std::string wn = info.weaponName;
                 if ((int)wn.size() > 18) wn = wn.substr(0, 16) + "..";
                 std::string wTxt = std::string(L("Weapon: ", "Vũ khí: ")) + wn;
-                DrawText(wTxt.c_str(), cx + 26, iy + 116, 15, SKYBLUE);
-                DrawText(info.timestamp.c_str(), cx + 26, iy + 142, 13, { 150, 165, 195, 255 });
+                DrawText(wTxt.c_str(), cx + 26, iy + 120, 14, SKYBLUE);
+                DrawText(info.timestamp.c_str(), cx + 26, iy + 144, 13, { 150, 165, 195, 255 });
             } else {
                 const char* empSlot = L("EMPTY SLOT", "Ô LƯU TRỐNG");
                 DrawText(empSlot, cx + cardW / 2 - MeasureText(empSlot, 20) / 2, cy + 196, 20, { 110, 122, 150, 255 });
@@ -8969,10 +9485,11 @@ public:
                     DrawText(dLbl, (int)(delBtn.x + delBtn.width / 2) - MeasureText(dLbl, 15) / 2, (int)delBtn.y + 12, 15, WHITE);
                 } else {
                     Rectangle noBtn = { r.x + 16.0f, r.y + r.height - 54.0f, r.width - 32.0f, 40.0f };
-                    DrawRectangleRec(noBtn, { 28, 34, 50, 220 });
-                    DrawRectangleLinesEx(noBtn, 1.2f, { 60, 70, 95, 255 });
-                    const char* eLbl = L("EMPTY", "TRỐNG");
-                    DrawText(eLbl, (int)(noBtn.x + noBtn.width / 2) - MeasureText(eLbl, 16) / 2, (int)noBtn.y + 12, 16, { 110, 120, 145, 255 });
+                    bool hovN = CheckCollisionPointRec(m, noBtn);
+                    DrawRectangleRec(noBtn, hovN ? Color{ 44, 124, 78, 255 } : Color{ 28, 72, 52, 240 });
+                    DrawRectangleLinesEx(noBtn, 1.6f, hovN ? WHITE : Color{ 110, 235, 160, 255 });
+                    const char* eLbl = L("CREATE NEW SAVE [N]", "TẠO BẢN LƯU MỚI [N]");
+                    DrawText(eLbl, (int)(noBtn.x + noBtn.width / 2) - MeasureText(eLbl, 15) / 2, (int)noBtn.y + 12, 15, WHITE);
                 }
             }
         }
@@ -8981,16 +9498,18 @@ public:
             DrawText(saveStatusMsg.c_str(), 1280 / 2 - MeasureText(saveStatusMsg.c_str(), 24) / 2, 626, 24, GOLD);
         }
         const char* foot = (saveLoadReturn == PAUSED)
-            ? L("1-4 / A-D: select slot     Enter: save/overwrite     L: load     Del/X: delete     Esc: back", "1-4 / A-D: chọn ô     Enter: lưu/ghi đè     L: tải     Del/X: xóa     Esc: quay lại")
-            : L("1-4 / A-D: select slot     Enter / Click: load game     Del/X: delete     Esc: back", "1-4 / A-D: chọn ô     Enter / Nhấp: tải game     Del/X: xóa     Esc: quay lại");
+            ? L("1-4 / A-D: slot   Enter: save   N: name save   L: load   Del/X: delete   Esc: back", "1-4 / A-D: chọn ô   Enter: lưu   N: đặt tên save   L: tải   Del/X: xóa   Esc: quay lại")
+            : L("1-4 / A-D: slot   Enter / Click: load / create named save   N: new name   Esc: back", "1-4 / A-D: chọn ô   Enter / Nhấp: tải hoặc tạo save có tên   Esc: quay lại");
         DrawText(foot, 1280 / 2 - MeasureText(foot, 16) / 2, 678, 16, { 150, 165, 200, 255 });
     }
 
     // ── Màn hình tiêu đề / tạm dừng / hướng dẫn ──
     static void OutlinedText(const char* txt, int x, int y, int size, Color col, Color outline) {
+        gDrawingOutlinePass = true;
         for (int ox = -2; ox <= 2; ox += 2)
             for (int oy = -2; oy <= 2; oy += 2)
                 if (ox != 0 || oy != 0) DrawText(txt, x + ox, y + oy, size, outline);
+        gDrawingOutlinePass = false;
         DrawText(txt, x, y, size, col);
     }
 
@@ -9168,6 +9687,13 @@ public:
                     return;
                 }
                 for (size_t i = 0; i < children.size(); ++i) {
+                    Rectangle renB = { 120.0f + 1040.0f - 418.0f, 326.0f + i * 88.0f + 16.0f, 118.0f, 44.0f };
+                    if (CheckCollisionPointRec(m, renB) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                        if (!ctl.external && !IsWindowState(FLAG_WINDOW_HIDDEN) && gFontLoaded) {
+                            OpenNameModal(2, (int)i, children[i].name);
+                        }
+                        return;
+                    }
                     Rectangle r = { 120.0f, 326.0f + i * 88.0f, 1040.0f, 76.0f };
                     if (CheckCollisionPointRec(m, r)) {
                         if (GetMouseDelta().x != 0 || GetMouseDelta().y != 0) surfaceSel = (int)i + 1;
@@ -9210,11 +9736,10 @@ public:
         // Thanh trạng thái nhanh trên đầu bảng
         DrawRectangle(100, 140, 1080, 32, { 12, 16, 28, 240 });
         std::string info = std::string(L("Gold: ", "Vàng: ")) + std::to_string(player.gold)
-                         + "   |   " + L("Hunger: ", "Độ No: ") + std::to_string((int)ceilf(hunger)) + "/100"
-                         + "   |   " + L("Rations [H]: ", "Lương Khô [H]: ") + std::to_string(foodRations)
-                         + "   |   " + HouseName(houseTier)
-                         + "   |   " + (isNoble ? L("NOBLE", "QUÝ TỘC") : L("Commoner", "Thường Dân"));
-        DrawText(info.c_str(), 120, 148, 16, GOLD);
+                         + "  |  " + L("Hunger: ", "Độ No: ") + std::to_string((int)ceilf(hunger)) + "/100"
+                         + "  |  " + HouseName(houseTier)
+                         + "  |  " + TextFormat(L("Day %d %s (%s)  Age %d", "Ngày %d - %s (%s) - Tuổi %d"), dayCount, ClockString().c_str(), TimePhaseName(), heroAge);
+        DrawText(info.c_str(), 120, 148, 15, GOLD);
 
         if (surfaceBuilding == 0) {
             struct MealRow { const char* nameEn; const char* nameVi; const char* descEn; const char* descVi; int baseCost; Color col; };
@@ -9265,29 +9790,33 @@ public:
         } else if (surfaceBuilding == 2) {
             if (!hasSpouse) {
                 const char* msg = (houseTier <= 0)
-                    ? L("Buy a House in Tab [2] Housing Guild before getting married!", "Bạn chưa có Nhà! Hãy mua Nhà Gỗ ở Tab [2] Phường Gia Trang trước khi Cưới Vợ.")
-                    : L("Choose your life partner! Marriage grants permanent stats & lets you raise Heirs.", "Chọn ý trung nhân! Cưới Vợ giúp tăng chỉ số & mở khóa Sinh Con Nối Dõi.");
-                DrawText(msg, 120, 184, 16, houseTier <= 0 ? Color{ 255, 130, 130, 255 } : Color{ 255, 200, 225, 255 });
+                    ? L("Buy a House in Tab [2] first! Spouses CANNOT be bought — unlock via Dungeon Rescues & Quests!",
+                        "Hãy mua Nhà trước! Vợ KHÔNG THỂ mua bằng Vàng — chỉ mở khóa qua Giải Cứu Hầm Ngục & Nhiệm Vụ!")
+                    : L("Spouses cannot be bought with Gold — rescue them in Dungeon events or earn Quest betrothals!",
+                        "Vợ KHÔNG bán bằng Vàng — hãy giải cứu trong Hầm Ngục hoặc làm Nhiệm Vụ để được gả!");
+                DrawText(msg, 120, 184, 15, houseTier <= 0 ? Color{ 255, 130, 130, 255 } : Color{ 255, 200, 225, 255 });
                 for (int i = 0; i < 4; ++i) {
                     const SpouseDef& sp = kSpouses[i];
                     Rectangle r = { 120.0f, 214.0f + i * 96.0f, 1040.0f, 84.0f };
                     bool sel = (surfaceSel == i);
-                    int price = SpouseCost(i);
-                    bool can = (houseTier >= 1 && player.gold >= price);
+                    bool unlocked = spouseUnlocked[i];
+                    bool can = (houseTier >= 1 && unlocked);
                     DrawRectangleRec(r, sel ? Color{ 38, 32, 62, 252 } : Color{ 22, 24, 42, 240 });
-                    DrawRectangleLinesEx(r, sel ? 2.5f : 1.2f, sel ? GOLD : Fade(sp.dressCol, 0.6f));
-                    DrawCircle((int)r.x + 42, (int)r.y + 42, 20.0f, Fade(sp.dressCol, 0.25f));
-                    DrawCircle((int)r.x + 42, (int)r.y + 42, 11.0f, sp.dressCol);
-                    DrawText(SpouseName(i), (int)r.x + 78, (int)r.y + 12, 22, sp.dressCol);
-                    DrawText(L(sp.roleEn, sp.roleVi), (int)r.x + 78, (int)r.y + 40, 15, WHITE);
+                    DrawRectangleLinesEx(r, sel ? 2.5f : 1.2f, sel ? GOLD : Fade(unlocked ? sp.dressCol : GRAY, 0.7f));
+                    DrawCircle((int)r.x + 42, (int)r.y + 42, 20.0f, Fade(sp.dressCol, unlocked ? 0.28f : 0.10f));
+                    DrawCircle((int)r.x + 42, (int)r.y + 42, 11.0f, unlocked ? sp.dressCol : GRAY);
+                    DrawText(SpouseName(i), (int)r.x + 78, (int)r.y + 10, 20, unlocked ? sp.dressCol : LIGHTGRAY);
+                    DrawText(L(sp.roleEn, sp.roleVi), (int)r.x + 78, (int)r.y + 36, 14, WHITE);
+                    DrawText(SpouseUnlockConditionText(i), (int)r.x + 78, (int)r.y + 58, 13, unlocked ? Color{ 120, 245, 165, 255 } : ORANGE);
                     DrawText(TextFormat(L("+%d HP  +%d DMG  +%d%% CRIT  +%.2f ATK/s", "+%d Máu  +%d ST  +%d%% Chí Mạng  +%.2f Đánh/s"),
-                        (int)sp.hpBonus, (int)sp.dmgBonus, (int)roundf(sp.critBonus * 100), sp.atkSpdBonus), (int)r.x + 430, (int)r.y + 34, 15, SKYBLUE);
+                        (int)sp.hpBonus, (int)sp.dmgBonus, (int)roundf(sp.critBonus * 100), sp.atkSpdBonus), (int)r.x + 470, (int)r.y + 30, 15, SKYBLUE);
 
-                    Rectangle b = { r.x + r.width - 200.0f, r.y + 20.0f, 178.0f, 44.0f };
-                    DrawRectangleRec(b, can ? Color{ 115, 42, 82, 255 } : Color{ 56, 36, 48, 255 });
+                    Rectangle b = { r.x + r.width - 230.0f, r.y + 20.0f, 208.0f, 44.0f };
+                    DrawRectangleRec(b, can ? Color{ 115, 42, 82, 255 } : Color{ 44, 40, 56, 255 });
                     DrawRectangleLinesEx(b, 1.5f, can ? Color{ 255, 165, 210, 255 } : GRAY);
-                    std::string pTxt = std::string(L("MARRY ", "CƯỚI ")) + std::to_string(price) + L("G", "V");
-                    DrawText(pTxt.c_str(), (int)(b.x + b.width / 2) - MeasureText(pTxt.c_str(), 17) / 2, (int)b.y + 13, 17, WHITE);
+                    const char* pTxt = !unlocked ? L("EVENT / QUEST LOCKED", "CHƯA MỞ (SỰ KIỆN/NV)")
+                                                 : (houseTier <= 0 ? L("NEED HOUSE FIRST", "CẦN MUA NHÀ") : L("MARRY FREE (UNLOCKED)", "KẾT HÔN (ĐÃ MỞ)"));
+                    DrawText(pTxt, (int)(b.x + b.width / 2) - MeasureText(pTxt, 14) / 2, (int)b.y + 14, 14, WHITE);
                 }
             } else {
                 const SpouseDef& sp = kSpouses[std::max(0, std::min(3, spouseIdx))];
@@ -9331,6 +9860,12 @@ public:
                         DrawText(TextFormat(L("Inherits Gold, Gear, House, Noble & +%d HP +%d DMG +%.1f ARM +%d SPD",
                                               "Kế thừa Vàng, Đồ, Nhà, Quý Tộc & +%d Máu +%d ST +%.1f Giáp +%d Chạy"),
                             (int)ch.bonusHp, (int)ch.bonusDmg, ch.bonusArmor, (int)ch.bonusSpeed), (int)r.x + 22, (int)r.y + 44, 14, RAYWHITE);
+
+                        Rectangle renB = { r.x + r.width - 418.0f, r.y + 16.0f, 118.0f, 44.0f };
+                        DrawRectangleRec(renB, { 42, 62, 108, 255 });
+                        DrawRectangleLinesEx(renB, 1.6f, SKYBLUE);
+                        const char* renLbl = L("RENAME", "ĐỔI TÊN");
+                        DrawText(renLbl, (int)(renB.x + renB.width / 2) - MeasureText(renLbl, 14) / 2, (int)renB.y + 14, 14, WHITE);
 
                         Rectangle rb = { r.x + r.width - 290.0f, r.y + 16.0f, 268.0f, 44.0f };
                         DrawRectangleRec(rb, { 112, 74, 24, 255 });
@@ -9419,10 +9954,11 @@ public:
                 const char* ripTag = L("REST IN PEACE", "AN NGHỈ");
                 DrawText(TextFormat(L("Gen %d", "Đời %d"), a.generation), cx + 10, ancY + 4, 15, GOLD);
                 DrawText(ripTag, cx + cw - 10 - MeasureText(ripTag, 13), ancY + 5, 13, { 185, 195, 225, 255 });
-                DrawText(a.name.c_str(), cx + 12, ancY + 32, 18, kClasses[std::max(0, std::min(3, a.heroClass))].color);
-                DrawText(a.wasNoble ? L("[Noble]", "[Quý Tộc]") : L("[Commoner]", "[Thường Dân]"), cx + 12, ancY + 55, 13, a.wasNoble ? GOLD : GRAY);
-                DrawText((std::string(L("Spouse: ", "Vợ: ")) + a.spouseName).c_str(), cx + 12, ancY + 74, 14, { 245, 175, 210, 255 });
-                DrawText(TextFormat(L("Floor %d  |  Slain %d", "Tầng %d  |  Hạ %d quái"), a.floorReached, a.enemiesSlain), cx + 12, ancY + 98, 14, RAYWHITE);
+                DrawText(a.name.c_str(), cx + 12, ancY + 30, 17, kClasses[std::max(0, std::min(3, a.heroClass))].color);
+                DrawText(TextFormat(L("Lv.%d [%s]", "Cấp %d [%s]"), a.levelReached, LevelTitleNameForLevel(a.levelReached)), cx + 12, ancY + 50, 12, LevelTitleColorForLevel(a.levelReached));
+                DrawText(a.wasNoble ? L("[Noble]", "[Quý Tộc]") : L("[Commoner]", "[Thường Dân]"), cx + 12, ancY + 67, 12, a.wasNoble ? GOLD : GRAY);
+                DrawText((std::string(L("Spouse: ", "Vợ: ")) + a.spouseName).c_str(), cx + 12, ancY + 84, 13, { 245, 175, 210, 255 });
+                DrawText(TextFormat(L("Floor %d  |  Slain %d", "Tầng %d  |  Hạ %d quái"), a.floorReached, a.enemiesSlain), cx + 12, ancY + 104, 13, RAYWHITE);
                 if (k + 1 < showCnt) {
                     DrawLineEx({ (float)(cx + cw), (float)(ancY + 64) }, { (float)(cx + cw + gap), (float)(ancY + 64) }, 2.5f, GOLD);
                 }
@@ -9444,8 +9980,8 @@ public:
         DrawText(TextFormat(L("Spouse: %s   |   HP: %d/%d   DMG: %d   Gold: %d", "Vợ: %s   |   Máu: %d/%d   ST: %d   Vàng: %d"),
                  SpouseName(hasSpouse ? spouseIdx : -1), (int)player.hp, (int)player.maxHp, (int)player.baseDmg, player.gold),
                  408, curY + 72, 15, { 255, 210, 225, 255 });
-        DrawText(TextFormat(L("Floor %d   |   Level %d   |   Slain %d", "Tầng %d   |   Cấp %d   |   Đã hạ %d quái"),
-                 floor, player.level, enemiesSlain), 408, curY + 96, 14, SKYBLUE);
+        DrawText(TextFormat(L("Floor %d  |  Lv %d/100 (%s)  |  Slain %d", "Tầng %d  |  Cấp %d/100 (%s)  |  Hạ %d quái"),
+                 floor, player.level, CurrentLevelTitle(), enemiesSlain), 408, curY + 96, 13, CurrentLevelTitleColor());
 
         // Hàng 3: Thế hệ Con cái (Heirs)
         int kidY = 442;
@@ -9479,27 +10015,96 @@ public:
     }
 
     static void DrawSurfacePrompt(Vector2 p, const char* title, const char* sub, Color accent, bool near) {
-        int tw = MeasureText(title, 13);
+        int tw = MeasureText(title, 14);
         int sw = (sub && sub[0]) ? MeasureText(sub, 12) : 0;
-        int bw = std::max(tw, sw) + 22;
-        int bh = (sw > 0) ? 38 : 22;
+        int bw = std::max(tw, sw) + 26;
+        int bh = (sw > 0) ? 42 : 24;
         int bx = (int)p.x - bw / 2;
         int by = (int)p.y;
-        DrawRectangle(bx, by, bw, bh, near ? Color{ 16, 22, 38, 240 } : Color{ 12, 16, 28, 205 });
-        DrawRectangleLines(bx, by, bw, bh, near ? GOLD : Fade(accent, 0.72f));
-        DrawText(title, (int)p.x - tw / 2, by + 4, 13, near ? GOLD : accent);
-        if (sw > 0) DrawText(sub, (int)p.x - sw / 2, by + 20, 12, near ? WHITE : Color{ 210, 220, 240, 255 });
+        DrawRectangle(bx, by, bw, bh, near ? Color{ 14, 20, 34, 245 } : Color{ 10, 14, 26, 224 });
+        DrawRectangleLines(bx, by, bw, bh, near ? GOLD : Fade(accent, 0.78f));
+        DrawText(title, (int)p.x - tw / 2, by + 5, 14, near ? GOLD : accent);
+        if (sw > 0) DrawText(sub, (int)p.x - sw / 2, by + 23, 12, near ? WHITE : Color{ 218, 228, 246, 255 });
     }
 
-    static void DrawSurfaceFigure(Vector2 pos, Color cloakCol, Color hairCol, Color trimCol, bool crown, float bobPhase) {
-        float bob = sinf((float)GetTime() * 3.0f + bobPhase) * 1.6f;
-        DrawEllipse((int)pos.x, (int)pos.y + 15, 14, 5, Fade(BLACK, 0.36f));
-        Tri({ pos.x - 11.0f, pos.y + 14.0f }, { pos.x + 11.0f, pos.y + 14.0f }, { pos.x, pos.y - 6.0f + bob }, cloakCol);
-        DrawLineEx({ pos.x - 10.0f, pos.y + 14.0f }, { pos.x + 10.0f, pos.y + 14.0f }, 2.2f, trimCol);
-        DrawCircleV({ pos.x, pos.y - 11.0f + bob }, 7.0f, { 255, 222, 192, 255 });
-        DrawCircleLines((int)pos.x, (int)(pos.y - 11.0f + bob), 7.0f, { 28, 24, 34, 255 });
-        DrawRing({ pos.x, pos.y - 13.0f + bob }, 3.5f, 8.0f, 185.0f, 355.0f, 10, hairCol);
-        if (crown) Diamond({ pos.x, pos.y - 21.0f + bob }, 4.5f, 4.5f, GOLD, WHITE);
+    // npcKind: 0..3 = 4 Nàng Dâu, 4 = Đức Vua, 5 = Chủ Quán Trọ, 6 = Kiến Trúc Sư
+    static void DrawDetailedNpcModel(Vector2 pos, int npcKind, Color primaryCol, Color secondaryCol, Color hairCol, bool crown, float bobPhase) {
+        float tm = (float)GetTime();
+        float bob = sinf(tm * 3.0f + bobPhase) * 1.5f;
+        float sway = cosf(tm * 2.2f + bobPhase) * 1.5f;
+        const Color ink = { 22, 18, 28, 255 };
+        const Color skin = { 255, 224, 194, 255 };
+
+        // Bóng chân & vòng hào quang nhẹ
+        DrawEllipse((int)pos.x, (int)pos.y + 17, 16, 6, Fade(BLACK, 0.40f));
+
+        // Đôi chân / ủng nhỏ thò dưới gấu áo
+        BoxRot({ pos.x - 4.5f, pos.y + 13.0f }, 5.0f, 7.0f, 0.0f, { 68, 44, 34, 255 }, ink, 1.2f);
+        BoxRot({ pos.x + 4.5f, pos.y + 13.0f }, 5.0f, 7.0f, 0.0f, { 68, 44, 34, 255 }, ink, 1.2f);
+
+        // Áo choàng lưng (Vua / Thánh Nữ / Công Chúa)
+        if (npcKind == 2 || npcKind == 3 || npcKind == 4) {
+            Tri({ pos.x - 13.0f, pos.y + 13.0f + bob }, { pos.x + 13.0f, pos.y + 13.0f + bob }, { pos.x, pos.y - 10.0f + bob }, Shade(primaryCol, 0.65f));
+        }
+
+        // Thân váy / Áo choàng nhiều lớp + thắt lưng & tạp dề
+        QuadOut({ pos.x - 7.5f, pos.y - 6.0f + bob }, { pos.x + 7.5f, pos.y - 6.0f + bob },
+                { pos.x + 12.5f, pos.y + 14.0f + bob }, { pos.x - 12.5f, pos.y + 14.0f + bob },
+                primaryCol, ink, 1.6f);
+        // Vạt áo giữa / tạp dề / dải lụa trang trí
+        QuadOut({ pos.x - 3.5f, pos.y - 5.0f + bob }, { pos.x + 3.5f, pos.y - 5.0f + bob },
+                { pos.x + 5.5f, pos.y + 14.0f + bob }, { pos.x - 5.5f, pos.y + 14.0f + bob },
+                npcKind == 5 ? RAYWHITE : secondaryCol, ink, 1.0f);
+        // Thắt lưng vàng / đai lụa
+        DrawRectangle((int)(pos.x - 8), (int)(pos.y + 1 + bob), 16, 4, npcKind == 4 ? GOLD : secondaryCol);
+        // Cổ áo lông thú (Vua) hoặc cổ sen (Vợ)
+        DrawEllipse((int)pos.x, (int)(pos.y - 6.0f + bob), 9.0f, 3.5f, npcKind == 4 ? RAYWHITE : Shade(secondaryCol, 1.1f));
+
+        // Hai tay cử động + Đạo cụ đặc trưng từng NPC
+        Vector2 lh = { pos.x - 10.5f, pos.y + 2.0f + bob + sway * 0.5f };
+        Vector2 rh = { pos.x + 11.0f, pos.y + 1.0f + bob - sway * 0.5f };
+        DrawLineEx({ pos.x - 6.5f, pos.y - 4.0f + bob }, lh, 3.6f, Shade(primaryCol, 0.85f));
+        DrawLineEx({ pos.x + 6.5f, pos.y - 4.0f + bob }, rh, 3.6f, Shade(primaryCol, 0.85f));
+        DrawCircleV(lh, 2.8f, skin);
+        DrawCircleV(rh, 2.8f, skin);
+
+        if (npcKind == 0) { // Mai Linh: giỏ hoa tươi nở
+            DrawCircleV({ rh.x + 2.0f, rh.y + 2.0f }, 5.0f, { 165, 110, 62, 255 });
+            DrawCircleV({ rh.x + 1.0f, rh.y - 1.5f }, 2.4f, { 255, 130, 185, 255 });
+            DrawCircleV({ rh.x + 4.0f, rh.y - 1.0f }, 2.2f, GOLD);
+        } else if (npcKind == 1) { // Vân Anh: quạt lụa vàng
+            Tri(rh, { rh.x + 9.0f, rh.y - 6.0f }, { rh.x + 9.0f, rh.y + 3.0f }, GOLD);
+        } else if (npcKind == 2 || npcKind == 3 || npcKind == 4) { // Quyền trượng Thánh Nữ / Hoàng Gia / Vua
+            DrawLineEx({ rh.x, rh.y + 9.0f }, { rh.x, rh.y - 14.0f }, 2.4f, { 145, 98, 48, 255 });
+            Diamond({ rh.x, rh.y - 16.0f }, 4.5f, 5.5f, npcKind == 2 ? SKYBLUE : GOLD, WHITE);
+        } else if (npcKind == 5) { // Chủ quán: cốc bia bọt tràn
+            DrawRectangle((int)rh.x - 2, (int)rh.y - 7, 7, 9, { 138, 86, 42, 255 });
+            DrawCircleV({ rh.x + 1.5f, rh.y - 8.0f }, 3.2f, RAYWHITE);
+        } else { // Kiến trúc sư: cuộn bản vẽ
+            BoxRot({ rh.x + 2.0f, rh.y - 2.0f }, 5.0f, 12.0f, 0.3f, SKYBLUE, WHITE, 1.0f);
+        }
+
+        // Đầu, tóc sau, khuôn mặt có mắt & má hồng, tóc mái & vương miện/hoa
+        Vector2 head = { pos.x, pos.y - 13.5f + bob };
+        if (npcKind <= 3) { // Tóc dài xõa vai cho 4 nàng dâu
+            DrawCircleV({ head.x, head.y + 2.0f }, 9.5f, Shade(hairCol, 0.82f));
+        }
+        DrawCircleV(head, 7.6f, skin);
+        DrawCircleLines((int)head.x, (int)head.y, 7.6f, ink);
+        DrawCircleV({ head.x - 2.6f, head.y - 0.5f }, 1.2f, ink);
+        DrawCircleV({ head.x + 2.6f, head.y - 0.5f }, 1.2f, ink);
+        if (npcKind <= 3) {
+            DrawCircleV({ head.x - 4.2f, head.y + 2.0f }, 1.5f, Fade({ 255, 110, 145, 255 }, 0.65f));
+            DrawCircleV({ head.x + 4.2f, head.y + 2.0f }, 1.5f, Fade({ 255, 110, 145, 255 }, 0.65f));
+        } else if (npcKind == 4) { // Râu bạc Đức Vua
+            Tri({ head.x - 4.5f, head.y + 3.0f }, { head.x + 4.5f, head.y + 3.0f }, { head.x, head.y + 9.5f }, RAYWHITE);
+        }
+        DrawRing({ head.x, head.y - 1.5f }, 3.5f, 8.2f, 182.0f, 358.0f, 12, hairCol);
+        if (crown) {
+            Tri({ head.x - 5.5f, head.y - 7.5f }, { head.x, head.y - 7.5f }, { head.x - 3.5f, head.y - 13.5f }, GOLD);
+            Tri({ head.x - 1.0f, head.y - 7.5f }, { head.x + 5.5f, head.y - 7.5f }, { head.x + 3.5f, head.y - 13.5f }, GOLD);
+            Diamond({ head.x, head.y - 11.5f }, 3.8f, 4.5f, npcKind == 0 ? PINK : SKYBLUE, WHITE);
+        }
     }
 
     void DrawSurfaceExitDoor(Vector2 pos) {
@@ -9619,11 +10224,11 @@ public:
         // Vợ & Con đứng đón ở hiên Tổ Ấm (nếu đã cưới)
         Vector2 homeP = SurfaceLandmarkPos(2);
         if (hasSpouse && spouseIdx >= 0 && spouseIdx < 4) {
-            DrawSurfaceFigure({ homeP.x - 112.0f, homeP.y + 24.0f }, kSpouses[spouseIdx].dressCol, { 38, 28, 24, 255 }, GOLD, true, 0.5f);
+            DrawDetailedNpcModel({ homeP.x - 112.0f, homeP.y + 24.0f }, spouseIdx, kSpouses[spouseIdx].dressCol, GOLD, { 38, 28, 24, 255 }, true, 0.5f);
         }
         for (size_t k = 0; k < children.size(); ++k) {
-            Color kc = kClasses[std::max(0, std::min(3, children[k].heroClass))].color;
-            DrawSurfaceFigure({ homeP.x + 110.0f + k * 24.0f, homeP.y + 24.0f }, kc, { 45, 32, 26, 255 }, WHITE, false, 1.0f + k);
+            int chc = std::max(0, std::min(3, children[k].heroClass));
+            DrawHeroModel({ homeP.x + 112.0f + k * 24.0f, homeP.y + 24.0f }, chc, ClassWeaponType(chc), { -0.8f, 0.2f }, true, tm * 2.0f + k, true, 0.2f, false, false, 0.0f, 0.0f, 0, 0.0f);
         }
 
         // Cổng Hầm Ngục phía Bắc để quay xuống hầm ngục
@@ -9662,7 +10267,7 @@ public:
         DrawRectangleLines((int)barP.x - 135, (int)barP.y - 26, 270, 44, nearBar ? GOLD : Color{ 42, 26, 18, 255 });
         DrawCircle((int)barP.x - 95, (int)barP.y - 6, 12.0f, { 145, 92, 48, 255 });
         DrawCircle((int)barP.x + 95, (int)barP.y - 6, 12.0f, { 145, 92, 48, 255 });
-        DrawSurfaceFigure({ barP.x, barP.y - 34.0f }, { 195, 92, 46, 255 }, { 78, 52, 34, 255 }, WHITE, false, 0.2f);
+        DrawDetailedNpcModel({ barP.x, barP.y - 34.0f }, 5, { 195, 92, 46, 255 }, WHITE, { 78, 52, 34, 255 }, false, 0.2f);
         DrawSurfacePrompt({ barP.x, barP.y + 24.0f }, L("INNKEEPER COUNTER", "QUẦY CHỦ QUÁN"), L("[F] View Full Menu", "[F] Mở Bảng Thực Đơn"), ORANGE, nearBar);
 
         // Hai bàn ăn thực khách
@@ -9720,7 +10325,7 @@ public:
         DrawRectangle((int)deskP.x - 110, (int)deskP.y - 24, 220, 42, { 88, 98, 118, 255 });
         DrawRectangleLines((int)deskP.x - 110, (int)deskP.y - 24, 220, 42, nearDesk ? GOLD : SKYBLUE);
         DrawRectangle((int)deskP.x - 42, (int)deskP.y - 14, 84, 22, { 175, 220, 255, 230 });
-        DrawSurfaceFigure({ deskP.x, deskP.y - 34.0f }, { 56, 114, 178, 255 }, { 185, 190, 205, 255 }, GOLD, false, 0.4f);
+        DrawDetailedNpcModel({ deskP.x, deskP.y - 34.0f }, 6, { 56, 114, 178, 255 }, GOLD, { 185, 190, 205, 255 }, false, 0.4f);
         DrawSurfacePrompt({ deskP.x, deskP.y + 24.0f }, L("MASTER ARCHITECT", "BẬC THẦY KIẾN TRÚC"), L("[F] View Estate Ledger", "[F] Xem Sổ Gia Trang"), SKYBLUE, nearDesk);
 
         Color roofs[3] = { { 172, 92, 48, 255 }, { 58, 118, 188, 255 }, { 215, 165, 42, 255 } };
@@ -9767,23 +10372,26 @@ public:
             DrawRectangle((int)(-roomW / 2 + 72), -252, 76, 40, hasSpouse ? kSpouses[std::max(0, spouseIdx)].dressCol : Color{ 185, 195, 220, 255 });
         }
 
-        // Khu Vực Cưới Vợ / Vợ Đứng Chờ (Tây)
+        // Khu Vực Cưới Vợ / Vợ Đứng Chờ (Tây) — Vợ không mua bằng vàng mà mở khóa từ Sự Kiện / Nhiệm Vụ
         if (!hasSpouse) {
             for (int i = 0; i < 4; ++i) {
                 Vector2 cp = SpouseCandPos(i);
                 bool near = Vector2Distance(player.pos, cp) < 85.0f;
                 const SpouseDef& sp = kSpouses[i];
-                DrawCircleLines((int)cp.x, (int)cp.y + 4, 28.0f, Fade(sp.dressCol, near ? 0.9f : 0.4f));
-                DrawSurfaceFigure(cp, sp.dressCol, { 38, 28, 32, 255 }, GOLD, true, i * 1.1f);
-                std::string sub = (houseTier <= 0) ? std::string(L("Buy House First!", "Cần Mua Nhà trước!"))
-                                                   : TextFormat(L("[F] Marry %dG (+%dHP +%dDMG)", "[F] Cưới %dV (+%dM +%dST)"), SpouseCost(i), (int)sp.hpBonus, (int)sp.dmgBonus);
-                DrawSurfacePrompt({ cp.x, cp.y + 26.0f }, SpouseName(i), sub.c_str(), sp.dressCol, near);
+                bool unlocked = spouseUnlocked[i];
+                DrawCircleLines((int)cp.x, (int)cp.y + 4, 28.0f, Fade(unlocked ? sp.dressCol : GRAY, near ? 0.9f : 0.4f));
+                DrawDetailedNpcModel(cp, i, unlocked ? sp.dressCol : LerpColor(sp.dressCol, { 100, 108, 128, 255 }, 0.38f), unlocked ? GOLD : LIGHTGRAY, { 38, 28, 32, 255 }, unlocked, i * 1.1f);
+                std::string sub = !unlocked
+                                ? std::string(SpouseUnlockConditionText(i))
+                                : ((houseTier <= 0) ? std::string(L("Buy House First!", "Đã mở khóa! Hãy Mua Nhà trước"))
+                                                    : TextFormat(L("[F] Marry Free (+%dHP +%dDMG)", "[F] Kết Hôn (+%dM +%dST)"), (int)sp.hpBonus, (int)sp.dmgBonus));
+                DrawSurfacePrompt({ cp.x, cp.y + 26.0f }, SpouseName(i), sub.c_str(), unlocked ? sp.dressCol : GRAY, near);
             }
         } else {
             Vector2 wp = { -235.0f, -175.0f };
             bool nearW = Vector2Distance(player.pos, wp) < 95.0f;
             const SpouseDef& sp = kSpouses[std::max(0, std::min(3, spouseIdx))];
-            DrawSurfaceFigure(wp, sp.dressCol, { 42, 26, 30, 255 }, GOLD, true, 0.2f);
+            DrawDetailedNpcModel(wp, spouseIdx, sp.dressCol, GOLD, { 42, 26, 30, 255 }, true, 0.2f);
             Diamond({ wp.x, wp.y - 30.0f + sinf(tm * 3.5f) * 3.0f }, 5.0f, 5.0f, { 255, 110, 165, 255 }, WHITE);
             DrawSurfacePrompt({ wp.x, wp.y + 24.0f }, SpouseName(spouseIdx), L("[F] Warm Embrace (+25 HP)", "[F] Trò Chuyện (+25 Máu)"), sp.dressCol, nearW);
         }
@@ -9822,7 +10430,7 @@ public:
                 Color cc = kClasses[hc].color;
                 DrawCircleLines((int)hp.x, (int)hp.y + 6, 30.0f, Fade(nearH ? GOLD : cc, 0.72f));
                 DrawHeroModel(hp, hc, ClassWeaponType(hc), { -0.8f, 0.2f }, true, tm * 2.5f + k, true, 0.2f, false, false, 0.0f, 0.0f, 0, 0.0f);
-                std::string sub = TextFormat(L("[F] REST IN PEACE (%s +%dHP)", "[F] AN NGHỈ - KẾ THỪA (%s)"), ClassDisplayName(hc), (int)ch.bonusHp);
+                std::string sub = TextFormat(L("[F] REST IN PEACE (%s +%dHP)  |  [N] Rename", "[F] AN NGHỈ - KẾ THỪA  |  [N] Đổi Tên"), ClassDisplayName(hc), (int)ch.bonusHp);
                 DrawSurfacePrompt({ hp.x, hp.y + 26.0f }, ch.name.c_str(), sub.c_str(), cc, nearH);
             }
         }
@@ -9849,7 +10457,7 @@ public:
         DrawRectangleLines(-170, (int)thP.y - 60, 340, 110, GOLD);
         DrawRectangle(-42, (int)thP.y - 44, 84, 54, GOLD);
         DrawRectangle(-32, (int)thP.y - 34, 64, 42, { 165, 28, 44, 255 });
-        DrawSurfaceFigure({ 0.0f, thP.y - 12.0f }, { 188, 32, 52, 255 }, { 225, 215, 200, 255 }, GOLD, true, tm * 0.1f);
+        DrawDetailedNpcModel({ 0.0f, thP.y - 12.0f }, 4, { 188, 32, 52, 255 }, GOLD, { 225, 215, 200, 255 }, true, tm * 0.1f);
         DrawSurfacePrompt({ thP.x, thP.y + 38.0f }, L("HIS MAJESTY THE KING", "ĐỨC VUA HOÀNG TRIỀU"), L("[F] Royal Audience", "[F] Yết Kiến Đức Vua"), GOLD, nearKing);
 
         // Đài Quý Tộc Mua Trực Tiếp (Tây)
@@ -10096,6 +10704,31 @@ public:
             }
         }
 
+        // Sự kiện ngẫu nhiên trong Hầm Ngục: Lồng Giam Cứu Người Đẹp (mở khóa Cưới Vợ)
+        if (hasCaptiveEvent) {
+            float tm = (float)GetTime();
+            int cIdx = std::max(0, std::min(3, captiveSpouseIdx));
+            const SpouseDef& sp = kSpouses[cIdx];
+            Vector2 cp = captivePos;
+            bool nearC = Vector2Distance(player.pos, cp) < 92.0f;
+            DrawEllipse((int)cp.x, (int)cp.y + 22, 34.0f, 11.0f, Fade(BLACK, 0.45f));
+            if (!captiveRescued) {
+                DrawCircleLines((int)cp.x, (int)cp.y, 44.0f, Fade(sp.dressCol, 0.45f + 0.25f * sinf(tm * 4.0f)));
+                DrawDetailedNpcModel(cp, cIdx, sp.dressCol, GOLD, { 38, 28, 32, 255 }, true, tm * 0.5f);
+                // Song sắt lồng giam bao quanh
+                DrawRectangleLinesEx({ cp.x - 24.0f, cp.y - 30.0f, 48.0f, 52.0f }, 2.5f, { 155, 165, 185, 255 });
+                for (int b = -16; b <= 16; b += 8) {
+                    DrawLineEx({ cp.x + b, cp.y - 30.0f }, { cp.x + b, cp.y + 22.0f }, 2.0f, { 115, 125, 145, 230 });
+                }
+                DrawSurfacePrompt({ cp.x, cp.y + 28.0f }, SpouseName(cIdx),
+                                  nearC ? L("[F] RESCUE FROM CAGE!", "[F] GIẢI CỨU KHỎI LỒNG GIAM!") : L("Dungeon Rescue Event", "Sự Kiện Giải Cứu [F]"),
+                                  sp.dressCol, nearC);
+            } else {
+                DrawRectangleLinesEx({ cp.x - 24.0f, cp.y - 30.0f, 48.0f, 52.0f }, 1.5f, Fade(GRAY, 0.35f));
+                DrawSurfacePrompt({ cp.x, cp.y + 24.0f }, L("RESCUED!", "ĐÃ GIẢI CỨU!"), SpouseName(cIdx), GOLD, false);
+            }
+        }
+
         // Exit Portals (tối đa 3 cổng rẽ nhánh sau khi dọn phòng)
         if (portalOpen) {
             float tm = (float)GetTime();
@@ -10305,13 +10938,23 @@ public:
         }
         }
 
-        // Player
+        // Player & Danh hiệu cấp độ (20/40/60/80/100)
+        if (CurrentTitleTier() >= 1) {
+            float tm = (float)GetTime();
+            Color tCol = CurrentLevelTitleColor();
+            int sides = 4 + CurrentTitleTier();
+            DrawPolyLinesEx(player.pos, sides, 24.0f + CurrentTitleTier() * 1.5f, -tm * (35.0f + CurrentTitleTier() * 12.0f), 1.6f, Fade(tCol, 0.55f));
+        }
         if (comboCount >= 10) {
             float tm = (float)GetTime();
             DrawPolyLinesEx(player.pos, 6, 30.0f + sinf(tm * 12.0f) * 2.0f, tm * 120.0f, 2.2f, Fade(ORANGE, 0.78f));
         }
         DrawEllipse((int)player.pos.x, (int)player.pos.y + 16, 20, 8, { 0, 0, 0, 100 }); // Shadow
         DrawPlayerSprite();
+        if (CurrentTitleTier() >= 1 || inSurface) {
+            const char* ltTxt = CurrentLevelTitle();
+            OutlinedText(ltTxt, (int)player.pos.x - MeasureText(ltTxt, 11) / 2, (int)player.pos.y - 38, 11, CurrentLevelTitleColor(), { 12, 14, 22, 240 });
+        }
 
         if (!inSurface) DrawItemDrops();
 
@@ -10345,14 +10988,16 @@ public:
         Color hCol = HeroColor();
         const char* hTitle = HeroTitle();
         std::string badgeLeft = (isNoble ? std::string(L("[NOBLE] ", "[QT] ")) : std::string(""))
-                              + (generation > 1 ? (std::string(L("Gen", "Đ")) + std::to_string(generation) + " ") : std::string(""))
+                              + (!heroGivenName.empty() ? (heroGivenName + " - ") : (generation > 1 ? (std::string(L("Gen", "Đ")) + std::to_string(generation) + " ") : std::string("")))
                               + hTitle;
         // Top-Left: Class / Subclass Badge, HP (with damage lag), XP, Rage, Hunger, Gold
         DrawRectangle(20, 14, 320, 22, { 18, 22, 34, 225 });
         DrawRectangleLines(20, 14, 320, 22, Fade(isNoble ? GOLD : hCol, 0.85f));
         DrawText(badgeLeft.c_str(), 28, 17, 15, isNoble ? GOLD : hCol);
-        std::string clsRight = std::string(L("LVL ", "CẤP ")) + std::to_string(player.level);
-        DrawText(clsRight.c_str(), 332 - MeasureText(clsRight.c_str(), 15), 17, 15, GOLD);
+        std::string clsRight = (player.level >= kMaxPlayerLevel)
+                             ? std::string(L("LVL 100 MAX", "CẤP 100 MAX"))
+                             : (std::string(L("LVL ", "CẤP ")) + std::to_string(player.level) + "/100");
+        DrawText(clsRight.c_str(), 332 - MeasureText(clsRight.c_str(), 14), 17, 14, player.level >= kMaxPlayerLevel ? GOLD : CurrentLevelTitleColor());
 
         DrawRectangle(20, 40, 320, 24, { 35, 38, 48, 220 });
         float lagPct = std::max(0.0f, std::min(1.0f, player.hpDisplay / std::max(1.0f, player.maxHp)));
@@ -10362,11 +11007,14 @@ public:
         std::string hpTxt = std::string(L("HP ", "MÁU ")) + std::to_string((int)player.hp) + " / " + std::to_string((int)player.maxHp);
         DrawText(hpTxt.c_str(), 180 - MeasureText(hpTxt.c_str(), 16) / 2, 44, 16, WHITE);
 
-        DrawRectangle(20, 68, 320, 14, { 35, 38, 48, 220 });
-        float xpPct = std::min(1.0f, (float)player.xp / std::max(1, player.xpNext));
-        DrawRectangle(22, 70, (int)(316 * xpPct), 10, SKYBLUE);
-        std::string xpTxt = std::string(L("XP ", "KN ")) + std::to_string(player.xp) + "/" + std::to_string(player.xpNext);
-        DrawText(xpTxt.c_str(), 180 - MeasureText(xpTxt.c_str(), 12) / 2, 69, 12, WHITE);
+        DrawRectangle(20, 68, 320, 15, { 35, 38, 48, 220 });
+        bool atMaxLv = (player.level >= kMaxPlayerLevel);
+        float xpPct = atMaxLv ? 1.0f : std::min(1.0f, (float)player.xp / std::max(1, player.xpNext));
+        DrawRectangle(22, 70, (int)(316 * xpPct), 11, atMaxLv ? Color{ 165, 112, 18, 255 } : Color{ 42, 118, 195, 255 });
+        std::string xpTxt = atMaxLv
+                          ? std::string(CurrentLevelTitle()) + L(" (LV.100 MAX)", " (CẤP 100 MAX)")
+                          : (std::string(L("XP ", "KN ")) + std::to_string(player.xp) + "/" + std::to_string(player.xpNext) + "  -  " + CurrentLevelTitle());
+        DrawText(xpTxt.c_str(), 180 - MeasureText(xpTxt.c_str(), 11) / 2, 69, 11, atMaxLv ? GOLD : WHITE);
 
         // Thanh Nộ (Rage Bar)
         DrawRectangle(20, 86, 320, 16, { 35, 26, 22, 225 });
@@ -10409,17 +11057,19 @@ public:
             }
         }
 
-        // Top-Center: Surface / Floor, Biome / Royal Quest & Combo
+        // Top-Center: Surface / Floor, Time & Age Header
+        std::string timeSub = TextFormat(L("Day %d  %s (%s)  |  Age %d  |  Gen %d", "Ngày %d  %s (%s)  |  Tuổi %d  |  Đời %d"),
+                                         dayCount, ClockString().c_str(), TimePhaseName(), heroAge, generation);
         if (inSurface) {
             const char* surfTitle = L(biome.nameEn, biome.nameVi);
-            DrawText(surfTitle, 1280 / 2 - MeasureText(surfTitle, 24) / 2, 14, 24, biome.trimCol);
-            std::string subS = std::string(L("Gen ", "Đời ")) + std::to_string(generation) + " | " + HouseName(houseTier) + " | " + (isNoble ? L("NOBLE", "QUÝ TỘC") : L("Commoner", "Thường Dân"));
-            DrawText(subS.c_str(), 1280 / 2 - MeasureText(subS.c_str(), 14) / 2, 42, 14, GOLD);
+            DrawText(surfTitle, 1280 / 2 - MeasureText(surfTitle, 22) / 2, 12, 22, biome.trimCol);
+            std::string subS = timeSub + "  |  " + HouseName(houseTier) + (isNoble ? L(" [NOBLE]", " [QUÝ TỘC]") : "");
+            DrawText(subS.c_str(), 1280 / 2 - MeasureText(subS.c_str(), 13) / 2, 39, 13, GOLD);
         } else {
             std::string floorStr = std::string(L("FLOOR ", "TẦNG ")) + std::to_string(floor);
-            DrawText(floorStr.c_str(), 1280 / 2 - MeasureText(floorStr.c_str(), 30) / 2, 14, 30, RAYWHITE);
-            const char* biomeName = L(biome.nameEn, biome.nameVi);
-            DrawText(biomeName, 1280 / 2 - MeasureText(biomeName, 14) / 2, 46, 14, biome.accentCol);
+            DrawText(floorStr.c_str(), 1280 / 2 - MeasureText(floorStr.c_str(), 28) / 2, 10, 28, RAYWHITE);
+            std::string subD = std::string(L(biome.nameEn, biome.nameVi)) + "  |  " + timeSub;
+            DrawText(subD.c_str(), 1280 / 2 - MeasureText(subD.c_str(), 13) / 2, 42, 13, biome.accentCol);
         }
 
         if (comboCount > 1 && !inSurface) {
@@ -10686,7 +11336,7 @@ public:
 
             std::string st0 = std::string(L("Class: ", "Hệ Tướng: ")) + HeroTitle() + (generation > 1 ? (" (" + std::string(L("Gen ", "Đời ")) + std::to_string(generation) + ")") : "");
             std::string st1 = std::string(L("Floor Reached: ", "Tầng Đạt Được: ")) + std::to_string(floor);
-            std::string st2 = std::string(L("Final Level: ", "Cấp Độ Cuối: ")) + std::to_string(player.level);
+            std::string st2 = std::string(L("Final Level: ", "Cấp Độ Cuối: ")) + std::to_string(player.level) + "/100  (" + CurrentLevelTitle() + ")";
             std::string st3 = std::string(L("Enemies Slain: ", "Kẻ Địch Đã Hạ: ")) + std::to_string(enemiesSlain);
             std::string st4 = std::string(L("Gold Accumulated: ", "Vàng Tích Lũy: ")) + std::to_string(player.gold);
             std::string st5 = std::string(L("Best Record: Floor ", "Kỷ Lục Cao Nhất: Tầng ")) + std::to_string(bestFloor) + (newRecord ? L("  (NEW RECORD!)", "  (KỶ LỤC MỚI!)") : "");
@@ -10720,6 +11370,7 @@ public:
         if (state == PAUSED) DrawPauseScreen();
 
         DrawButtons();
+        if (namingMode != 0) DrawNameModal();
 
         if (settings.showFps) {
             std::string f = "FPS: " + std::to_string(GetFPS());
