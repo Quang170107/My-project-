@@ -1229,6 +1229,8 @@ public:
     float legacySpeed = 0.0f;
     int surfaceBuilding = 0; // 0: Quán trọ, 1: Mua nhà, 2: Gia đình & Đời con, 3: Hoàng cung & Vua
     int surfaceSel = 0;
+    int surfaceRoom = 0;   // 0: Quảng trường, 1: Quán Trọ, 2: Phường Gia Trang, 3: Tổ Ấm & Từ Đường, 4: Hoàng Cung
+    Vector2 surfaceTownReturnPos = { 0.0f, 180.0f };
     State familyTreeReturn = PLAYING;
 
     const char* L(const char* en, const char* vi) const { return settings.language == 1 ? vi : en; }
@@ -1283,6 +1285,8 @@ public:
         legacyHp = legacyDmg = legacyArmor = legacySpeed = 0.0f;
         surfaceBuilding = 0;
         surfaceSel = 0;
+        surfaceRoom = 0;
+        surfaceTownReturnPos = { 0.0f, 180.0f };
     }
     const ClassDef& BaseClass() const { return kClasses[std::max(0, std::min(3, player.heroClass))]; }
     const SubclassDef* ActiveSubclass() const {
@@ -1538,7 +1542,45 @@ public:
         const char* nameVi;
     };
     int BiomeIdx() const { return ((std::max(1, floor) - 1) / 2) % 6; }
+    BiomeColors SurfaceBiome() const {
+        switch (surfaceRoom) {
+            case 1: // Quán Trọ & Chợ Ẩm Thực (Gỗ sồi ấm & Lò sưởi vàng cam)
+                return { { 28, 18, 14, 255 }, { 74, 52, 36, 255 }, { 60, 42, 28, 255 }, { 108, 68, 42, 255 },
+                         { 245, 185, 92, 255 }, { 255, 130, 55, 255 }, { 126, 76, 52, 255 }, { 255, 205, 125, 255 },
+                         "GOLDENHEARTH TAVERN", "QUÁN TRỌ LỬA ẤM" };
+            case 2: // Phường Gia Trang (Đá cẩm thạch xám xanh & Bản thiết kế hoàng gia)
+                return { { 18, 22, 32, 255 }, { 56, 66, 84, 255 }, { 46, 54, 70, 255 }, { 86, 102, 126, 255 },
+                         { 130, 215, 255, 255 }, { 245, 200, 95, 255 }, { 96, 114, 142, 255 }, { 180, 232, 255, 255 },
+                         "MASONS & ESTATE GUILD", "PHƯỜNG KIẾN TRÚC GIA TRANG" };
+            case 3: // Tổ Ấm Gia Đình & Từ Đường (Nâng cấp lộng lẫy theo houseTier)
+                if (houseTier <= 0) {
+                    return { { 20, 22, 28, 255 }, { 58, 62, 72, 255 }, { 48, 52, 60, 255 }, { 82, 74, 62, 255 },
+                             { 195, 205, 225, 255 }, { 255, 190, 120, 255 }, { 88, 92, 106, 255 }, { 220, 230, 255, 255 },
+                             "FAMILY HEARTH PLOT", "ĐẤT TỔ ẤM GIA ĐÌNH" };
+                } else if (houseTier == 1) {
+                    return { { 24, 20, 16, 255 }, { 78, 58, 40, 255 }, { 64, 48, 34, 255 }, { 112, 82, 54, 255 },
+                             { 140, 225, 155, 255 }, { 255, 205, 105, 255 }, { 118, 86, 58, 255 }, { 255, 235, 175, 255 },
+                             "VILLAGE COTTAGE HOME", "NHÀ GỖ TỔ ẤM" };
+                } else if (houseTier == 2) {
+                    return { { 20, 20, 34, 255 }, { 60, 54, 82, 255 }, { 48, 44, 68, 255 }, { 92, 74, 116, 255 },
+                             { 130, 220, 255, 255 }, { 255, 155, 195, 255 }, { 102, 92, 134, 255 }, { 225, 210, 255, 255 },
+                             "CITY MANOR & ANCESTRAL HALL", "BIỆT THỰ & TỪ ĐƯỜNG" };
+                }
+                return { { 28, 16, 24, 255 }, { 78, 46, 56, 255 }, { 62, 36, 46, 255 }, { 122, 48, 66, 255 },
+                         { 255, 215, 92, 255 }, { 255, 140, 190, 255 }, { 136, 98, 72, 255 }, { 255, 228, 145, 255 },
+                         "NOBLE DYNASTY PALACE HOME", "DINH THỰ QUÝ TỘC & TỪ ĐƯỜNG" };
+            case 4: // Đại Điện Hoàng Cung (Đá đỏ hoàng gia & Vàng ròng)
+                return { { 28, 14, 18, 255 }, { 74, 40, 48, 255 }, { 60, 32, 38, 255 }, { 132, 34, 48, 255 },
+                         { 255, 218, 82, 255 }, { 255, 110, 120, 255 }, { 142, 108, 74, 255 }, { 255, 232, 135, 255 },
+                         "IMPERIAL THRONE HALL", "ĐẠI ĐIỆN HOÀNG CUNG" };
+            default: // Quảng Trường Làng Mạc & Kinh Thành (Đá vôi hoàng kim rực nắng)
+                return { { 22, 28, 38, 255 }, { 62, 74, 64, 255 }, { 52, 64, 54, 255 }, { 126, 116, 98, 255 },
+                         { 245, 205, 100, 255 }, { 110, 225, 255, 255 }, { 124, 112, 92, 255 }, { 255, 242, 180, 255 },
+                         "ROYAL CITY SQUARE", "QUẢNG TRƯỜNG KINH THÀNH" };
+        }
+    }
     BiomeColors Biome() const {
+        if (inSurface) return SurfaceBiome();
         switch (BiomeIdx()) {
             case 1: // Emerald Overgrown Ruins
                 return { { 18, 30, 22, 255 }, { 38, 66, 48, 255 }, { 28, 52, 38, 255 }, { 82, 76, 56, 255 },
@@ -1715,8 +1757,188 @@ public:
             case 1: return {  420.0f, -180.0f }; // Phường Gia Trang (Mua Nhà)
             case 2: return {  420.0f,  180.0f }; // Tổ Ấm Gia Đình (Cưới Vợ / Sinh Con / An Nghỉ)
             case 3: return { -420.0f,  180.0f }; // Hoàng Cung (Quý Tộc & Ủy Thác Của Vua)
-            default: return {   0.0f, -365.0f }; // Cổng Trở Lại Hầm Ngục
+            default: return {   0.0f, -385.0f }; // Cổng Trở Lại Hầm Ngục
         }
+    }
+
+    static Vector2 SurfaceTownExitSpot(int roomIdx) {
+        if (roomIdx < 1 || roomIdx > 4) return { 0.0f, 180.0f };
+        Vector2 bp = SurfaceLandmarkPos(roomIdx - 1);
+        return { bp.x, bp.y + 84.0f };
+    }
+
+    Vector2 SurfaceInteriorExitPos() const {
+        return { 0.0f, roomH / 2.0f - 48.0f };
+    }
+
+    static Vector2 TavernStallPos(int i) {
+        static const Vector2 pts[4] = {
+            { -305.0f,  -65.0f },
+            { -105.0f, -155.0f },
+            {  105.0f, -155.0f },
+            {  305.0f,  -65.0f }
+        };
+        return pts[std::max(0, std::min(3, i))];
+    }
+
+    static Vector2 HousingPedestalPos(int tierIdx) {
+        if (tierIdx <= 1) return { -300.0f,  -55.0f };
+        if (tierIdx == 2) return {    0.0f, -145.0f };
+        return { 300.0f, -55.0f };
+    }
+
+    static Vector2 SpouseCandPos(int i) {
+        static const Vector2 pts[4] = {
+            { -355.0f, -185.0f },
+            { -185.0f, -225.0f },
+            { -185.0f,  -45.0f },
+            { -355.0f,   15.0f }
+        };
+        return pts[std::max(0, std::min(3, i))];
+    }
+
+    static Vector2 HeirPosInHome(int k) {
+        return { 185.0f + (k % 2) * 155.0f, -45.0f + (k / 2) * 135.0f };
+    }
+
+    void SetupSurfaceRoomEnvironment(int roomIdx, bool movePlayer) {
+        surfaceRoom = std::max(0, std::min(4, roomIdx));
+        if (surfaceRoom >= 1) surfaceBuilding = surfaceRoom - 1;
+        enemies.clear();
+        projectiles.clear();
+        loots.clear();
+        slashes.clear();
+        novas.clear();
+        ghosts.clear();
+        groundEffects.clear();
+        pillars.clear();
+        particles.clear();
+        itemDrops.clear();
+        pendingSpawns.clear();
+        barrels.clear();
+        hazards.clear();
+        portalChoices.clear();
+        wave2Spawns.clear();
+        chests.clear();
+        wave2Triggered = false;
+        hasTrialTotem = false;
+        trialUsed = false;
+        trialActive = false;
+        shopFloor = false;
+        hasShrine = false;
+        portalOpen = false;
+        player.isDashing = false;
+
+        if (surfaceRoom == 0) {
+            roomW = 1560.0f;
+            roomH = 1040.0f;
+            pillars = {
+                { -195.0f, -145.0f }, {  195.0f, -145.0f },
+                { -195.0f,  145.0f }, {  195.0f,  145.0f },
+                { -650.0f, -380.0f }, {  650.0f, -380.0f },
+                { -650.0f,  380.0f }, {  650.0f,  380.0f }
+            };
+        } else if (surfaceRoom == 1) {
+            roomW = 1160.0f;
+            roomH = 840.0f;
+            pillars = {
+                { -415.0f, -230.0f }, {  415.0f, -230.0f },
+                { -415.0f,  210.0f }, {  415.0f,  210.0f }
+            };
+        } else if (surfaceRoom == 2) {
+            roomW = 1200.0f;
+            roomH = 860.0f;
+            pillars = {
+                { -435.0f, -245.0f }, {  435.0f, -245.0f },
+                { -435.0f,  220.0f }, {  435.0f,  220.0f }
+            };
+        } else if (surfaceRoom == 3) {
+            if (houseTier <= 0) { roomW = 1120.0f; roomH = 820.0f; }
+            else if (houseTier == 1) { roomW = 1200.0f; roomH = 860.0f; }
+            else if (houseTier == 2) { roomW = 1300.0f; roomH = 900.0f; }
+            else { roomW = 1420.0f; roomH = 960.0f; }
+            float px = roomW * 0.39f, py = roomH * 0.30f;
+            pillars = { { -px, -py }, { px, -py }, { -px, py }, { px, py } };
+        } else {
+            roomW = 1380.0f;
+            roomH = 960.0f;
+            pillars = {
+                { -425.0f, -265.0f }, {  425.0f, -265.0f },
+                { -425.0f,    0.0f }, {  425.0f,    0.0f },
+                { -425.0f,  265.0f }, {  425.0f,  265.0f }
+            };
+        }
+
+        BuildDecor();
+        if (surfaceRoom == 0) {
+            for (int bi = 0; bi < 4; ++bi) {
+                Vector2 bp = SurfaceLandmarkPos(bi);
+                torches.push_back({ bp.x - 62.0f, bp.y + 42.0f });
+                torches.push_back({ bp.x + 62.0f, bp.y + 42.0f });
+            }
+            torches.push_back({ -82.0f, -345.0f });
+            torches.push_back({  82.0f, -345.0f });
+        } else if (surfaceRoom == 1) {
+            torches.push_back({ -64.0f, -roomH / 2.0f + 42.0f });
+            torches.push_back({  64.0f, -roomH / 2.0f + 42.0f });
+            torches.push_back({ -360.0f, -65.0f });
+            torches.push_back({  360.0f, -65.0f });
+        } else if (surfaceRoom == 2) {
+            torches.push_back({ -175.0f, -255.0f });
+            torches.push_back({  175.0f, -255.0f });
+            torches.push_back({ -355.0f,  -55.0f });
+            torches.push_back({  355.0f,  -55.0f });
+        } else if (surfaceRoom == 3) {
+            torches.push_back({ -300.0f, -275.0f });
+            torches.push_back({ -170.0f, -275.0f });
+            torches.push_back({  210.0f, -250.0f });
+            torches.push_back({  340.0f, -250.0f });
+        } else if (surfaceRoom == 4) {
+            torches.push_back({ -140.0f, -310.0f });
+            torches.push_back({  140.0f, -310.0f });
+            torches.push_back({ -130.0f,  -40.0f });
+            torches.push_back({  130.0f,  -40.0f });
+            torches.push_back({ -130.0f,  210.0f });
+            torches.push_back({  130.0f,  210.0f });
+        }
+        InitMotes();
+
+        if (movePlayer) {
+            if (surfaceRoom == 0) player.pos = surfaceTownReturnPos;
+            else player.pos = { 0.0f, roomH / 2.0f - 130.0f };
+        }
+        camera.target = player.pos;
+    }
+
+    void EnterSurfaceRoom(int roomIdx) {
+        if (!inSurface) return;
+        int r = std::max(1, std::min(4, roomIdx));
+        surfaceTownReturnPos = SurfaceTownExitSpot(r);
+        SetupSurfaceRoomEnvironment(r, true);
+        PlaySound(snd.sndCoin);
+        Burst(player.pos, GOLD, 14, 150.0f, 0.45f);
+        static const char* roomNamesEn[4] = {
+            "ENTERED: GOLDENHEARTH TAVERN & MARKET",
+            "ENTERED: MASONS & ESTATE GUILD",
+            "ENTERED: FAMILY MANOR & ANCESTRAL HALL",
+            "ENTERED: ROYAL PALACE THRONE HALL"
+        };
+        static const char* roomNamesVi[4] = {
+            "VÀO PHÒNG: QUÁN TRỌ & CHỢ ẨM THỰC",
+            "VÀO PHÒNG: PHƯỜNG KIẾN TRÚC GIA TRANG",
+            "VÀO PHÒNG: TỔ ẤM GIA ĐÌNH & TỪ ĐƯỜNG",
+            "VÀO PHÒNG: ĐẠI ĐIỆN HOÀNG CUNG"
+        };
+        ShowBanner(L(roomNamesEn[r - 1], roomNamesVi[r - 1]), 2.4f);
+    }
+
+    void LeaveSurfaceRoomToTown() {
+        if (!inSurface || surfaceRoom == 0) return;
+        surfaceTownReturnPos = SurfaceTownExitSpot(surfaceRoom);
+        SetupSurfaceRoomEnvironment(0, true);
+        PlaySound(snd.sndCoin);
+        Burst(player.pos, SKYBLUE, 12, 140.0f, 0.4f);
+        ShowBanner(L("RETURNED TO TOWN SQUARE", "RA QUẢNG TRƯỜNG KINH THÀNH"), 1.8f);
     }
 
     int SpouseCost(int idx) const {
@@ -1743,37 +1965,11 @@ public:
         surfaceUnlocked = true;
         inSurface = true;
         nextDungeonFloor = std::max(nextDungeonFloor, std::max(1, nextF));
-        enemies.clear();
-        projectiles.clear();
-        loots.clear();
-        slashes.clear();
-        novas.clear();
-        ghosts.clear();
-        groundEffects.clear();
-        pillars.clear();
-        particles.clear();
-        itemDrops.clear();
-        pendingSpawns.clear();
-        barrels.clear();
-        hazards.clear();
-        portalChoices.clear();
-        wave2Spawns.clear();
-        wave2Triggered = false;
-        hasTrialTotem = false;
-        trialUsed = false;
-        trialActive = false;
-        shopFloor = false;
-        hasShrine = false;
-        portalOpen = false;
-        roomW = 1440.0f;
-        roomH = 960.0f;
-        InitMotes();
-        player.pos = { 0.0f, 300.0f };
-        player.isDashing = false;
-        camera.target = player.pos;
+        surfaceTownReturnPos = { 0.0f, 220.0f };
+        SetupSurfaceRoomEnvironment(0, true);
         PlaySound(snd.sndPortal);
-        ShowBanner(L("SURFACE REACHED! Hunger is now active — buy food, a house, marry & become Noble!",
-                     "ĐÃ LÊN MẶT ĐẤT! Thanh Đói xuất hiện — dùng Vàng mua đồ ăn, nhà, cưới vợ & thăng Quý Tộc!"), 4.2f);
+        ShowBanner(L("SURFACE REACHED! Explore each building or press [1..4] to step inside!",
+                     "ĐÃ LÊN MẶT ĐẤT! Bước vào từng công trình (hoặc nhấn [1..4]) để khám phá không gian riêng!"), 4.2f);
     }
 
     void LeaveSurfaceToDungeon() {
@@ -1857,6 +2053,7 @@ public:
         player.maxHp += hpGain;
         player.hp = std::min(player.maxHp, player.hp + hpGain);
         player.baseDmg += dmgGain;
+        if (inSurface && surfaceRoom == 3) SetupSurfaceRoomEnvironment(3, false);
         PlaySound(snd.sndLevelUp);
         Burst(player.pos, GOLD, 24, 240.0f, 0.7f);
         ShowBanner(std::string(L("PURCHASED HOME: ", "ĐÃ MUA NHÀ: ")) + HouseName(targetTier) + "!", 3.2f);
@@ -2055,15 +2252,9 @@ public:
         comboCount = 0;
         surfaceUnlocked = true;
         inSurface = true;
-        enemies.clear(); projectiles.clear(); loots.clear(); slashes.clear();
-        novas.clear(); ghosts.clear(); groundEffects.clear(); pillars.clear();
-        itemDrops.clear(); pendingSpawns.clear(); barrels.clear(); hazards.clear();
-        portalChoices.clear(); wave2Spawns.clear();
-        roomW = 1440.0f;
-        roomH = 960.0f;
         floor = std::max(1, nextDungeonFloor);
-        player.pos = { 420.0f, 240.0f };
-        camera.target = player.pos;
+        surfaceTownReturnPos = SurfaceTownExitSpot(3);
+        SetupSurfaceRoomEnvironment(3, true);
         state = PLAYING;
         PlaySound(snd.sndLevelUp);
         Burst(player.pos, GOLD, 36, 300.0f, 0.9f);
@@ -2732,19 +2923,117 @@ public:
         player.pos.x = Clamp(player.pos.x, -boundW, boundW);
         player.pos.y = Clamp(player.pos.y, -boundH, boundH);
 
-        // Actions: Dash, Basic Attack, Skill 1 (Q), Skill 2 (E), Ultimate (R)
+        // Mặt Đất: đi lại trong Quảng Trường & từng phòng công trình riêng biệt
         if (inSurface) {
+            ResolvePillars(player.pos, 15.0f);
+            bool interact = (IsKeyPressed(KEY_F) || IsKeyPressed(KEY_ENTER) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_UP));
+            if (IsKeyPressed(KEY_TAB) || IsKeyPressed(KEY_B)) {
+                OpenSurfaceModal(surfaceRoom >= 1 ? surfaceRoom - 1 : surfaceBuilding);
+                return;
+            }
             for (int bi = 0; bi < 4; ++bi) {
-                if (IsKeyPressed(KEY_ONE + bi)) { OpenSurfaceModal(bi); return; }
-                Vector2 bp = SurfaceLandmarkPos(bi);
-                if (Vector2Distance(player.pos, bp) < 118.0f && (IsKeyPressed(KEY_F) || IsKeyPressed(KEY_ENTER) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_UP))) {
-                    OpenSurfaceModal(bi);
+                if (IsKeyPressed(KEY_ONE + bi)) { EnterSurfaceRoom(bi + 1); return; }
+            }
+            if (surfaceRoom >= 1 && IsKeyPressed(KEY_ZERO)) {
+                LeaveSurfaceRoomToTown();
+                return;
+            }
+
+            if (surfaceRoom == 0) {
+                // Va chạm vật lý với Đài Phun Nước trung tâm & khối tường các công trình
+                float fDist = Vector2Length(player.pos);
+                if (fDist < 79.0f) {
+                    Vector2 dir = (fDist > 0.01f) ? Vector2Scale(player.pos, 1.0f / fDist) : Vector2{ 0.0f, 1.0f };
+                    player.pos = Vector2Scale(dir, 79.0f);
+                }
+                for (int bi = 0; bi < 4; ++bi) {
+                    Vector2 bp = SurfaceLandmarkPos(bi);
+                    // Khối nhà phía trên (vẫn để mở hành lang cửa vào ở mặt trước y = bp.y + 38)
+                    float rx0 = bp.x - 94.0f, rx1 = bp.x + 94.0f;
+                    float ry0 = bp.y - 68.0f, ry1 = bp.y + 28.0f;
+                    float cx = Clamp(player.pos.x, rx0, rx1);
+                    float cy = Clamp(player.pos.y, ry0, ry1);
+                    Vector2 diff = Vector2Subtract(player.pos, { cx, cy });
+                    float dd = Vector2Length(diff);
+                    if (dd < 15.0f) {
+                        if (dd > 0.01f) player.pos = Vector2Add({ cx, cy }, Vector2Scale(diff, 15.0f / dd));
+                        else player.pos.y = ry1 + 15.0f;
+                    }
+                    Vector2 door = { bp.x, bp.y + 38.0f };
+                    float doorDist = Vector2Distance(player.pos, door);
+                    if (doorDist < 30.0f || (doorDist < 96.0f && interact)) {
+                        EnterSurfaceRoom(bi + 1);
+                        return;
+                    }
+                }
+                if (fDist < 122.0f && interact) {
+                    player.hp = std::min(player.maxHp, player.hp + 20.0f);
+                    PlaySound(snd.sndPotion);
+                    Burst({ 0.0f, 0.0f }, SKYBLUE, 18, 170.0f, 0.55f);
+                    SpawnPopup(player.pos, "+20 HP", SKYBLUE);
+                    ShowBanner(L("Drank Crystal Fountain Water (+20 HP)", "Đã uống nước Đài Phun Nước Thánh (+20 Máu)"), 2.0f);
+                }
+                Vector2 dgPos = SurfaceLandmarkPos(4);
+                float dgDist = Vector2Distance(player.pos, dgPos);
+                if (dgDist < 54.0f || (dgDist < 96.0f && (interact || IsKeyPressed(KEY_G)))) {
+                    LeaveSurfaceToDungeon();
                     return;
                 }
-            }
-            if (Vector2Distance(player.pos, SurfaceLandmarkPos(4)) < 58.0f) {
-                LeaveSurfaceToDungeon();
-                return;
+            } else {
+                // Cửa phía Nam trở ra Quảng Trường
+                Vector2 exitPos = SurfaceInteriorExitPos();
+                float ed = Vector2Distance(player.pos, exitPos);
+                if (ed < 30.0f || (ed < 95.0f && interact)) {
+                    LeaveSurfaceRoomToTown();
+                    return;
+                }
+                if (interact) {
+                    int bestAct = -1;
+                    float bestD = 9999.0f;
+                    auto checkCand = [&](int actId, Vector2 pos, float maxR) {
+                        float d = Vector2Distance(player.pos, pos);
+                        if (d < maxR && d < bestD) { bestD = d; bestAct = actId; }
+                    };
+                    if (surfaceRoom == 1) {
+                        for (int i = 0; i < 4; ++i) checkCand(i, TavernStallPos(i), 94.0f);
+                        checkCand(10, { 0.0f, -275.0f }, 110.0f); // Quầy chủ quán
+                        if (bestAct >= 0 && bestAct <= 3) BuyMeal(bestAct);
+                        else if (bestAct == 10) { OpenSurfaceModal(0); return; }
+                    } else if (surfaceRoom == 2) {
+                        for (int t = 1; t <= 3; ++t) checkCand(t, HousingPedestalPos(t), 108.0f);
+                        checkCand(10, { 0.0f, -295.0f }, 110.0f); // Bàn Kiến Trúc Sư
+                        if (bestAct >= 1 && bestAct <= 3) BuyHouseUpgrade(bestAct);
+                        else if (bestAct == 10) { OpenSurfaceModal(1); return; }
+                    } else if (surfaceRoom == 3) {
+                        if (!hasSpouse) {
+                            for (int i = 0; i < 4; ++i) checkCand(i, SpouseCandPos(i), 85.0f);
+                        } else {
+                            checkCand(10, { -235.0f, -175.0f }, 95.0f); // Vợ đang chờ bên lò sưởi
+                        }
+                        checkCand(20, { 0.0f, -235.0f }, 98.0f);      // Nôi Sinh Con
+                        checkCand(21, { 275.0f, -235.0f }, 98.0f);    // Từ Đường Gia Phả
+                        for (size_t k = 0; k < children.size(); ++k) {
+                            checkCand(100 + (int)k, HeirPosInHome((int)k), 85.0f);
+                        }
+                        if (bestAct >= 0 && bestAct < 4) TryMarrySpouse(bestAct);
+                        else if (bestAct == 10 && spouseIdx >= 0) {
+                            player.hp = std::min(player.maxHp, player.hp + 25.0f);
+                            hunger = std::min(maxHunger, hunger + 10.0f);
+                            PlaySound(snd.sndPotion);
+                            Burst({ -235.0f, -175.0f }, { 255, 130, 185, 255 }, 16, 150.0f, 0.55f);
+                            ShowBanner(std::string(SpouseName(spouseIdx)) + L(": Stay safe in the Dungeon, my love! (+25 HP)", ": Chàng hãy giữ gìn sức khỏe dưới Hầm Ngục nhé! (+25 Máu)"), 2.8f);
+                        } else if (bestAct == 20) TryHaveChild();
+                        else if (bestAct == 21) { OpenFamilyTree(PLAYING); return; }
+                        else if (bestAct >= 100) { SuccessionToChild(bestAct - 100); return; }
+                    } else if (surfaceRoom == 4) {
+                        checkCand(1, { -235.0f, -95.0f }, 108.0f);    // Đài Quý Tộc (1500G)
+                        checkCand(2, {  235.0f, -95.0f }, 108.0f);    // Bàn Chiến Lược Ủy Thác
+                        checkCand(3, {    0.0f, -295.0f }, 115.0f);   // Ngai Vàng Đức Vua
+                        if (bestAct == 1) BuyNobleTitleDirect();
+                        else if (bestAct == 2) AcceptRoyalCommission();
+                        else if (bestAct == 3) { OpenSurfaceModal(3); return; }
+                    }
+                }
             }
             camera.target = player.pos;
             return;
@@ -7600,6 +7889,48 @@ public:
     }
 
     void DrawDecals(const BiomeColors& biome) {
+        if (inSurface) {
+            float tm = (float)GetTime();
+            for (const auto& d : decals) {
+                Vector2 p = d.pos;
+                float a = d.angle * DEG2RAD, s = d.size;
+                if (surfaceRoom == 0 && (fabsf(p.x) < 110.0f || fabsf(p.y) < 110.0f)) continue;
+                if (d.type == 0) {
+                    Vector2 p1 = { p.x + cosf(a) * s * 0.8f, p.y + sinf(a) * s * 0.8f };
+                    DrawLineEx(p, p1, 1.8f, Fade(BLACK, 0.20f));
+                } else if (d.type == 1) {
+                    Color pc = (surfaceRoom == 0) ? Color{ 58, 148, 72, 90 }
+                             : (surfaceRoom == 1 ? Fade(biome.accentCol, 0.14f) : Fade(biome.trimCol, 0.16f));
+                    DrawEllipse((int)p.x, (int)p.y, s * 1.15f, s * 0.68f, pc);
+                    if (surfaceRoom >= 2) DrawEllipseLines((int)p.x, (int)p.y, s * 1.15f, s * 0.68f, Fade(biome.trimCol, 0.32f));
+                } else if (d.type == 2) {
+                    for (int i = 0; i < 3; ++i) {
+                        Vector2 q = { p.x + cosf(a + i * 2.1f) * s * 0.45f, p.y + sinf(a + i * 2.1f) * s * 0.32f };
+                        DrawCircleV(q, 2.5f + i * 0.7f, (surfaceRoom == 0 && i == 1) ? GOLD : Shade(biome.tileA, 1.38f));
+                    }
+                } else {
+                    if (surfaceRoom == 0) { // Hoa & bụi cỏ nắng mai
+                        for (int i = 0; i < 4; ++i) {
+                            float aa = a + i * 1.57f;
+                            DrawEllipse((int)(p.x + cosf(aa) * s * 0.30f), (int)(p.y + sinf(aa) * s * 0.30f), s * 0.28f, s * 0.15f, { 62, 165, 82, 200 });
+                        }
+                        float sway = sinf(tm * 2.2f + p.x) * 1.4f;
+                        Diamond({ p.x + sway, p.y - 2.0f }, 4.5f, 4.5f, (int)d.angle & 1 ? Color{ 255, 130, 175, 255 } : GOLD, WHITE);
+                    } else if (surfaceRoom == 1) { // Đốm lửa ấm & gỗ khảm
+                        Diamond(p, s * 0.28f, s * 0.22f, Fade(biome.trimCol, 0.45f), Fade(GOLD, 0.6f));
+                    } else if (surfaceRoom == 2) { // Dấu la bàn kiến trúc
+                        DrawCircleLines((int)p.x, (int)p.y, s * 0.55f, Fade(SKYBLUE, 0.38f));
+                        Diamond(p, 4.0f, 4.0f, SKYBLUE, WHITE);
+                    } else if (surfaceRoom == 3) { // Cánh hoa & huy hiệu gia tộc
+                        Diamond(p, 5.0f, 3.5f, hasSpouse ? kSpouses[std::max(0, spouseIdx)].dressCol : GOLD, Fade(WHITE, 0.7f));
+                    } else { // Hoa văn hoàng kim đại điện
+                        DrawCircleLines((int)p.x, (int)p.y, s * 0.45f, Fade(GOLD, 0.50f));
+                        Diamond(p, 4.5f, 4.5f, GOLD, WHITE);
+                    }
+                }
+            }
+            return;
+        }
         int bi = BiomeIdx();
         float tm = (float)GetTime();
         for (const auto& d : decals) {
@@ -7685,6 +8016,23 @@ public:
         BoxRot({ p.x, p.y - 10.0f }, 42.0f, 36.0f, 0.0f, stone, ink, 1.8f);
         BoxRot({ p.x, p.y - 11.0f }, 26.0f, 22.0f, 0.0f, Shade(stone, 1.24f), biome.trimCol, 1.4f);
         DrawLineEx({ p.x - 20.0f, p.y - 28.0f }, { p.x + 20.0f, p.y - 28.0f }, 2.0f, Fade(WHITE, 0.25f));
+        if (inSurface) {
+            if (surfaceRoom == 0) {
+                Tri({ p.x + 6.0f, p.y + 8.0f }, { p.x + 21.0f, p.y + 6.0f }, { p.x + 15.0f, p.y + 19.0f }, Fade({ 78, 188, 92, 255 }, 0.85f));
+                Diamond({ p.x, p.y - 11.0f }, 5.5f, 5.5f, GOLD, WHITE);
+            } else if (surfaceRoom == 1) {
+                DrawCircleV({ p.x, p.y - 11.0f }, 6.0f, ORANGE);
+                DrawCircleV({ p.x, p.y - 11.0f }, 3.0f, GOLD);
+            } else if (surfaceRoom == 2) {
+                Diamond({ p.x, p.y - 11.0f }, 6.0f, 6.0f, SKYBLUE, WHITE);
+            } else if (surfaceRoom == 3) {
+                Diamond({ p.x, p.y - 11.0f }, 5.5f, 6.5f, hasSpouse ? Color{ 255, 130, 180, 255 } : GOLD, WHITE);
+            } else {
+                DrawCircleV({ p.x, p.y - 11.0f }, 6.5f, GOLD);
+                Diamond({ p.x, p.y - 11.0f }, 4.5f, 4.5f, RED, WHITE);
+            }
+            return;
+        }
         if (bi == 0) {
             Diamond({ p.x, p.y - 11.0f }, 5.0f, 5.0f, biome.trimCol, WHITE);
         } else if (bi == 1) { // rêu & hoa trên cột
@@ -7733,6 +8081,16 @@ public:
             { 156, 140, 194, 255 }  // 5: Astral Void
         };
         Color amb = ambients[BiomeIdx()];
+        if (inSurface) {
+            static const Color surfAmb[5] = {
+                { 208, 204, 188, 255 }, // 0: Quảng trường nắng ấm
+                { 186, 164, 142, 255 }, // 1: Quán trọ lửa sưởi
+                { 184, 194, 212, 255 }, // 2: Phường Gia Trang sáng sủa
+                { 196, 182, 174, 255 }, // 3: Tổ ấm gia đình
+                { 188, 172, 180, 255 }  // 4: Hoàng cung trang nghiêm
+            };
+            amb = surfAmb[std::max(0, std::min(4, surfaceRoom))];
+        }
         float tm = (float)GetTime();
 
         BeginTextureMode(lightmap);
@@ -7743,6 +8101,26 @@ public:
         for (const auto& t : torches) {
             float fl = 0.85f + 0.15f * sinf(tm * 13.0f + t.x * 0.1f);
             AddLight({ t.x, t.y - 8.0f }, 260.0f, { 255, 150, 60, 255 }, 0.58f * fl);
+        }
+        if (inSurface) {
+            if (surfaceRoom == 0) {
+                AddLight({ 0.0f, 0.0f }, 250.0f, { 115, 220, 255, 255 }, 0.50f);
+                AddLight(SurfaceLandmarkPos(4), 240.0f, { 175, 95, 255, 255 }, 0.72f);
+                for (int bi = 0; bi < 4; ++bi) AddLight(SurfaceLandmarkPos(bi), 230.0f, { 255, 210, 125, 255 }, 0.45f);
+            } else if (surfaceRoom == 1) {
+                AddLight({ 0.0f, -roomH / 2.0f + 50.0f }, 300.0f, { 255, 135, 45, 255 }, 0.65f);
+                for (int i = 0; i < 4; ++i) AddLight(TavernStallPos(i), 170.0f, { 255, 195, 105, 255 }, 0.45f);
+            } else if (surfaceRoom == 2) {
+                for (int t = 1; t <= 3; ++t) AddLight(HousingPedestalPos(t), 200.0f, { 145, 225, 255, 255 }, 0.50f);
+            } else if (surfaceRoom == 3) {
+                AddLight({ -235.0f, -235.0f }, 260.0f, { 255, 175, 110, 255 }, 0.52f);
+                AddLight({  275.0f, -235.0f }, 220.0f, { 255, 215, 95, 255 }, 0.52f);
+            } else if (surfaceRoom == 4) {
+                AddLight({ 0.0f, -295.0f }, 300.0f, { 255, 220, 105, 255 }, 0.62f);
+                AddLight({ -235.0f, -95.0f }, 200.0f, { 255, 215, 85, 255 }, 0.48f);
+                AddLight({  235.0f, -95.0f }, 200.0f, { 130, 215, 255, 255 }, 0.48f);
+            }
+            AddLight(SurfaceInteriorExitPos(), 160.0f, { 140, 225, 255, 255 }, 0.42f);
         }
         if (portalOpen) {
             for (const auto& pc : portalChoices) AddLight(pc.pos, 220.0f, pc.color, 0.68f);
@@ -8129,6 +8507,9 @@ public:
           << "player_shieldActive=" << (player.shieldActive ? 1 : 0) << "\n"
           << "surfaceUnlocked=" << (surfaceUnlocked ? 1 : 0) << "\n"
           << "inSurface=" << (inSurface ? 1 : 0) << "\n"
+          << "surfaceRoom=" << surfaceRoom << "\n"
+          << "surfaceTownReturnX=" << surfaceTownReturnPos.x << "\n"
+          << "surfaceTownReturnY=" << surfaceTownReturnPos.y << "\n"
           << "nextDungeonFloor=" << nextDungeonFloor << "\n"
           << "hunger=" << hunger << "\n"
           << "foodRations=" << foodRations << "\n"
@@ -8221,7 +8602,8 @@ public:
         int relicCount = 0;
         std::vector<int> relicTypes;
         bool lSurfaceUnlocked = false, lInSurface = false, lNoble = false, lRqActive = false, lHasSpouse = false;
-        int lNextFloor = 11, lRations = 2, lGen = 1, lHouseTier = 0, lRqKills = 0, lRqBosses = 0, lSpouseIdx = -1;
+        int lNextFloor = 11, lRations = 2, lGen = 1, lHouseTier = 0, lRqKills = 0, lRqBosses = 0, lSpouseIdx = -1, lSurfaceRoom = 0;
+        Vector2 lTownRet = { 0.0f, 220.0f };
         float lHunger = 100.0f, lLegHp = 0.0f, lLegDmg = 0.0f, lLegArm = 0.0f, lLegSpd = 0.0f;
         std::string lHeroName = "";
         int lChildCount = 0, lAncCount = 0;
@@ -8268,6 +8650,9 @@ public:
             else if (k == "player_shieldActive") loadedP.shieldActive = (iv != 0);
             else if (k == "surfaceUnlocked") lSurfaceUnlocked = (iv != 0);
             else if (k == "inSurface") lInSurface = (iv != 0);
+            else if (k == "surfaceRoom") lSurfaceRoom = std::max(0, std::min(4, iv));
+            else if (k == "surfaceTownReturnX") lTownRet.x = fv;
+            else if (k == "surfaceTownReturnY") lTownRet.y = fv;
             else if (k == "nextDungeonFloor") lNextFloor = std::max(1, iv);
             else if (k == "hunger") lHunger = Clamp(fv, 0.0f, 100.0f);
             else if (k == "foodRations") lRations = std::max(0, iv);
@@ -8404,8 +8789,8 @@ public:
         familyTree = lAncestors;
 
         if (inSurface) {
-            EnterSurface(nextDungeonFloor);
-            player.pos = { 0.0f, 200.0f };
+            surfaceTownReturnPos = lTownRet;
+            SetupSurfaceRoomEnvironment(lSurfaceRoom, true);
         } else {
             roomW = 1200.0f;
             roomH = 750.0f;
@@ -9093,115 +9478,428 @@ public:
         DrawText(foot, 1280 / 2 - MeasureText(foot, 15) / 2, 654, 15, { 165, 180, 215, 255 });
     }
 
-    void DrawSurfaceWorld() {
-        int halfW = (int)roomW / 2, halfH = (int)roomH / 2;
-        int tileSize = 48;
-        float tm = (float)GetTime();
+    static void DrawSurfacePrompt(Vector2 p, const char* title, const char* sub, Color accent, bool near) {
+        int tw = MeasureText(title, 13);
+        int sw = (sub && sub[0]) ? MeasureText(sub, 12) : 0;
+        int bw = std::max(tw, sw) + 22;
+        int bh = (sw > 0) ? 38 : 22;
+        int bx = (int)p.x - bw / 2;
+        int by = (int)p.y;
+        DrawRectangle(bx, by, bw, bh, near ? Color{ 16, 22, 38, 240 } : Color{ 12, 16, 28, 205 });
+        DrawRectangleLines(bx, by, bw, bh, near ? GOLD : Fade(accent, 0.72f));
+        DrawText(title, (int)p.x - tw / 2, by + 4, 13, near ? GOLD : accent);
+        if (sw > 0) DrawText(sub, (int)p.x - sw / 2, by + 20, 12, near ? WHITE : Color{ 210, 220, 240, 255 });
+    }
 
-        // Nền cỏ xanh & đường lát đá làng mạc - kinh thành
-        for (int y = -halfH; y < halfH; y += tileSize) {
-            for (int x = -halfW; x < halfW; x += tileSize) {
-                int tx = x / tileSize, ty = y / tileSize;
-                bool alt = ((tx + ty) & 1) == 0;
-                float cxT = x + tileSize * 0.5f, cyT = y + tileSize * 0.5f;
-                bool isRoad = (fabsf(cxT) < 68.0f || fabsf(cyT) < 68.0f);
-                bool isPlaza = (Vector2Length({ cxT, cyT }) < 175.0f);
-                Color tc = (isRoad || isPlaza)
-                         ? (alt ? Color{ 162, 152, 132, 255 } : Color{ 146, 136, 118, 255 })
-                         : (alt ? Color{ 62, 132, 66, 255 } : Color{ 54, 118, 58, 255 });
-                DrawRectangle(x, y, tileSize, tileSize, tc);
-                if (isRoad || isPlaza) DrawRectangleLines(x + 2, y + 2, tileSize - 4, tileSize - 4, Fade(BLACK, 0.14f));
-                int th = ((tx * 73856093) ^ (ty * 19349663)) & 15;
-                if (!isRoad && !isPlaza && th == 3) DrawCircle(x + 22, y + 24, 3.5f, { 255, 225, 110, 255 });
-                else if (!isRoad && !isPlaza && th == 9) DrawCircle(x + 18, y + 20, 3.0f, { 255, 145, 195, 255 });
+    static void DrawSurfaceFigure(Vector2 pos, Color cloakCol, Color hairCol, Color trimCol, bool crown, float bobPhase) {
+        float bob = sinf((float)GetTime() * 3.0f + bobPhase) * 1.6f;
+        DrawEllipse((int)pos.x, (int)pos.y + 15, 14, 5, Fade(BLACK, 0.36f));
+        Tri({ pos.x - 11.0f, pos.y + 14.0f }, { pos.x + 11.0f, pos.y + 14.0f }, { pos.x, pos.y - 6.0f + bob }, cloakCol);
+        DrawLineEx({ pos.x - 10.0f, pos.y + 14.0f }, { pos.x + 10.0f, pos.y + 14.0f }, 2.2f, trimCol);
+        DrawCircleV({ pos.x, pos.y - 11.0f + bob }, 7.0f, { 255, 222, 192, 255 });
+        DrawCircleLines((int)pos.x, (int)(pos.y - 11.0f + bob), 7.0f, { 28, 24, 34, 255 });
+        DrawRing({ pos.x, pos.y - 13.0f + bob }, 3.5f, 8.0f, 185.0f, 355.0f, 10, hairCol);
+        if (crown) Diamond({ pos.x, pos.y - 21.0f + bob }, 4.5f, 4.5f, GOLD, WHITE);
+    }
+
+    void DrawSurfaceExitDoor(Vector2 pos) {
+        bool near = Vector2Distance(player.pos, pos) < 95.0f;
+        DrawRectangle((int)pos.x - 42, (int)pos.y - 24, 84, 52, { 54, 42, 34, 255 });
+        DrawRectangle((int)pos.x - 32, (int)pos.y - 16, 64, 40, near ? Color{ 62, 118, 165, 240 } : Color{ 34, 48, 72, 235 });
+        DrawRectangleLines((int)pos.x - 34, (int)pos.y - 18, 68, 44, near ? GOLD : Color{ 165, 145, 105, 255 });
+        DrawRectangle((int)pos.x - 36, (int)pos.y - 28, 72, 10, { 125, 116, 104, 255 });
+        DrawSurfacePrompt({ pos.x, pos.y - 62.0f }, L("TOWN SQUARE EXIT", "CỬA RA QUẢNG TRƯỜNG"),
+                          L("[F] / Walk Out   [0] Quick Exit", "[F] hoặc Đi Ra   [0] Ra Nhanh"), SKYBLUE, near);
+    }
+
+    void DrawMiniHouseModel(Vector2 p, int tier, Color roofCol, Color trimCol) {
+        float sc = 0.78f + tier * 0.14f;
+        DrawEllipse((int)p.x, (int)p.y + 18, 36.0f * sc, 11.0f * sc, Fade(BLACK, 0.35f));
+        DrawRectangle((int)(p.x - 24 * sc), (int)(p.y - 8 * sc), (int)(48 * sc), (int)(26 * sc), { 225, 212, 188, 255 });
+        DrawRectangleLines((int)(p.x - 24 * sc), (int)(p.y - 8 * sc), (int)(48 * sc), (int)(26 * sc), { 35, 30, 38, 255 });
+        Tri({ p.x - 30.0f * sc, p.y - 7.0f * sc }, { p.x + 30.0f * sc, p.y - 7.0f * sc }, { p.x, p.y - 31.0f * sc }, roofCol);
+        DrawRectangle((int)(p.x - 6 * sc), (int)(p.y + 4 * sc), (int)(12 * sc), (int)(14 * sc), { 102, 58, 34, 255 });
+        DrawRectangle((int)(p.x - 18 * sc), (int)(p.y - 1 * sc), (int)(8 * sc), (int)(8 * sc), { 255, 215, 115, 255 });
+        DrawRectangle((int)(p.x + 10 * sc), (int)(p.y - 1 * sc), (int)(8 * sc), (int)(8 * sc), { 255, 215, 115, 255 });
+        if (tier >= 3) Diamond({ p.x, p.y - 34.0f * sc }, 5.5f, 5.5f, GOLD, WHITE);
+        DrawCircleLines((int)p.x, (int)p.y + 12, 34.0f, Fade(trimCol, 0.45f));
+    }
+
+    void DrawSurfaceTownSquare(const BiomeColors& biome, float tm) {
+        // 8 Bồn hoa & Cây cảnh hoàng gia viền đá dọc các đại lộ (giữ nguyên toàn bộ nền gạch 3D sắc nét)
+        Vector2 gardens[8] = {
+            { -235.0f, -340.0f }, {  235.0f, -340.0f },
+            { -235.0f,  340.0f }, {  235.0f,  340.0f },
+            { -635.0f, -155.0f }, {  635.0f, -155.0f },
+            { -635.0f,  155.0f }, {  635.0f,  155.0f }
+        };
+        for (int q = 0; q < 8; ++q) {
+            Vector2 gp = gardens[q];
+            DrawRectangle((int)gp.x - 54, (int)gp.y - 26, 108, 52, { 132, 124, 108, 255 });
+            DrawRectangleLines((int)gp.x - 54, (int)gp.y - 26, 108, 52, { 42, 38, 34, 255 });
+            DrawRectangle((int)gp.x - 46, (int)gp.y - 18, 92, 36, { 46, 118, 56, 255 });
+            for (int f = -1; f <= 1; ++f) {
+                float fx = gp.x + f * 26.0f;
+                DrawCircleV({ fx, gp.y }, 9.0f, { 58, 152, 70, 255 });
+                Diamond({ fx + sinf(tm * 2.0f + q + f) * 1.2f, gp.y - 2.0f }, 4.0f, 4.0f, (f == 0) ? GOLD : Color{ 255, 130, 185, 255 }, WHITE);
             }
         }
-        // Hàng rào gỗ viền làng
-        DrawRectangleLinesEx({ (float)-halfW + 12.0f, (float)-halfH + 12.0f, roomW - 24.0f, roomH - 24.0f }, 6.0f, { 118, 78, 44, 255 });
 
-        // Đài phun nước quảng trường trung tâm
-        DrawCircle(0, 0, 74.0f, { 132, 126, 116, 255 });
-        DrawCircle(0, 0, 56.0f, { 58, 172, 225, 255 });
-        DrawCircleLines(0, 0, 22.0f + sinf(tm * 3.0f) * 8.0f, Fade(WHITE, 0.65f));
-        DrawCircle(0, 0, 14.0f, { 205, 200, 190, 255 });
+        // Đài Phun Nước Thánh Trung Tâm (3 tầng đá cẩm thạch + nước gợn sóng)
+        DrawEllipse(4, 14, 78.0f, 34.0f, Fade(BLACK, 0.38f));
+        DrawCircle(0, 0, 68.0f, { 142, 134, 122, 255 });
+        DrawCircleLines(0, 0, 68.0f, { 34, 30, 38, 255 });
+        DrawCircle(0, 0, 56.0f, { 42, 152, 212, 255 });
+        DrawCircleLines(0, 0, 28.0f + sinf(tm * 3.2f) * 9.0f, Fade({ 210, 248, 255, 255 }, 0.75f));
+        DrawCircleLines(0, 0, 44.0f + cosf(tm * 2.5f) * 6.0f, Fade(WHITE, 0.45f));
+        DrawPoly({ 0, 0 }, 8, 22.0f, 22.5f, { 196, 190, 178, 255 });
+        DrawPolyLinesEx({ 0, 0 }, 8, 22.0f, 22.5f, 1.8f, { 45, 42, 52, 255 });
+        Diamond({ 0.0f, -6.0f + sinf(tm * 4.0f) * 2.5f }, 9.0f, 13.0f, SKYBLUE, WHITE);
+        if (Vector2Length(player.pos) < 122.0f) {
+            DrawSurfacePrompt({ 0.0f, 76.0f }, L("CRYSTAL FOUNTAIN", "ĐÀI PHUN NƯỚC THÁNH"), L("[F] Drink Sacred Water (+20 HP)", "[F] Uống Nước (+20 Máu)"), SKYBLUE, true);
+        }
 
-        // Vẽ 4 công trình tương tác trên Mặt Đất
-        struct BldgArt { Color roof; Color wall; const char* en; const char* vi; };
-        Color famRoof = houseTier == 0 ? Color{ 120, 115, 95, 255 } : (houseTier == 1 ? Color{ 165, 92, 48, 255 } : (houseTier == 2 ? Color{ 62, 118, 185, 255 } : Color{ 215, 165, 45, 255 }));
-        BldgArt bldgs[4] = {
-            { { 188, 78, 42, 255 },  { 215, 188, 145, 255 }, "[1 / F] TAVERN & FOOD",        "[1 / F] QUÁN TRỌ & ĐỒ ĂN" },
-            { { 58, 124, 168, 255 }, { 210, 206, 195, 255 }, "[2 / F] BUY / UPGRADE HOUSE",  "[2 / F] PHƯỜNG MUA NHÀ" },
-            { famRoof,               { 225, 210, 185, 255 }, "[3 / F] FAMILY & REST IN PEACE","[3 / F] TỔ ẤM, VỢ CON & GIA PHẢ" },
-            { { 175, 42, 62, 255 },  { 235, 228, 210, 255 }, "[4 / F] ROYAL PALACE (KING)",  "[4 / F] HOÀNG CUNG (VUA & QUÝ TỘC)" }
+        // 4 Công Trình Kiến Trúc Chi Tiết (nhiều lớp tường, mái ngói, cửa sổ sáng, ống khói, bảng hiệu)
+        struct BldgMeta { Color roof; Color facade; Color accent; const char* titleEn; const char* titleVi; const char* subEn; const char* subVi; };
+        Color famRoof = houseTier == 0 ? Color{ 118, 108, 92, 255 } : (houseTier == 1 ? Color{ 176, 92, 46, 255 } : (houseTier == 2 ? Color{ 58, 118, 188, 255 } : Color{ 212, 158, 42, 255 }));
+        Color famWall = houseTier >= 3 ? Color{ 238, 226, 204, 255 } : Color{ 218, 202, 178, 255 };
+        BldgMeta bldgs[4] = {
+            { { 186, 72, 38, 255 },  { 218, 184, 138, 255 }, ORANGE,                    "[1] TAVERN & FOOD MARKET", "[1] QUÁN TRỌ & CHỢ ẨM THỰC",   "Step In / [F] Meals & Rations", "Bước Vào / [F] Đồ Ăn & Lương Khô" },
+            { { 58, 120, 168, 255 }, { 210, 212, 218, 255 }, SKYBLUE,                   "[2] HOUSING GUILD",        "[2] PHƯỜNG GIA TRANG",          "Step In / [F] Homes & Estates", "Bước Vào / [F] Xem & Mua Nhà" },
+            { famRoof,               famWall,                { 255, 135, 185, 255 },    "[3] FAMILY MANOR & TREE",  "[3] TỔ ẤM & TỪ ĐƯỜNG GIA PHẢ",  "Step In / [F] Spouse, Heirs, RIP","Bước Vào / [F] Vợ Con & Truyền Ngôi" },
+            { { 172, 38, 58, 255 },  { 236, 226, 206, 255 }, GOLD,                      "[4] ROYAL PALACE",         "[4] ĐẠI ĐIỆN HOÀNG CUNG",       "Step In / [F] King & Nobility", "Bước Vào / [F] Vua & Quý Tộc" }
         };
         for (int i = 0; i < 4; ++i) {
             Vector2 bp = SurfaceLandmarkPos(i);
-            bool near = Vector2Distance(player.pos, bp) < 120.0f;
-            DrawEllipse((int)bp.x, (int)bp.y + 42, 76.0f, 18.0f, Fade(BLACK, 0.25f));
-            DrawRectangle((int)bp.x - 62, (int)bp.y - 24, 124, 62, bldgs[i].wall);
-            DrawRectangleLines((int)bp.x - 62, (int)bp.y - 24, 124, 62, near ? GOLD : Color{ 45, 36, 32, 255 });
-            Tri({ bp.x - 76.0f, bp.y - 22.0f }, { bp.x + 76.0f, bp.y - 22.0f }, { bp.x, bp.y - 72.0f }, bldgs[i].roof);
-            DrawRectangle((int)bp.x - 16, (int)bp.y + 6, 32, 32, { 92, 56, 34, 255 });
-            if (i == 3) {
-                Diamond({ bp.x, bp.y - 54.0f }, 8.0f, 12.0f, GOLD, WHITE); // Vương miện Hoàng Cung
+            Vector2 door = { bp.x, bp.y + 38.0f };
+            bool near = Vector2Distance(player.pos, door) < 105.0f;
+
+            // Bóng đổ công trình & thềm đá lối vào
+            DrawEllipse((int)bp.x + 4, (int)bp.y + 36, 106.0f, 26.0f, Fade(BLACK, 0.42f));
+            DrawRectangle((int)bp.x - 36, (int)bp.y + 22, 72, 30, { 148, 140, 128, 255 });
+            DrawRectangleLines((int)bp.x - 36, (int)bp.y + 22, 72, 30, Fade(biome.trimCol, 0.55f));
+
+            // Thân nhà 3D + khung gỗ/đá
+            DrawRectangle((int)bp.x - 92, (int)bp.y - 34, 184, 68, Shade(bldgs[i].facade, 0.78f));
+            DrawRectangle((int)bp.x - 86, (int)bp.y - 32, 172, 62, bldgs[i].facade);
+            DrawRectangleLinesEx({ bp.x - 92.0f, bp.y - 34.0f, 184.0f, 68.0f }, 2.2f, near ? GOLD : Color{ 38, 30, 28, 255 });
+            // Xà gỗ dọc & ngang
+            DrawRectangle((int)bp.x - 90, (int)bp.y - 10, 180, 6, { 98, 62, 38, 255 });
+            DrawRectangle((int)bp.x - 52, (int)bp.y - 32, 6, 62, { 98, 62, 38, 255 });
+            DrawRectangle((int)bp.x + 46, (int)bp.y - 32, 6, 62, { 98, 62, 38, 255 });
+
+            // Cửa sổ kính ấm tỏa sáng
+            Color winGlow = { 255, 205, 95, 255 };
+            DrawRectangle((int)bp.x - 78, (int)bp.y - 24, 22, 22, { 68, 44, 28, 255 });
+            DrawRectangle((int)bp.x - 75, (int)bp.y - 21, 16, 16, winGlow);
+            DrawRectangle((int)bp.x + 56, (int)bp.y - 24, 22, 22, { 68, 44, 28, 255 });
+            DrawRectangle((int)bp.x + 59, (int)bp.y - 21, 16, 16, winGlow);
+
+            // Cổng vòm mở tối mời người chơi bước vào
+            DrawRectangle((int)bp.x - 24, (int)bp.y - 8, 48, 42, { 72, 54, 42, 255 });
+            DrawRectangle((int)bp.x - 18, (int)bp.y - 2, 36, 36, near ? Color{ 42, 54, 82, 255 } : Color{ 20, 16, 22, 255 });
+            DrawRectangle((int)bp.x - 14, (int)bp.y + 24, 28, 12, Fade(bldgs[i].accent, near ? 0.55f : 0.25f));
+
+            // Mái ngói chóp đa tầng + ống khói/vương miện
+            if (i == 0 || i == 2) {
+                DrawRectangle((int)bp.x + 42, (int)bp.y - 86, 18, 34, { 112, 86, 76, 255 });
+                float sm = fmodf(tm * 0.9f + i, 1.0f);
+                DrawCircleV({ bp.x + 51.0f + sinf(tm * 3.0f) * 4.0f, bp.y - 92.0f - sm * 18.0f }, 5.0f + sm * 4.0f, Fade(LIGHTGRAY, (1.0f - sm) * 0.45f));
             }
-            const char* lbl = L(bldgs[i].en, bldgs[i].vi);
-            OutlinedText(lbl, (int)bp.x - MeasureText(lbl, 14) / 2, (int)bp.y + 48, 14, near ? GOLD : WHITE, { 18, 20, 28, 255 });
+            Tri({ bp.x - 108.0f, bp.y - 30.0f }, { bp.x + 108.0f, bp.y - 30.0f }, { bp.x, bp.y - 94.0f }, Shade(bldgs[i].roof, 0.72f));
+            Tri({ bp.x - 100.0f, bp.y - 32.0f }, { bp.x + 100.0f, bp.y - 32.0f }, { bp.x, bp.y - 88.0f }, bldgs[i].roof);
+            DrawLineEx({ bp.x - 104.0f, bp.y - 31.0f }, { bp.x, bp.y - 92.0f }, 2.5f, Fade(GOLD, 0.5f));
+            DrawLineEx({ bp.x + 104.0f, bp.y - 31.0f }, { bp.x, bp.y - 92.0f }, 2.5f, Fade(GOLD, 0.5f));
+            Diamond({ bp.x, bp.y - 62.0f }, 8.0f, 10.0f, bldgs[i].accent, WHITE);
+
+            DrawSurfacePrompt({ bp.x, bp.y + 58.0f }, L(bldgs[i].titleEn, bldgs[i].titleVi),
+                              L(bldgs[i].subEn, bldgs[i].subVi), bldgs[i].accent, near);
         }
 
-        // Vẽ Vợ và Các Con đứng ở sân Tổ Ấm (landmark 2)
+        // Vợ & Con đứng đón ở hiên Tổ Ấm (nếu đã cưới)
         Vector2 homeP = SurfaceLandmarkPos(2);
         if (hasSpouse && spouseIdx >= 0 && spouseIdx < 4) {
-            Vector2 spPos = { homeP.x - 86.0f, homeP.y + 24.0f };
-            Color dc = kSpouses[spouseIdx].dressCol;
-            DrawEllipse((int)spPos.x, (int)spPos.y + 14, 14, 5, Fade(BLACK, 0.3f));
-            Tri({ spPos.x - 10, spPos.y + 14 }, { spPos.x + 10, spPos.y + 14 }, { spPos.x, spPos.y - 8 }, dc);
-            DrawCircleV({ spPos.x, spPos.y - 14 }, 7.0f, { 255, 224, 196, 255 });
-            DrawText(SpouseName(spouseIdx), (int)spPos.x - MeasureText(SpouseName(spouseIdx), 11) / 2, (int)spPos.y - 32, 11, dc);
+            DrawSurfaceFigure({ homeP.x - 112.0f, homeP.y + 24.0f }, kSpouses[spouseIdx].dressCol, { 38, 28, 24, 255 }, GOLD, true, 0.5f);
         }
         for (size_t k = 0; k < children.size(); ++k) {
-            Vector2 kp = { homeP.x + 84.0f + k * 28.0f, homeP.y + 26.0f };
             Color kc = kClasses[std::max(0, std::min(3, children[k].heroClass))].color;
-            DrawCircleV(kp, 8.0f, kc);
-            DrawCircleV({ kp.x, kp.y - 10.0f }, 5.0f, { 255, 224, 196, 255 });
-            DrawText(children[k].name.c_str(), (int)kp.x - MeasureText(children[k].name.c_str(), 10) / 2, (int)kp.y - 26, 10, WHITE);
+            DrawSurfaceFigure({ homeP.x + 110.0f + k * 24.0f, homeP.y + 24.0f }, kc, { 45, 32, 26, 255 }, WHITE, false, 1.0f + k);
         }
 
-        // Vẽ Cổng Hầm Ngục phía Bắc để quay xuống hầm ngục
+        // Cổng Hầm Ngục phía Bắc để quay xuống hầm ngục
         Vector2 dp = SurfaceLandmarkPos(4);
+        bool nearGate = Vector2Distance(player.pos, dp) < 96.0f;
+        DrawRectangle((int)dp.x - 62, (int)dp.y - 46, 124, 20, Shade(biome.wall, 0.85f));
+        DrawRectangleLines((int)dp.x - 62, (int)dp.y - 46, 124, 20, GOLD);
         BeginBlendMode(BLEND_ADDITIVE);
-        CircleGrad(dp.x, dp.y, 64.0f + sinf(tm * 5.0f) * 5.0f, Fade({ 165, 85, 255, 255 }, 0.55f), Fade({ 165, 85, 255, 255 }, 0.0f));
+        CircleGrad(dp.x, dp.y, 70.0f + sinf(tm * 5.0f) * 6.0f, Fade({ 165, 85, 255, 255 }, 0.60f), Fade({ 165, 85, 255, 255 }, 0.0f));
         EndBlendMode();
-        DrawRing(dp, 30.0f, 36.0f, tm * 70.0f, tm * 70.0f + 275.0f, 24, { 185, 110, 255, 255 });
-        DrawCircle((int)dp.x, (int)dp.y, 20.0f, { 58, 22, 92, 240 });
-        std::string dgLbl = std::string(L("ENTER DUNGEON (FLOOR ", "XUỐNG HẦM NGỤC (TẦNG ")) + std::to_string(nextDungeonFloor) + ")";
-        OutlinedText(dgLbl.c_str(), (int)dp.x - MeasureText(dgLbl.c_str(), 15) / 2, (int)dp.y + 42, 15, { 215, 165, 255, 255 }, { 12, 14, 24, 255 });
+        DrawRing(dp, 32.0f, 38.0f, tm * 70.0f, tm * 70.0f + 275.0f, 24, { 185, 110, 255, 255 });
+        DrawCircle((int)dp.x, (int)dp.y, 22.0f, { 48, 18, 78, 245 });
+        std::string dgLbl = std::string(L("DESCENT GATE (FLOOR ", "CỔNG HẦM NGỤC (TẦNG ")) + std::to_string(nextDungeonFloor) + ")";
+        DrawSurfacePrompt({ dp.x, dp.y + 42.0f }, dgLbl.c_str(), L("[F / G] Enter Dungeon", "[F / G] Xuống Hầm Ngục"), { 205, 145, 255, 255 }, nearGate);
+    }
 
-        // Nhân vật người chơi & hiệu ứng
-        DrawEllipse((int)player.pos.x, (int)player.pos.y + 16, 20, 8, { 0, 0, 0, 100 });
-        DrawPlayerSprite();
-        for (const auto& pt : particles) {
-            float k = pt.life / pt.maxLife;
-            DrawCircleV(pt.pos, pt.size * (0.3f + 0.7f * k), Fade(pt.color, k * k));
+    void DrawSurfaceTavernRoom(const BiomeColors& biome, float tm) {
+        // Thảm dệt trung tâm & thảm lối vào ấm áp
+        DrawRectangle(-68, -240, 136, (int)(roomH / 2 + 180), { 128, 44, 34, 220 });
+        DrawRectangleLinesEx({ -68.0f, -240.0f, 136.0f, roomH / 2.0f + 180.0f }, 2.5f, GOLD);
+        DrawRectangle(-165, -75, 330, 150, { 108, 38, 32, 215 });
+        DrawRectangleLinesEx({ -165.0f, -75.0f, 330.0f, 150.0f }, 2.5f, Fade(GOLD, 0.85f));
+
+        // Lò sưởi lớn phía Bắc & Vạc hầm
+        float fy = -roomH / 2.0f + 26.0f;
+        DrawRectangle(-92, (int)fy - 22, 184, 54, { 78, 72, 68, 255 });
+        DrawRectangleLines(-92, (int)fy - 22, 184, 54, { 24, 20, 22, 255 });
+        DrawRectangle(-52, (int)fy - 6, 104, 34, { 26, 18, 16, 255 });
+        DrawCircleV({ 0.0f, fy + 14.0f }, 16.0f + sinf(tm * 11.0f) * 3.0f, ORANGE);
+        DrawCircleV({ 0.0f, fy + 12.0f }, 8.0f + cosf(tm * 15.0f) * 2.0f, GOLD);
+
+        // Quầy Bar Chủ Quán
+        Vector2 barP = { 0.0f, -275.0f };
+        bool nearBar = Vector2Distance(player.pos, barP) < 110.0f;
+        DrawRectangle((int)barP.x - 135, (int)barP.y - 26, 270, 44, { 112, 68, 38, 255 });
+        DrawRectangleLines((int)barP.x - 135, (int)barP.y - 26, 270, 44, nearBar ? GOLD : Color{ 42, 26, 18, 255 });
+        DrawCircle((int)barP.x - 95, (int)barP.y - 6, 12.0f, { 145, 92, 48, 255 });
+        DrawCircle((int)barP.x + 95, (int)barP.y - 6, 12.0f, { 145, 92, 48, 255 });
+        DrawSurfaceFigure({ barP.x, barP.y - 34.0f }, { 195, 92, 46, 255 }, { 78, 52, 34, 255 }, WHITE, false, 0.2f);
+        DrawSurfacePrompt({ barP.x, barP.y + 24.0f }, L("INNKEEPER COUNTER", "QUẦY CHỦ QUÁN"), L("[F] View Full Menu", "[F] Mở Bảng Thực Đơn"), ORANGE, nearBar);
+
+        // Hai bàn ăn thực khách
+        for (int ti = -1; ti <= 1; ti += 2) {
+            Vector2 tp = { ti * 265.0f, 130.0f };
+            DrawEllipse((int)tp.x, (int)tp.y + 8, 48.0f, 26.0f, Fade(BLACK, 0.35f));
+            DrawEllipse((int)tp.x, (int)tp.y, 46.0f, 24.0f, { 126, 78, 44, 255 });
+            DrawEllipseLines((int)tp.x, (int)tp.y, 46.0f, 24.0f, { 42, 24, 16, 255 });
+            DrawCircle((int)tp.x - 14, (int)tp.y - 4, 6.0f, GOLD);
+            DrawCircle((int)tp.x + 16, (int)tp.y + 2, 5.0f, WHITE);
         }
-        for (const auto& p : popups) DrawText(p.text.c_str(), (int)p.pos.x - 10, (int)p.pos.y, 18, p.color);
+
+        // 4 Quầy Ẩm Thực Trực Tiếp [F]
+        struct StallMeta { const char* nameEn; const char* nameVi; const char* effEn; const char* effVi; int baseCost; Color col; };
+        static const StallMeta stalls[4] = {
+            { "FRESH BREAD",    "BÁNH MÌ NÓNG",     "+35 Hunger, +18 HP",   "+35 No, +18 Máu",        15, { 245, 205, 115, 255 } },
+            { "ROAST MEAT",     "THỊT NƯỚNG",       "+70 Hunger, +40% HP",  "+70 No, +40% Máu",       35, ORANGE },
+            { "ROYAL BANQUET",  "YẾN TIỆC VUA",     "Full Hunger/HP +Rage", "Đầy No & Máu +25 Nộ",    70, GOLD },
+            { "RATION CRATE",   "TÚI LƯƠNG KHÔ x2", "Buy +2 Rations [H]",   "Mua +2 Lương Khô [H]",   25, { 125, 235, 155, 255 } }
+        };
+        for (int i = 0; i < 4; ++i) {
+            Vector2 sp = TavernStallPos(i);
+            bool near = Vector2Distance(player.pos, sp) < 94.0f;
+            int price = MealPrice(stalls[i].baseCost);
+            DrawEllipse((int)sp.x, (int)sp.y + 18, 54.0f, 18.0f, Fade(BLACK, 0.38f));
+            DrawRectangle((int)sp.x - 46, (int)sp.y - 20, 92, 42, i == 2 ? Color{ 126, 36, 48, 255 } : Color{ 106, 68, 42, 255 });
+            DrawRectangleLinesEx({ sp.x - 46.0f, sp.y - 20.0f, 92.0f, 42.0f }, near ? 2.5f : 1.5f, near ? GOLD : stalls[i].col);
+            if (i == 0) {
+                DrawEllipse((int)sp.x - 14, (int)sp.y - 2, 13.0f, 8.0f, { 235, 185, 95, 255 });
+                DrawEllipse((int)sp.x + 14, (int)sp.y - 2, 13.0f, 8.0f, { 245, 198, 108, 255 });
+            } else if (i == 1) {
+                DrawCircle((int)sp.x, (int)sp.y, 13.0f, { 205, 86, 42, 255 });
+                DrawLineEx({ sp.x - 24.0f, sp.y }, { sp.x + 24.0f, sp.y }, 2.5f, LIGHTGRAY);
+            } else if (i == 2) {
+                DrawCircle((int)sp.x, (int)sp.y, 14.0f, GOLD);
+                Diamond({ sp.x, sp.y - 4.0f }, 6.0f, 7.0f, SKYBLUE, WHITE);
+            } else {
+                DrawRectangle((int)sp.x - 20, (int)sp.y - 10, 40, 22, { 142, 102, 58, 255 });
+                DrawRectangleLines((int)sp.x - 20, (int)sp.y - 10, 40, 22, GOLD);
+            }
+            std::string sub = std::string(L("[F] Buy ", "[F] Mua ")) + std::to_string(price) + L("G | ", "V | ") + L(stalls[i].effEn, stalls[i].effVi);
+            DrawSurfacePrompt({ sp.x, sp.y + 28.0f }, L(stalls[i].nameEn, stalls[i].nameVi), sub.c_str(), stalls[i].col, near);
+        }
+        (void)biome;
+        DrawSurfaceExitDoor(SurfaceInteriorExitPos());
+    }
+
+    void DrawSurfaceHousingRoom(const BiomeColors& biome, float tm) {
+        (void)tm;
+        DrawPoly({ 0.0f, 40.0f }, 8, 220.0f, 22.5f, Fade(biome.trimCol, 0.14f));
+        DrawPolyLinesEx({ 0.0f, 40.0f }, 8, 220.0f, 22.5f, 2.5f, Fade(GOLD, 0.55f));
+
+        Vector2 deskP = { 0.0f, -295.0f };
+        bool nearDesk = Vector2Distance(player.pos, deskP) < 110.0f;
+        DrawRectangle((int)deskP.x - 110, (int)deskP.y - 24, 220, 42, { 88, 98, 118, 255 });
+        DrawRectangleLines((int)deskP.x - 110, (int)deskP.y - 24, 220, 42, nearDesk ? GOLD : SKYBLUE);
+        DrawRectangle((int)deskP.x - 42, (int)deskP.y - 14, 84, 22, { 175, 220, 255, 230 });
+        DrawSurfaceFigure({ deskP.x, deskP.y - 34.0f }, { 56, 114, 178, 255 }, { 185, 190, 205, 255 }, GOLD, false, 0.4f);
+        DrawSurfacePrompt({ deskP.x, deskP.y + 24.0f }, L("MASTER ARCHITECT", "BẬC THẦY KIẾN TRÚC"), L("[F] View Estate Ledger", "[F] Xem Sổ Gia Trang"), SKYBLUE, nearDesk);
+
+        Color roofs[3] = { { 172, 92, 48, 255 }, { 58, 118, 188, 255 }, { 215, 165, 42, 255 } };
+        for (int t = 1; t <= 3; ++t) {
+            Vector2 hp = HousingPedestalPos(t);
+            bool near = Vector2Distance(player.pos, hp) < 108.0f;
+            bool owned = (houseTier >= t);
+            bool nextT = (houseTier + 1 == t);
+            int price = HouseUpgradeCost(t);
+            Color col = owned ? GREEN : (nextT ? GOLD : GRAY);
+
+            DrawEllipse((int)hp.x, (int)hp.y + 24, 62.0f, 22.0f, Fade(BLACK, 0.42f));
+            DrawPoly(hp, 8, 54.0f, 22.5f, Shade(biome.wall, 0.78f));
+            DrawPolyLinesEx(hp, 8, 54.0f, 22.5f, near ? 2.8f : 1.8f, near ? GOLD : col);
+            DrawMiniHouseModel({ hp.x, hp.y - 6.0f }, t, roofs[t - 1], col);
+
+            std::string sub = owned ? L("OWNED  (+Active Bonus)", "ĐÃ SỞ HỮU")
+                            : (nextT ? TextFormat(L("[F] BUY %dG  (+%d HP/+%d DMG)", "[F] MUA %dV (+%d Máu/+%d ST)"), price, (int)kHouses[t].hpBonus, (int)kHouses[t].dmgBonus)
+                                     : L("Requires Previous House Tier", "Cần nâng cấp Nhà trước"));
+            DrawSurfacePrompt({ hp.x, hp.y + 42.0f }, HouseName(t), sub.c_str(), col, near);
+        }
+        DrawSurfaceExitDoor(SurfaceInteriorExitPos());
+    }
+
+    void DrawSurfaceFamilyHomeRoom(const BiomeColors& biome, float tm) {
+        (void)biome;
+        // Thảm đại sảnh gia đình nâng cấp theo House Tier (sắc nét, không che mờ nền gạch)
+        Color rugCol = (houseTier == 0) ? Color{ 102, 86, 68, 220 } : (houseTier == 1 ? Color{ 44, 108, 62, 225 } : (houseTier == 2 ? Color{ 50, 68, 138, 230 } : Color{ 138, 30, 50, 235 }));
+        Color rugTrim = (houseTier >= 3) ? GOLD : Color{ 225, 205, 160, 235 };
+        float rw = 290.0f + houseTier * 35.0f, rh = 190.0f + houseTier * 20.0f;
+        DrawRectangle((int)(-rw / 2), (int)(-rh / 2), (int)rw, (int)rh, rugCol);
+        DrawRectangleLinesEx({ -rw / 2, -rh / 2, rw, rh }, 3.0f, rugTrim);
+        DrawRectangle(-58, -10, 116, (int)(roomH / 2 - 42), rugCol);
+        DrawRectangleLinesEx({ -58.0f, -10.0f, 116.0f, roomH / 2.0f - 42.0f }, 2.2f, rugTrim);
+
+        // Lò sưởi ấm áp bên Tây Bắc
+        DrawRectangle(-290, (int)(-roomH / 2 + 12), 110, 44, { 92, 84, 78, 255 });
+        DrawRectangle(-265, (int)(-roomH / 2 + 28), 60, 26, { 30, 18, 16, 255 });
+        DrawCircleV({ -235.0f, -roomH / 2.0f + 42.0f }, 12.0f + sinf(tm * 10.0f) * 2.5f, ORANGE);
+
+        // Giường & Bàn ăn trang trí theo cấp Nhà
+        if (houseTier >= 1) {
+            DrawRectangle((int)(-roomW / 2 + 65), -260, 90, 56, { 118, 72, 42, 255 });
+            DrawRectangle((int)(-roomW / 2 + 72), -252, 76, 40, hasSpouse ? kSpouses[std::max(0, spouseIdx)].dressCol : Color{ 185, 195, 220, 255 });
+        }
+
+        // Khu Vực Cưới Vợ / Vợ Đứng Chờ (Tây)
+        if (!hasSpouse) {
+            for (int i = 0; i < 4; ++i) {
+                Vector2 cp = SpouseCandPos(i);
+                bool near = Vector2Distance(player.pos, cp) < 85.0f;
+                const SpouseDef& sp = kSpouses[i];
+                DrawCircleLines((int)cp.x, (int)cp.y + 4, 28.0f, Fade(sp.dressCol, near ? 0.9f : 0.4f));
+                DrawSurfaceFigure(cp, sp.dressCol, { 38, 28, 32, 255 }, GOLD, true, i * 1.1f);
+                std::string sub = (houseTier <= 0) ? std::string(L("Buy House First!", "Cần Mua Nhà trước!"))
+                                                   : TextFormat(L("[F] Marry %dG (+%dHP +%dDMG)", "[F] Cưới %dV (+%dM +%dST)"), SpouseCost(i), (int)sp.hpBonus, (int)sp.dmgBonus);
+                DrawSurfacePrompt({ cp.x, cp.y + 26.0f }, SpouseName(i), sub.c_str(), sp.dressCol, near);
+            }
+        } else {
+            Vector2 wp = { -235.0f, -175.0f };
+            bool nearW = Vector2Distance(player.pos, wp) < 95.0f;
+            const SpouseDef& sp = kSpouses[std::max(0, std::min(3, spouseIdx))];
+            DrawSurfaceFigure(wp, sp.dressCol, { 42, 26, 30, 255 }, GOLD, true, 0.2f);
+            Diamond({ wp.x, wp.y - 30.0f + sinf(tm * 3.5f) * 3.0f }, 5.0f, 5.0f, { 255, 110, 165, 255 }, WHITE);
+            DrawSurfacePrompt({ wp.x, wp.y + 24.0f }, SpouseName(spouseIdx), L("[F] Warm Embrace (+25 HP)", "[F] Trò Chuyện (+25 Máu)"), sp.dressCol, nearW);
+        }
+
+        // Nôi Sinh Con (Bắc Giữa)
+        Vector2 crP = { 0.0f, -235.0f };
+        bool nearCr = Vector2Distance(player.pos, crP) < 98.0f;
+        DrawRectangle((int)crP.x - 36, (int)crP.y - 20, 72, 40, { 138, 88, 52, 255 });
+        DrawRectangle((int)crP.x - 28, (int)crP.y - 12, 56, 24, { 175, 225, 255, 255 });
+        DrawRectangleLines((int)crP.x - 36, (int)crP.y - 20, 72, 40, nearCr ? GOLD : WHITE);
+        int maxKids = kHouses[std::max(0, std::min(3, houseTier))].maxKids;
+        std::string crSub = (!hasSpouse || houseTier <= 0) ? std::string(L("Requires House & Spouse", "Cần Có Nhà & Đã Cưới"))
+                          : ((int)children.size() >= maxKids ? std::string(L("Upgrade House for More", "Nâng cấp Nhà để thêm con"))
+                          : TextFormat(L("[F] Have Heir (%dG) [%d/%d]", "[F] Sinh Con (%dV) [%d/%d]"), MealPrice(100), (int)children.size(), maxKids));
+        DrawSurfacePrompt({ crP.x, crP.y + 28.0f }, L("NURSERY CRADLE", "NÔI SINH CON NỐI DÕI"), crSub.c_str(), { 140, 230, 255, 255 }, nearCr);
+
+        // Từ Đường & Cây Gia Phả (Đông Bắc)
+        Vector2 shP = { 275.0f, -235.0f };
+        bool nearSh = Vector2Distance(player.pos, shP) < 98.0f;
+        DrawRectangle((int)shP.x - 44, (int)shP.y - 22, 88, 44, { 72, 56, 48, 255 });
+        DrawRectangleLines((int)shP.x - 44, (int)shP.y - 22, 88, 44, GOLD);
+        Diamond({ shP.x, shP.y - 6.0f + sinf(tm * 2.5f) * 2.0f }, 8.0f, 11.0f, GOLD, WHITE);
+        DrawSurfacePrompt({ shP.x, shP.y + 28.0f }, L("ANCESTRAL SHRINE", "TỪ ĐƯỜNG GIA PHẢ"), L("[F / Y] Open Family Tree", "[F / Y] Mở Cây Gia Phả"), GOLD, nearSh);
+
+        // Khu Vực Thế Hệ Con Cái (Đông): Rest in Peace / Kế Thừa
+        if (children.empty()) {
+            DrawRectangleLines(140, -70, 250, 120, Fade(GOLD, 0.30f));
+            const char* noKid = L("No Heirs Yet", "Chưa Có Thế Hệ Con");
+            DrawText(noKid, 265 - MeasureText(noKid, 14) / 2, -16, 14, { 180, 190, 215, 255 });
+        } else {
+            for (size_t k = 0; k < children.size(); ++k) {
+                Vector2 hp = HeirPosInHome((int)k);
+                const ChildInfo& ch = children[k];
+                bool nearH = Vector2Distance(player.pos, hp) < 85.0f;
+                int hc = std::max(0, std::min(3, ch.heroClass));
+                Color cc = kClasses[hc].color;
+                DrawCircleLines((int)hp.x, (int)hp.y + 6, 30.0f, Fade(nearH ? GOLD : cc, 0.72f));
+                DrawHeroModel(hp, hc, ClassWeaponType(hc), { -0.8f, 0.2f }, true, tm * 2.5f + k, true, 0.2f, false, false, 0.0f, 0.0f, 0, 0.0f);
+                std::string sub = TextFormat(L("[F] REST IN PEACE (%s +%dHP)", "[F] AN NGHỈ - KẾ THỪA (%s)"), ClassDisplayName(hc), (int)ch.bonusHp);
+                DrawSurfacePrompt({ hp.x, hp.y + 26.0f }, ch.name.c_str(), sub.c_str(), cc, nearH);
+            }
+        }
+        DrawSurfaceExitDoor(SurfaceInteriorExitPos());
+    }
+
+    void DrawSurfacePalaceRoom(const BiomeColors& biome, float tm) {
+        (void)biome;
+        // Thảm đỏ hoàng gia trải dọc đại điện từ cửa tới ngai vàng
+        DrawRectangle(-95, -280, 190, (int)(roomH / 2 + 240), { 142, 26, 42, 235 });
+        DrawRectangleLinesEx({ -95.0f, -280.0f, 190.0f, roomH / 2.0f + 240.0f }, 3.5f, GOLD);
+
+        // Ngự Lâm Quân canh gác đại điện
+        Vector2 guardPts[4] = { { -145, -270 }, { 145, -270 }, { -160, 110 }, { 160, 110 } };
+        for (int gi = 0; gi < 4; ++gi) {
+            Vector2 dir = (guardPts[gi].x < 0) ? Vector2{ 1.0f, 0.0f } : Vector2{ -1.0f, 0.0f };
+            DrawHeroModel(guardPts[gi], CLASS_KNIGHT, WP_SWORD, dir, guardPts[gi].x > 0, 0.0f, false, 0.0f, false, true, 0.0f, 0.0f, 1, 0.0f);
+        }
+
+        // Bục Ngai Vàng & Đức Vua
+        Vector2 thP = { 0.0f, -295.0f };
+        bool nearKing = Vector2Distance(player.pos, thP) < 115.0f;
+        DrawRectangle(-170, (int)thP.y - 60, 340, 110, { 98, 72, 54, 255 });
+        DrawRectangleLines(-170, (int)thP.y - 60, 340, 110, GOLD);
+        DrawRectangle(-42, (int)thP.y - 44, 84, 54, GOLD);
+        DrawRectangle(-32, (int)thP.y - 34, 64, 42, { 165, 28, 44, 255 });
+        DrawSurfaceFigure({ 0.0f, thP.y - 12.0f }, { 188, 32, 52, 255 }, { 225, 215, 200, 255 }, GOLD, true, tm * 0.1f);
+        DrawSurfacePrompt({ thP.x, thP.y + 38.0f }, L("HIS MAJESTY THE KING", "ĐỨC VUA HOÀNG TRIỀU"), L("[F] Royal Audience", "[F] Yết Kiến Đức Vua"), GOLD, nearKing);
+
+        // Đài Quý Tộc Mua Trực Tiếp (Tây)
+        Vector2 trP = { -235.0f, -95.0f };
+        bool nearTr = Vector2Distance(player.pos, trP) < 108.0f;
+        DrawPoly(trP, 6, 48.0f, 0.0f, { 72, 48, 36, 255 });
+        DrawPolyLinesEx(trP, 6, 48.0f, 0.0f, 2.5f, isNoble ? GREEN : GOLD);
+        DrawRectangle((int)trP.x - 22, (int)trP.y - 14, 44, 28, GOLD);
+        DrawRectangleLines((int)trP.x - 22, (int)trP.y - 14, 44, 28, { 42, 24, 16, 255 });
+        Diamond({ trP.x, trP.y - 18.0f }, 8.0f, 8.0f, SKYBLUE, WHITE);
+        DrawSurfacePrompt({ trP.x, trP.y + 42.0f }, L("ROYAL TREASURER", "ĐÀI SẮC PHONG QUÝ TỘC"),
+                          isNoble ? L("NOBILITY GRANTED", "ĐÃ MANG TƯỚC QUÝ TỘC") : L("[F] Buy Nobility (1500 Gold)", "[F] Mua Quý Tộc (1500 Vàng)"), GOLD, nearTr);
+
+        // Bàn Chiến Lược & Ủy Thác Của Vua (Đông)
+        Vector2 wtP = { 235.0f, -95.0f };
+        bool nearWt = Vector2Distance(player.pos, wtP) < 108.0f;
+        DrawRectangle((int)wtP.x - 56, (int)wtP.y - 34, 112, 68, { 68, 52, 44, 255 });
+        DrawRectangleLines((int)wtP.x - 56, (int)wtP.y - 34, 112, 68, nearWt ? GOLD : SKYBLUE);
+        DrawRectangle((int)wtP.x - 42, (int)wtP.y - 22, 84, 44, { 34, 62, 88, 255 });
+        Diamond({ wtP.x + 12.0f, wtP.y }, 6.0f, 6.0f, RED, GOLD);
+        std::string wSub = isNoble ? L("Royal Commission Completed!", "Đã nhận Tước Vị Quý Tộc!")
+                         : (royalQuestActive
+                            ? ((royalQuestKills >= 35 && royalQuestBosses >= 1)
+                               ? std::string(L("[F] CLAIM NOBLE TITLE!", "[F] LĨNH THƯỞNG PHONG QUÝ TỘC!"))
+                               : TextFormat(L("Progress: %d/35 Monsters, %d/1 Boss", "Tiến độ: %d/35 Quái, %d/1 Trùm"), royalQuestKills, royalQuestBosses))
+                            : std::string(L("[F] Accept King's Quest (35 Monsters + Boss)", "[F] Nhận Ủy Thác (35 Quái + 1 Trùm)")));
+        DrawSurfacePrompt({ wtP.x, wtP.y + 42.0f }, L("KING'S WAR TABLE", "BÀN ỦY THÁC THẢO PHẠT"), wSub.c_str(), ORANGE, nearWt);
+
+        DrawSurfaceExitDoor(SurfaceInteriorExitPos());
+    }
+
+    void DrawSurfaceWorld(const BiomeColors& biome) {
+        float tm = (float)GetTime();
+        if (surfaceRoom == 1) DrawSurfaceTavernRoom(biome, tm);
+        else if (surfaceRoom == 2) DrawSurfaceHousingRoom(biome, tm);
+        else if (surfaceRoom == 3) DrawSurfaceFamilyHomeRoom(biome, tm);
+        else if (surfaceRoom == 4) DrawSurfacePalaceRoom(biome, tm);
+        else DrawSurfaceTownSquare(biome, tm);
     }
 
     // ── Drawing ──
     void Draw() {
-        if (settings.lighting && !inSurface) RenderLightmap();
+        if (settings.lighting) RenderLightmap();
         BeginTextureMode(screenRT);
         BiomeColors biome = Biome();
-        ClearBackground(inSurface ? Color{ 44, 96, 48, 255 } : biome.bg);
+        ClearBackground(biome.bg);
 
         BeginMode2D(camera);
 
-        if (inSurface) {
-            DrawSurfaceWorld();
-            EndMode2D();
-        } else {
-
-        // 1. Tường gạch, sàn đa sắc vùng hành lang/viền/trung tâm, bóng viền, huy hiệu, cảnh quan biome, đuốc, cột
+        // 1. Tường gạch, sàn đa sắc vùng hành lang/viền/trung tâm, bóng viền, huy hiệu, cảnh quan biome, đuốc, cột (Dùng chung cả Hầm Ngục & Mặt Đất)
         int halfW = (int)roomW / 2;
         int halfH = (int)roomH / 2;
         int tileSize = 48;
@@ -9230,7 +9928,7 @@ public:
                 else if (th == 7) DrawRectangle(x + 26, y + 26, 6, 6, Fade(biome.accentCol, 0.16f));
             }
         }
-        // Đường viền hành lang chữ thập & Huy hiệu Đấu Trường trung tâm đa sắc
+        // Đường viền hành lang chữ thập & Huy hiệu trung tâm đa sắc
         DrawRectangleLinesEx({ -68.0f, (float)-halfH + 48.0f, 136.0f, roomH - 96.0f }, 2.0f, Fade(biome.trimCol, 0.28f));
         DrawRectangleLinesEx({ (float)-halfW + 48.0f, -68.0f, roomW - 96.0f, 136.0f }, 2.0f, Fade(biome.trimCol, 0.28f));
         DrawPoly({ 0, 0 }, 8, 148.0f, 22.5f, Fade(biome.pathCol, 0.85f));
@@ -9250,6 +9948,16 @@ public:
         DrawRectangleLinesEx({ -roomW / 2.0f, -roomH / 2.0f, roomW, roomH }, 3.0f, biome.trimCol);
 
         DrawDecals(biome);
+
+        if (inSurface) {
+            DrawSurfaceWorld(biome);
+            for (const auto& m : motes) {
+                float a2 = 0.10f + 0.16f * (0.5f + 0.5f * sinf((float)GetTime() * 1.6f + m.phase));
+                DrawCircleV(m.pos, m.size, Fade(biome.mote, a2));
+            }
+            for (const auto& tp : torches) DrawTorch(tp);
+            for (const auto& pl : pillars) DrawPillar(pl, biome);
+        } else {
 
         // Bẫy địa hình & Vòng năng lượng Arcane Leyline
         {
@@ -9595,6 +10303,7 @@ public:
                         p.color, WHITE, 1.2f);
             }
         }
+        }
 
         // Player
         if (comboCount >= 10) {
@@ -9604,7 +10313,7 @@ public:
         DrawEllipse((int)player.pos.x, (int)player.pos.y + 16, 20, 8, { 0, 0, 0, 100 }); // Shadow
         DrawPlayerSprite();
 
-        DrawItemDrops();
+        if (!inSurface) DrawItemDrops();
 
         // Hạt
         for (const auto& pt : particles) {
@@ -9620,10 +10329,9 @@ public:
         EndMode2D();
 
         if (settings.lighting) ApplyLighting();
-        }
 
-        // Vignette + viền đỏ khi bị đau
-        if (settings.vignette && !inSurface) {
+        // Vignette + viền đỏ khi bị đau (dùng chung cho cả Hầm Ngục & Mặt Đất)
+        if (settings.vignette) {
             Color edge = LerpColor({ 0, 0, 0, 120 }, { 170, 0, 20, 200 }, damagePulse);
             Color clear = { edge.r, edge.g, edge.b, 0 };
             int bh = 150, bw = 240;
@@ -9703,10 +10411,10 @@ public:
 
         // Top-Center: Surface / Floor, Biome / Royal Quest & Combo
         if (inSurface) {
-            const char* surfTitle = L("SURFACE: VILLAGE & ROYAL CITY", "MẶT ĐẤT: LÀNG MẠC & KINH THÀNH");
-            DrawText(surfTitle, 1280 / 2 - MeasureText(surfTitle, 26) / 2, 14, 26, { 125, 245, 145, 255 });
+            const char* surfTitle = L(biome.nameEn, biome.nameVi);
+            DrawText(surfTitle, 1280 / 2 - MeasureText(surfTitle, 24) / 2, 14, 24, biome.trimCol);
             std::string subS = std::string(L("Gen ", "Đời ")) + std::to_string(generation) + " | " + HouseName(houseTier) + " | " + (isNoble ? L("NOBLE", "QUÝ TỘC") : L("Commoner", "Thường Dân"));
-            DrawText(subS.c_str(), 1280 / 2 - MeasureText(subS.c_str(), 14) / 2, 44, 14, GOLD);
+            DrawText(subS.c_str(), 1280 / 2 - MeasureText(subS.c_str(), 14) / 2, 42, 14, GOLD);
         } else {
             std::string floorStr = std::string(L("FLOOR ", "TẦNG ")) + std::to_string(floor);
             DrawText(floorStr.c_str(), 1280 / 2 - MeasureText(floorStr.c_str(), 30) / 2, 14, 30, RAYWHITE);
@@ -9781,6 +10489,20 @@ public:
 
             // Player dot
             DrawCircle((int)(midX + player.pos.x * sX), (int)(midY + player.pos.y * sY), 3.5f, GREEN);
+            if (inSurface) {
+                if (surfaceRoom == 0) {
+                    Color bCols[4] = { ORANGE, SKYBLUE, Color{ 255, 135, 185, 255 }, GOLD };
+                    for (int bi = 0; bi < 4; ++bi) {
+                        Vector2 bp = SurfaceLandmarkPos(bi);
+                        DrawCircle((int)(midX + bp.x * sX), (int)(midY + bp.y * sY), 4.0f, bCols[bi]);
+                    }
+                    Vector2 dg = SurfaceLandmarkPos(4);
+                    DrawCircle((int)(midX + dg.x * sX), (int)(midY + dg.y * sY), 4.5f, Color{ 195, 120, 255, 255 });
+                } else {
+                    Vector2 ex = SurfaceInteriorExitPos();
+                    DrawCircle((int)(midX + ex.x * sX), (int)(midY + ex.y * sY), 4.5f, SKYBLUE);
+                }
+            }
             // Trial Totem dot
             if (hasTrialTotem && !trialUsed) DrawCircle((int)(midX + trialPos.x * sX), (int)(midY + trialPos.y * sY), 3.5f, GOLD);
             // Portal dots
@@ -9797,12 +10519,15 @@ public:
 
         // Thanh 5 ô kỹ năng ở giữa đáy màn hình (hoặc thanh phím nhanh trên Mặt Đất)
         if (inSurface && state == PLAYING) {
-            const char* sBar = L("[1] Tavern   [2] Buy House   [3] Family/RIP   [4] King/Noble   [Y] Family Tree   [H] Ration",
-                                 "[1] Quán Trọ   [2] Mua Nhà   [3] Gia Đình/RIP   [4] Hoàng Cung   [Y] Gia Phả   [H] Lương Khô");
-            int sbW = MeasureText(sBar, 15) + 32;
+            const char* sBar = (surfaceRoom == 0)
+                ? L("[F] Enter / Interact   [1..4] Quick Room   [Tab] Menu   [Y] Family Tree   [H] Ration",
+                    "[F] Vào Phòng / Tương Tác   [1..4] Vào Nhanh   [Tab] Bảng Chung   [Y] Gia Phả   [H] Lương")
+                : L("[0] Town Square   [1..4] Switch Room   [F] Interact   [Tab] Room Menu   [Y] Tree   [H] Ration",
+                    "[0] Ra Quảng Trường   [1..4] Đổi Phòng   [F] Tương Tác   [Tab] Menu   [Y] Gia Phả   [H] Lương");
+            int sbW = MeasureText(sBar, 14) + 28;
             DrawRectangle(1280 / 2 - sbW / 2, 720 - 44, sbW, 30, { 14, 20, 32, 230 });
             DrawRectangleLines(1280 / 2 - sbW / 2, 720 - 44, sbW, 30, GOLD);
-            DrawText(sBar, 1280 / 2 - MeasureText(sBar, 15) / 2, 720 - 36, 15, WHITE);
+            DrawText(sBar, 1280 / 2 - MeasureText(sBar, 14) / 2, 720 - 36, 14, WHITE);
         } else if (!touchMode) {
             struct SlotUI { const char* key; int iconKind; Color col; float cd; float maxCd; bool isUlt; bool ready; };
             std::vector<SlotUI> slots;
