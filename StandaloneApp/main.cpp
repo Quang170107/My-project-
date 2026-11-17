@@ -944,6 +944,74 @@ struct Settings {
 static const int kFpsOptions[5] = { 30, 60, 120, 144, 0 }; // 0 = không giới hạn
 static const int kResOptions[5][2] = { { 1280, 720 }, { 1366, 768 }, { 1600, 900 }, { 1920, 1080 }, { 2560, 1440 } };
 
+// ── Mặt Đất, Gia Đình, Gia Phả & Quý Tộc ───────────────────────────────────
+struct SpouseDef {
+    const char* nameEn;
+    const char* nameVi;
+    const char* roleEn;
+    const char* roleVi;
+    int cost;
+    float hpBonus;
+    float dmgBonus;
+    float critBonus;
+    float atkSpdBonus;
+    Color dressCol;
+};
+
+static const SpouseDef kSpouses[4] = {
+    { "Mai Linh",    "Mai Linh",    "Village Herbalist (+HP)",       "Thầy Thuốc Làng (+Máu)",         180, 30.0f,  4.0f, 0.04f, 0.10f, { 115, 235, 165, 255 } },
+    { "Van Anh",     "Vân Anh",     "Arena Swordswoman (+DMG/SPD)",  "Nữ Kiếm Sư (+Sát Thương/Tốc)",  260, 20.0f,  9.0f, 0.05f, 0.25f, { 255, 120, 145, 255 } },
+    { "Thien Thanh", "Thiên Thanh", "City Arcanist (+CRIT/SPD)",     "Pháp Sư Kinh Thành (+Chí Mạng)", 320, 25.0f,  7.0f, 0.08f, 0.20f, { 130, 185, 255, 255 } },
+    { "Bao Ngoc",    "Bảo Ngọc",    "Noble Lady (All Blessings)",    "Quận Chúa Cao Quý (Toàn diện)", 500, 45.0f, 12.0f, 0.08f, 0.25f, { 255, 215, 95,  255 } }
+};
+
+struct HouseDef {
+    const char* nameEn;
+    const char* nameVi;
+    const char* descEn;
+    const char* descVi;
+    int cost;
+    int maxKids;
+    float hpBonus;
+    float dmgBonus;
+};
+
+static const HouseDef kHouses[4] = {
+    { "Homeless",        "Chưa Có Nhà",         "Renting an inn room. Buy a house to marry & raise heirs.",
+      "Đang ở trọ. Mua nhà để cưới vợ & sinh con nối dõi.", 0, 0, 0.0f, 0.0f },
+    { "Village Cottage", "Nhà Gỗ Làng Mạc",     "Unlocks Marriage & 1 Heir Slot (+20 HP, -15% Hunger)",
+      "Mở Cưới Vợ & 1 Ô Sinh Con (+20 Máu, -15% Tốc Đói)", 150, 1, 20.0f, 3.0f },
+    { "City Villa",      "Biệt Thự Kinh Thành", "Up to 2 Heirs (+45 HP, +6 DMG, -30% Hunger)",
+      "Mở Tối Đa 2 Con (+45 Máu, +6 ST, -30% Tốc Đói)", 450, 2, 45.0f, 6.0f },
+    { "Noble Estate",    "Dinh Thự Quý Tộc",    "Grand Estate for 3 Heirs (+80 HP, +12 DMG, -45% Hunger, 50% off Nobles)",
+      "Phủ Đệ Hoàng Gia tối đa 3 Con (+80 Máu, +12 ST, -45% Đói; Quý Tộc giảm 50%)", 1000, 3, 80.0f, 12.0f }
+};
+
+struct ChildInfo {
+    std::string name;
+    int heroClass = 0;
+    float bonusHp = 0.0f;
+    float bonusDmg = 0.0f;
+    float bonusArmor = 0.0f;
+    float bonusSpeed = 0.0f;
+};
+
+struct AncestorRecord {
+    int generation = 1;
+    std::string name;
+    int heroClass = 0;
+    int subClass = 0;
+    bool wasNoble = false;
+    std::string spouseName;
+    int floorReached = 1;
+    int enemiesSlain = 0;
+};
+
+static const char* kHeirNames[10] = {
+    "Minh Khôi", "Hoàng Long", "Thanh Vân", "Anh Tuấn", "Ngọc Diệp",
+    "Gia Huy", "Thảo Nhi", "Bảo Lâm", "Thiên Ân", "Khánh Linh"
+};
+
 // ── Game State ─────────────────────────────────────────────────────────────
 class Game {
 public:
@@ -975,7 +1043,7 @@ public:
     float screenShakeTimer = 0.0f;
     float screenShakeMag = 0.0f;
 
-    enum State { PLAYING, LEVEL_UP, GAME_OVER, TITLE, PAUSED, INVENTORY, SETTINGS, SHOP, META, CLASS_SELECT, SAVE_LOAD };
+    enum State { PLAYING, LEVEL_UP, GAME_OVER, TITLE, PAUSED, INVENTORY, SETTINGS, SHOP, META, CLASS_SELECT, SAVE_LOAD, SURFACE_UI, FAMILY_TREE };
     State state = PLAYING;
     int selectedClass = 0;
     int classSel = 0;
@@ -1085,7 +1153,86 @@ public:
     float shrineRefuse = 0.0f;
     float shrinePulse = 0.0f;
 
+    // ── Hệ thống Mặt Đất, Đói, Nhà, Gia Đình, Gia Phả & Quý Tộc ──
+    bool surfaceUnlocked = false;
+    bool inSurface = false;
+    int nextDungeonFloor = 11;
+    float hunger = 100.0f;
+    float maxHunger = 100.0f;
+    float starveTickTimer = 0.0f;
+    int foodRations = 2;
+    int generation = 1;
+    std::string heroGivenName = "";
+    int houseTier = 0;
+    bool isNoble = false;
+    bool royalQuestActive = false;
+    int royalQuestKills = 0;
+    int royalQuestBosses = 0;
+    bool hasSpouse = false;
+    int spouseIdx = -1;
+    std::vector<ChildInfo> children;
+    std::vector<AncestorRecord> familyTree;
+    float legacyHp = 0.0f;
+    float legacyDmg = 0.0f;
+    float legacyArmor = 0.0f;
+    float legacySpeed = 0.0f;
+    int surfaceBuilding = 0; // 0: Quán trọ, 1: Mua nhà, 2: Gia đình & Đời con, 3: Hoàng cung & Vua
+    int surfaceSel = 0;
+    State familyTreeReturn = PLAYING;
+
     const char* L(const char* en, const char* vi) const { return settings.language == 1 ? vi : en; }
+    const char* SpouseName(int idx) const {
+        if (idx < 0 || idx >= 4) return L("None", "Chưa có");
+        return settings.language == 1 ? kSpouses[idx].nameVi : kSpouses[idx].nameEn;
+    }
+    const char* HouseName(int tier) const {
+        int t = std::max(0, std::min(3, tier));
+        return settings.language == 1 ? kHouses[t].nameVi : kHouses[t].nameEn;
+    }
+    float HouseHungerMult() const {
+        if (houseTier <= 0) return 1.0f;
+        if (houseTier == 1) return 0.85f;
+        if (houseTier == 2) return 0.70f;
+        return 0.55f;
+    }
+    float HungerDamageMult() const {
+        return (surfaceUnlocked && hunger >= 70.0f) ? 1.10f : 1.0f;
+    }
+    int MealPrice(int basePrice) const {
+        return isNoble ? std::max(5, (int)roundf(basePrice * 0.70f)) : basePrice;
+    }
+    int HouseUpgradeCost(int targetTier) const {
+        int t = std::max(1, std::min(3, targetTier));
+        int base = kHouses[t].cost;
+        if (!isNoble) return base;
+        return (t == 3) ? base / 2 : (int)roundf(base * 0.70f);
+    }
+    std::string CurrentHeroDisplayName() const {
+        return heroGivenName.empty() ? std::string(ClassDisplayName(player.heroClass)) : heroGivenName;
+    }
+    void ResetDynasty() {
+        surfaceUnlocked = false;
+        inSurface = false;
+        nextDungeonFloor = 11;
+        hunger = 100.0f;
+        maxHunger = 100.0f;
+        starveTickTimer = 0.0f;
+        foodRations = 2;
+        generation = 1;
+        heroGivenName = "";
+        houseTier = 0;
+        isNoble = false;
+        royalQuestActive = false;
+        royalQuestKills = 0;
+        royalQuestBosses = 0;
+        hasSpouse = false;
+        spouseIdx = -1;
+        children.clear();
+        familyTree.clear();
+        legacyHp = legacyDmg = legacyArmor = legacySpeed = 0.0f;
+        surfaceBuilding = 0;
+        surfaceSel = 0;
+    }
     const ClassDef& BaseClass() const { return kClasses[std::max(0, std::min(3, player.heroClass))]; }
     const SubclassDef* ActiveSubclass() const {
         if (player.subClass != 1 && player.subClass != 2) return nullptr;
@@ -1212,6 +1359,7 @@ public:
         }
         if (comboCount >= 10) s *= 1.18f; // Frenzy Overdrive
         if (player.frostSlowTimer > 0.0f) s *= 0.72f;
+        if (surfaceUnlocked && hunger < 25.0f) s *= 0.90f;
         return s;
     }
     void AddRage(float amt) {
@@ -1246,6 +1394,9 @@ public:
     }
 
     void RestartRun() {
+        ResetDynasty();
+        roomW = 1200;
+        roomH = 750;
         player = Player();
         int hc = std::max(0, std::min(3, selectedClass));
         const ClassDef& cd = kClasses[hc];
@@ -1477,6 +1628,365 @@ public:
         Rumble(k * 0.9f, k * 0.55f, std::min(0.45f, dur + 0.08f));
     }
 
+    static Vector2 SurfaceLandmarkPos(int idx) {
+        switch (idx) {
+            case 0: return { -420.0f, -180.0f }; // Quán Trọ & Chợ Đồ Ăn
+            case 1: return {  420.0f, -180.0f }; // Phường Gia Trang (Mua Nhà)
+            case 2: return {  420.0f,  180.0f }; // Tổ Ấm Gia Đình (Cưới Vợ / Sinh Con / An Nghỉ)
+            case 3: return { -420.0f,  180.0f }; // Hoàng Cung (Quý Tộc & Ủy Thác Của Vua)
+            default: return {   0.0f, -365.0f }; // Cổng Trở Lại Hầm Ngục
+        }
+    }
+
+    int SpouseCost(int idx) const {
+        if (idx < 0 || idx >= 4) return 0;
+        return MealPrice(kSpouses[idx].cost);
+    }
+
+    void OpenSurfaceModal(int tab) {
+        surfaceBuilding = std::max(0, std::min(3, tab));
+        surfaceSel = 0;
+        StopRumble();
+        state = SURFACE_UI;
+        PlaySound(snd.sndCoin);
+    }
+
+    void OpenFamilyTree(State from) {
+        familyTreeReturn = from;
+        StopRumble();
+        state = FAMILY_TREE;
+        PlaySound(snd.sndCoin);
+    }
+
+    void EnterSurface(int nextF) {
+        surfaceUnlocked = true;
+        inSurface = true;
+        nextDungeonFloor = std::max(nextDungeonFloor, std::max(1, nextF));
+        enemies.clear();
+        projectiles.clear();
+        loots.clear();
+        slashes.clear();
+        novas.clear();
+        ghosts.clear();
+        groundEffects.clear();
+        pillars.clear();
+        particles.clear();
+        itemDrops.clear();
+        pendingSpawns.clear();
+        barrels.clear();
+        hazards.clear();
+        portalChoices.clear();
+        wave2Spawns.clear();
+        wave2Triggered = false;
+        hasTrialTotem = false;
+        trialUsed = false;
+        trialActive = false;
+        shopFloor = false;
+        hasShrine = false;
+        portalOpen = false;
+        roomW = 1440.0f;
+        roomH = 960.0f;
+        InitMotes();
+        player.pos = { 0.0f, 300.0f };
+        player.isDashing = false;
+        camera.target = player.pos;
+        PlaySound(snd.sndPortal);
+        ShowBanner(L("SURFACE REACHED! Hunger is now active — buy food, a house, marry & become Noble!",
+                     "ĐÃ LÊN MẶT ĐẤT! Thanh Đói xuất hiện — dùng Vàng mua đồ ăn, nhà, cưới vợ & thăng Quý Tộc!"), 4.2f);
+    }
+
+    void LeaveSurfaceToDungeon() {
+        inSurface = false;
+        roomW = 1200.0f;
+        roomH = 750.0f;
+        floor = std::max(1, nextDungeonFloor);
+        PlaySound(snd.sndPortal);
+        BuildFloor();
+    }
+
+    void EatRation() {
+        if (!surfaceUnlocked) return;
+        if (foodRations <= 0) {
+            ShowBanner(L("No Rations left! Buy food on the Surface.", "Hết Lương Khô! Hãy lên Mặt Đất mua đồ ăn."), 2.2f);
+            PlaySound(snd.sndHurt);
+            return;
+        }
+        if (hunger >= maxHunger - 0.5f && player.hp >= player.maxHp - 0.5f) {
+            ShowBanner(L("Already Full & Healthy!", "Đã no và đầy máu!"), 1.5f);
+            return;
+        }
+        foodRations--;
+        hunger = std::min(maxHunger, hunger + 45.0f);
+        float hl = roundf(player.maxHp * 0.25f);
+        player.hp = std::min(player.maxHp, player.hp + hl);
+        PlaySound(snd.sndPotion);
+        Burst(player.pos, { 120, 240, 150, 255 }, 14, 180.0f, 0.5f);
+        SpawnPopup(player.pos, L("+45 HUNGER", "+45 NO"), { 130, 245, 150, 255 });
+    }
+
+    void BuyMeal(int kind) {
+        static const int basePrices[4] = { 15, 35, 70, 25 };
+        if (kind < 0 || kind > 3) return;
+        int price = MealPrice(basePrices[kind]);
+        if (player.gold < price) {
+            ShowBanner(L("Not enough Gold!", "Không đủ Vàng!"), 1.8f);
+            PlaySound(snd.sndHurt);
+            return;
+        }
+        player.gold -= price;
+        PlaySound(snd.sndPotion);
+        if (kind == 0) {
+            hunger = std::min(maxHunger, hunger + 35.0f);
+            player.hp = std::min(player.maxHp, player.hp + 18.0f);
+            ShowBanner(L("Ate Fresh Bread (+35 Hunger, +18 HP)", "Đã ăn Bánh Mì (+35 No, +18 Máu)"), 2.2f);
+        } else if (kind == 1) {
+            hunger = std::min(maxHunger, hunger + 70.0f);
+            player.hp = std::min(player.maxHp, player.hp + roundf(player.maxHp * 0.40f));
+            ShowBanner(L("Ate Roast Meat (+70 Hunger, +40% HP)", "Đã ăn Thịt Nướng Đậm Đà (+70 No, +40% Máu)"), 2.2f);
+        } else if (kind == 2) {
+            hunger = maxHunger;
+            player.hp = player.maxHp;
+            AddRage(25.0f);
+            ShowBanner(L("Royal Banquet Feast (Full Hunger & HP!)", "Yến Tiệc Thịnh Soạn (Đầy No & Đầy Máu!)"), 2.4f);
+        } else {
+            foodRations += 2;
+            ShowBanner(L("Bought +2 Travel Rations [H]", "Đã mua +2 Lương Khô Mang Theo [H]"), 2.2f);
+        }
+    }
+
+    void BuyHouseUpgrade(int targetTier) {
+        if (targetTier <= houseTier || targetTier > 3) {
+            ShowBanner(L("You already own this or higher house tier!", "Bạn đã sở hữu cấp nhà này hoặc cao hơn!"), 2.0f);
+            return;
+        }
+        if (targetTier != houseTier + 1) {
+            ShowBanner(L("Upgrade house tiers step by step!", "Hãy nâng cấp từng bậc nhà!"), 2.0f);
+            return;
+        }
+        int cost = HouseUpgradeCost(targetTier);
+        if (player.gold < cost) {
+            ShowBanner(L("Not enough Gold to buy this house!", "Chưa đủ Vàng mua ngôi nhà này!"), 2.0f);
+            PlaySound(snd.sndHurt);
+            return;
+        }
+        player.gold -= cost;
+        float hpGain = kHouses[targetTier].hpBonus - kHouses[houseTier].hpBonus;
+        float dmgGain = kHouses[targetTier].dmgBonus - kHouses[houseTier].dmgBonus;
+        houseTier = targetTier;
+        player.maxHp += hpGain;
+        player.hp = std::min(player.maxHp, player.hp + hpGain);
+        player.baseDmg += dmgGain;
+        PlaySound(snd.sndLevelUp);
+        Burst(player.pos, GOLD, 24, 240.0f, 0.7f);
+        ShowBanner(std::string(L("PURCHASED HOME: ", "ĐÃ MUA NHÀ: ")) + HouseName(targetTier) + "!", 3.2f);
+    }
+
+    void TryMarrySpouse(int idx) {
+        if (houseTier <= 0) {
+            ShowBanner(L("Buy a House first before getting married!", "Hãy mua Nhà trước khi Cưới Vợ!"), 2.5f);
+            PlaySound(snd.sndHurt);
+            return;
+        }
+        if (hasSpouse) {
+            ShowBanner(L("You are already happily married!", "Bạn đã lập gia đình rồi!"), 2.2f);
+            return;
+        }
+        if (idx < 0 || idx >= 4) return;
+        int cost = SpouseCost(idx);
+        if (player.gold < cost) {
+            ShowBanner(L("Not enough Gold for the wedding ceremony!", "Không đủ Vàng tổ chức hôn lễ!"), 2.0f);
+            PlaySound(snd.sndHurt);
+            return;
+        }
+        player.gold -= cost;
+        hasSpouse = true;
+        spouseIdx = idx;
+        const SpouseDef& sp = kSpouses[idx];
+        player.maxHp += sp.hpBonus;
+        player.hp = std::min(player.maxHp, player.hp + sp.hpBonus);
+        player.baseDmg += sp.dmgBonus;
+        player.critChance = std::min(0.6f, player.critChance + sp.critBonus);
+        player.attackRate += sp.atkSpdBonus;
+        PlaySound(snd.sndLevelUp);
+        Burst(player.pos, sp.dressCol, 32, 260.0f, 0.8f);
+        ShowBanner(std::string(L("MARRIED ", "ĐÃ CƯỚI ")) + SpouseName(idx) + "!", 3.4f);
+    }
+
+    void TryHaveChild() {
+        if (!hasSpouse || houseTier <= 0) {
+            ShowBanner(L("Requires a House and Marriage first!", "Cần có Nhà và đã Cưới Vợ để sinh con!"), 2.4f);
+            PlaySound(snd.sndHurt);
+            return;
+        }
+        int maxKids = kHouses[std::max(0, std::min(3, houseTier))].maxKids;
+        if ((int)children.size() >= maxKids) {
+            ShowBanner(L("Home is at full child capacity — upgrade House!", "Nhà đã đủ số con tối đa — hãy nâng cấp Nhà lớn hơn!"), 2.6f);
+            PlaySound(snd.sndHurt);
+            return;
+        }
+        int cost = MealPrice(100);
+        if (player.gold < cost) {
+            ShowBanner(L("Need more Gold to welcome a child!", "Không đủ Vàng cho chi phí nuôi dạy con!"), 2.0f);
+            PlaySound(snd.sndHurt);
+            return;
+        }
+        player.gold -= cost;
+        ChildInfo ch;
+        int nameIdx = (generation * 3 + (int)children.size() + (int)familyTree.size()) % 10;
+        ch.name = kHeirNames[nameIdx];
+        ch.heroClass = (player.heroClass + (int)children.size() + 1) % 4;
+        ch.bonusHp = 18.0f + houseTier * 8.0f + (isNoble ? 14.0f : 0.0f) + (spouseIdx >= 0 ? kSpouses[spouseIdx].hpBonus * 0.45f : 0.0f);
+        ch.bonusDmg = 3.0f + houseTier * 2.0f + (isNoble ? 3.5f : 0.0f) + (spouseIdx >= 0 ? kSpouses[spouseIdx].dmgBonus * 0.50f : 0.0f);
+        ch.bonusArmor = 0.5f + (isNoble ? 0.6f : 0.0f);
+        ch.bonusSpeed = 8.0f + houseTier * 4.0f;
+        children.push_back(ch);
+        PlaySound(snd.sndLevelUp);
+        Burst(player.pos, SKYBLUE, 28, 250.0f, 0.75f);
+        ShowBanner(std::string(L("CHILD BORN: ", "SINH CON THÀNH CÔNG: ")) + ch.name + " (" + ClassDisplayName(ch.heroClass) + ")!", 3.5f);
+    }
+
+    void AcceptRoyalCommission() {
+        if (isNoble) {
+            ShowBanner(L("You already hold a Noble Title!", "Bạn đã mang Tước Vị Quý Tộc rồi!"), 2.2f);
+            return;
+        }
+        if (royalQuestActive) {
+            if (royalQuestKills >= 35 && royalQuestBosses >= 1) CompleteRoyalCommission();
+            else ShowBanner(L("Commission active! Slay Dungeon monsters & 1 Boss!", "Đang nhận Ủy Thác! Hãy xuống Hầm Ngục diệt 35 Quái & 1 Trùm!"), 2.8f);
+            return;
+        }
+        royalQuestActive = true;
+        royalQuestKills = 0;
+        royalQuestBosses = 0;
+        PlaySound(snd.sndSpecial);
+        ShowBanner(L("KING'S COMMISSION ACCEPTED: Slay 35 Enemies & 1 Boss in the Dungeon!",
+                     "ĐÃ NHẬN ỦY THÁC CỦA VUA: Hạ 35 Quái & 1 Trùm dưới Hầm Ngục để phong Quý Tộc!"), 3.8f);
+    }
+
+    void CompleteRoyalCommission() {
+        if (isNoble) return;
+        isNoble = true;
+        royalQuestActive = false;
+        player.gold += 300;
+        player.maxHp += 35.0f;
+        player.hp = std::min(player.maxHp, player.hp + 35.0f);
+        player.baseDmg += 6.0f;
+        player.armor += 1.5f;
+        GiveRandomRelic();
+        PlaySound(snd.sndLevelUp);
+        Shake(0.35f, 6.0f);
+        ShowBanner(L("ROYAL DECREE: KING'S COMMISSION COMPLETE! YOU ARE NOW NOBLE (+300G & RELIC)!",
+                     "HOÀN THÀNH ỦY THÁC CỦA VUA! ĐƯỢC PHONG QUÝ TỘC (+300 Vàng & Thánh Tích)!"), 4.5f);
+    }
+
+    void BuyNobleTitleDirect() {
+        if (isNoble) {
+            ShowBanner(L("You are already Noble!", "Bạn đã là Quý Tộc rồi!"), 2.0f);
+            return;
+        }
+        const int noblePrice = 1500;
+        if (player.gold < noblePrice) {
+            ShowBanner(L("Need 1500 Gold to buy Nobility directly (or complete the King's Commission)!",
+                         "Cần 1500 Vàng để mua Tước Quý Tộc trực tiếp (hoặc làm Ủy Thác của Vua)!"), 3.0f);
+            PlaySound(snd.sndHurt);
+            return;
+        }
+        player.gold -= noblePrice;
+        isNoble = true;
+        royalQuestActive = false;
+        player.maxHp += 35.0f;
+        player.hp = std::min(player.maxHp, player.hp + 35.0f);
+        player.baseDmg += 6.0f;
+        player.armor += 1.5f;
+        PlaySound(snd.sndLevelUp);
+        Burst(player.pos, GOLD, 36, 300.0f, 0.9f);
+        ShowBanner(L("ROYAL PROMOTION: PURCHASED NOBLE TITLE! (+Stats, +25% Gold, Discounts)",
+                     "SẮC PHONG QUÝ TỘC THÀNH CÔNG! (+Chỉ số, +25% Vàng, Giảm giá 30-50%)"), 4.0f);
+    }
+
+    void SuccessionToChild(int childIdx) {
+        if (childIdx < 0 || childIdx >= (int)children.size()) return;
+        ChildInfo heir = children[childIdx];
+
+        AncestorRecord rec;
+        rec.generation = generation;
+        rec.name = CurrentHeroDisplayName();
+        rec.heroClass = player.heroClass;
+        rec.subClass = player.subClass;
+        rec.wasNoble = isNoble;
+        rec.spouseName = (hasSpouse && spouseIdx >= 0) ? SpouseName(spouseIdx) : L("Unmarried", "Độc Thân");
+        rec.floorReached = std::max(floor, nextDungeonFloor);
+        rec.enemiesSlain = enemiesSlain;
+        familyTree.push_back(rec);
+
+        int keepGold = player.gold;
+        std::vector<Relic> keepRelics = player.relics;
+        EquipItem keepEq[4];
+        bool keepHas[4] = { false, false, false, false };
+        for (int i = 0; i < 4; ++i) {
+            keepHas[i] = hasEquip[i];
+            if (hasEquip[i]) keepEq[i] = equipped[i];
+        }
+
+        generation++;
+        heroGivenName = heir.name;
+        legacyHp += heir.bonusHp;
+        legacyDmg += heir.bonusDmg;
+        legacyArmor += heir.bonusArmor;
+        legacySpeed += heir.bonusSpeed;
+        hasSpouse = false;
+        spouseIdx = -1;
+        children.clear();
+
+        player = Player();
+        int hc = std::max(0, std::min(3, heir.heroClass));
+        selectedClass = hc;
+        const ClassDef& cd = kClasses[hc];
+        player.heroClass = hc;
+        player.subClass = 0;
+        player.maxHp = cd.baseHp + 10.0f * meta[0] + kHouses[houseTier].hpBonus + (isNoble ? 35.0f : 0.0f) + legacyHp;
+        player.baseDmg = (cd.baseDmg - 3.0f) + 2.0f * meta[1] + kHouses[houseTier].dmgBonus + (isNoble ? 6.0f : 0.0f) + legacyDmg;
+        player.speed = cd.baseSpeed + 5.0f * meta[2] + legacySpeed;
+        player.attackRate = cd.baseAtkRate;
+        player.armor = cd.baseArmor + (isNoble ? 1.5f : 0.0f) + legacyArmor;
+        player.critChance = cd.baseCrit;
+        player.specialCooldown = Skill1MaxCd();
+        player.skill2Cooldown = Skill2MaxCd();
+        player.gold = keepGold;
+        player.relics = keepRelics;
+        for (const auto& r : player.relics) if (r.type == RELIC_AEGIS) player.shieldActive = true;
+
+        for (int i = 0; i < 4; ++i) hasEquip[i] = false;
+        int dummySold = 0;
+        if (keepHas[SLOT_WEAPON]) TryEquipItem(keepEq[SLOT_WEAPON], dummySold);
+        else TryEquipItem(MakeStarterWeapon(cd.startWeapon), dummySold);
+        for (int i = 1; i < 4; ++i) if (keepHas[i]) TryEquipItem(keepEq[i], dummySold);
+
+        player.hp = player.maxHp;
+        player.hpDisplay = player.hp;
+        hunger = maxHunger;
+        starveTickTimer = 0.0f;
+        phoenixUsed = false;
+        subclassChoosing = false;
+        enemiesSlain = 0;
+        comboCount = 0;
+        surfaceUnlocked = true;
+        inSurface = true;
+        enemies.clear(); projectiles.clear(); loots.clear(); slashes.clear();
+        novas.clear(); ghosts.clear(); groundEffects.clear(); pillars.clear();
+        itemDrops.clear(); pendingSpawns.clear(); barrels.clear(); hazards.clear();
+        portalChoices.clear(); wave2Spawns.clear();
+        roomW = 1440.0f;
+        roomH = 960.0f;
+        floor = std::max(1, nextDungeonFloor);
+        player.pos = { 420.0f, 240.0f };
+        camera.target = player.pos;
+        state = PLAYING;
+        PlaySound(snd.sndLevelUp);
+        Burst(player.pos, GOLD, 36, 300.0f, 0.9f);
+        ShowBanner(std::string(L("REST IN PEACE! Gen ", "AN NGHỈ! Đời ")) + std::to_string(generation) + ": " + heir.name + L(" inherits the Bloodline!", " chính thức kế thừa gia tộc!"), 4.2f);
+    }
+
     void BuildPortalChoices() {
         portalChoices.clear();
         int nextF = floor + 1;
@@ -1495,35 +2005,45 @@ public:
                 po.color = GOLD;
             }
             portalChoices.push_back(po);
-            return;
+        } else {
+            struct Cand { int mod; int reward; const char* title; const char* sub; Color col; };
+            Cand pool[4] = {
+                { MOD_ELITE,  0, L("ELITE ARENA", "ĐẤU TRƯỜNG TINH ANH"),    L("High Gear Drops", "Tỉ lệ rơi đồ hiếm cao"), { 255, 165, 50, 255 } },
+                { MOD_SWARM,  1, L("SWARM GAUNTLET", "BẦY QUÁI ĐÔNG"),       L("+Bonus Gold", "+Thêm Vàng thưởng"),         { 80, 235, 155, 255 } },
+                { MOD_SNIPER, 3, L("SNIPER NEST", "Ổ XẠ THỦ"),               L("+40 Starting Rage", "+40 Nộ khởi đầu"),     { 255, 85, 105, 255 } },
+                { MOD_NONE,   2, L("SANCTIFIED HALL", "SẢNH THANH TẨY"),     L("+35% HP Recovery", "Hồi +35% Máu tối đa"),  SKYBLUE }
+            };
+            std::vector<Cand> cands(pool, pool + 4);
+            for (int i = 3; i > 0; --i) std::swap(cands[i], cands[rand() % (i + 1)]);
+            if (Rand01() < 0.22f) {
+                cands[2] = { MOD_TREASURE, 0, L("TREASURE VAULT", "KHO BÁU CỔ"), L("Free Vault Chest", "Rương kho báu miễn phí"), { 195, 110, 255, 255 } };
+            }
+            Vector2 positions[3] = {
+                portalPos,
+                { -240.0f, -roomH / 2.0f + 80.0f },
+                {  240.0f, -roomH / 2.0f + 80.0f }
+            };
+            for (int i = 0; i < 3; ++i) {
+                PortalOption po;
+                po.pos = positions[i];
+                po.nextMod = cands[i].mod;
+                po.rewardKind = cands[i].reward;
+                po.title = cands[i].title;
+                po.subtitle = cands[i].sub;
+                po.color = cands[i].col;
+                portalChoices.push_back(po);
+            }
         }
-
-        struct Cand { int mod; int reward; const char* title; const char* sub; Color col; };
-        Cand pool[4] = {
-            { MOD_ELITE,  0, L("ELITE ARENA", "ĐẤU TRƯỜNG TINH ANH"),    L("High Gear Drops", "Tỉ lệ rơi đồ hiếm cao"), { 255, 165, 50, 255 } },
-            { MOD_SWARM,  1, L("SWARM GAUNTLET", "BẦY QUÁI ĐÔNG"),       L("+Bonus Gold", "+Thêm Vàng thưởng"),         { 80, 235, 155, 255 } },
-            { MOD_SNIPER, 3, L("SNIPER NEST", "Ổ XẠ THỦ"),               L("+40 Starting Rage", "+40 Nộ khởi đầu"),     { 255, 85, 105, 255 } },
-            { MOD_NONE,   2, L("SANCTIFIED HALL", "SẢNH THANH TẨY"),     L("+35% HP Recovery", "Hồi +35% Máu tối đa"),  SKYBLUE }
-        };
-        std::vector<Cand> cands(pool, pool + 4);
-        for (int i = 3; i > 0; --i) std::swap(cands[i], cands[rand() % (i + 1)]);
-        if (Rand01() < 0.22f) {
-            cands[2] = { MOD_TREASURE, 0, L("TREASURE VAULT", "KHO BÁU CỔ"), L("Free Vault Chest", "Rương kho báu miễn phí"), { 195, 110, 255, 255 } };
-        }
-        Vector2 positions[3] = {
-            portalPos,
-            { -240.0f, -roomH / 2.0f + 80.0f },
-            {  240.0f, -roomH / 2.0f + 80.0f }
-        };
-        for (int i = 0; i < 3; ++i) {
-            PortalOption po;
-            po.pos = positions[i];
-            po.nextMod = cands[i].mod;
-            po.rewardKind = cands[i].reward;
-            po.title = cands[i].title;
-            po.subtitle = cands[i].sub;
-            po.color = cands[i].col;
-            portalChoices.push_back(po);
+        // Sau khi vượt qua Tầng 10 (hoặc đã mở khóa Mặt Đất): Cổng Mặt Đất xuất hiện ở góc dưới trái (không đè lên portalPos cho bot)
+        if (floor >= 10 || surfaceUnlocked) {
+            PortalOption surf;
+            surf.pos = { -190.0f, roomH / 2.0f - 90.0f };
+            surf.nextMod = -99;
+            surf.rewardKind = 0;
+            surf.title = L("SURFACE GATE [F / G]", "CỔNG LÊN MẶT ĐẤT [F / G]");
+            surf.subtitle = L("Village, City, Marriage & King", "Làng Mạc, Nhà Cửa, Vợ Con & Vua");
+            surf.color = { 105, 245, 145, 255 };
+            portalChoices.push_back(surf);
         }
     }
 
@@ -1948,9 +2468,29 @@ public:
             UpdateMeta(dt);
             return;
         }
+        if (state == SURFACE_UI) {
+            UpdateSurfaceUi();
+            return;
+        }
+        if (state == FAMILY_TREE) {
+            UpdateFamilyTree();
+            return;
+        }
         if (state == INVENTORY) {
             { int ua = HitButton(); if (ua) { HandleUiAction(ua); return; } }
+            if (IsKeyPressed(KEY_Y)) { OpenFamilyTree(INVENTORY); return; }
             if (IsKeyPressed(KEY_I) || EscPressed() || IsKeyPressed(KEY_ENTER) || PadPressed(GAMEPAD_BUTTON_MIDDLE_LEFT) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) state = prevState;
+            return;
+        }
+        if (state == PLAYING && IsKeyPressed(KEY_Y)) {
+            OpenFamilyTree(PLAYING);
+            return;
+        }
+        if (state == PLAYING && IsKeyPressed(KEY_H)) {
+            EatRation();
+        }
+        if (state == PLAYING && !inSurface && portalOpen && (floor >= 10 || surfaceUnlocked) && IsKeyPressed(KEY_G)) {
+            EnterSurface(floor + 1);
             return;
         }
         if (state == PLAYING && (IsKeyPressed(KEY_I) || PadPressed(GAMEPAD_BUTTON_MIDDLE_LEFT))) {
@@ -2042,6 +2582,35 @@ public:
             if (comboTimer <= 0) comboCount = 0;
         }
 
+        // Thanh Đói (chỉ xuất hiện và tiêu hao sau khi người chơi lên Mặt Đất qua Tầng 10)
+        if (surfaceUnlocked) {
+            float drainRate = inSurface ? 0.35f : (1.0f * HouseHungerMult());
+            hunger = std::max(0.0f, hunger - drainRate * dt);
+            if (hunger >= 70.0f && player.hp > 0.0f && player.hp < player.maxHp) {
+                player.hp = std::min(player.maxHp, player.hp + 1.0f * dt);
+            }
+            if (hunger <= 0.0f) {
+                starveTickTimer += dt;
+                if (starveTickTimer >= 1.0f) {
+                    starveTickTimer = 0.0f;
+                    float minFloorHp = inSurface ? 5.0f : 0.0f;
+                    if (player.hp > minFloorHp) {
+                        player.hp = std::max(minFloorHp, player.hp - 2.5f);
+                        SpawnPopup(player.pos, L("-STARVE", "-ĐÓI"), RED);
+                        if (!inSurface && player.hp <= 0.0f) {
+                            state = GAME_OVER;
+                            PlaySound(snd.sndDeath);
+                            AwardSouls();
+                            if (floor > bestFloor) { bestFloor = floor; SaveSettings(); newRecord = true; }
+                            return;
+                        }
+                    }
+                }
+            } else {
+                starveTickTimer = 0.0f;
+            }
+        }
+
         // ── Input & Movement ──
         Vector2 move = { 0, 0 };
         if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP)) move.y -= 1;
@@ -2079,6 +2648,23 @@ public:
         player.pos.y = Clamp(player.pos.y, -boundH, boundH);
 
         // Actions: Dash, Basic Attack, Skill 1 (Q), Skill 2 (E), Ultimate (R)
+        if (inSurface) {
+            for (int bi = 0; bi < 4; ++bi) {
+                if (IsKeyPressed(KEY_ONE + bi)) { OpenSurfaceModal(bi); return; }
+                Vector2 bp = SurfaceLandmarkPos(bi);
+                if (Vector2Distance(player.pos, bp) < 118.0f && (IsKeyPressed(KEY_F) || IsKeyPressed(KEY_ENTER) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_UP))) {
+                    OpenSurfaceModal(bi);
+                    return;
+                }
+            }
+            if (Vector2Distance(player.pos, SurfaceLandmarkPos(4)) < 58.0f) {
+                LeaveSurfaceToDungeon();
+                return;
+            }
+            camera.target = player.pos;
+            return;
+        }
+
         bool dashPressed = ctl.active ? ctl.dash : (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) || IsKeyPressed(KEY_LEFT_SHIFT) || IsKeyPressed(KEY_K));
         bool attackHeld = ctl.active ? ctl.attack : (IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsKeyDown(KEY_SPACE) || IsKeyDown(KEY_J));
         bool skill1Pressed = ctl.active ? ctl.nova : (IsKeyPressed(KEY_Q) || IsKeyPressed(KEY_U));
@@ -2582,7 +3168,9 @@ public:
                         TriggerLevelUp();
                     }
                 } else if (l.type == 1) { // Gold
-                    player.gold += HasRelic(RELIC_MIDAS) ? (int)roundf(l.value * 1.5f) : l.value;
+                    int gVal = HasRelic(RELIC_MIDAS) ? (int)roundf(l.value * 1.5f) : l.value;
+                    if (isNoble) gVal = (int)roundf(gVal * 1.25f);
+                    player.gold += gVal;
                     Burst(l.pos, GOLD, 4, 120.0f, 0.35f);
                     PlaySound(snd.sndCoin);
                 } else if (l.type == 2) { // Potion
@@ -2739,7 +3327,7 @@ public:
             ShowBanner("TRIAL CONQUERED! VAULT CHEST UNLOCKED!", 3.0f);
             Chest vc; vc.pos = trialPos; vc.vault = true;
             chests.push_back(vc);
-            player.gold += 35;
+            player.gold += isNoble ? 44 : 35;
             AddRage(50.0f);
         }
 
@@ -2751,13 +3339,24 @@ public:
             ShowBanner(portalChoices.size() > 1 ? "ROOM CLEARED! CHOOSE YOUR NEXT PORTAL!" : "ROOM CLEARED! ENTER THE PORTAL!");
         }
 
-        // Teleport to next floor (hỗ trợ 3 cổng rẽ nhánh)
+        // Teleport to next floor (hỗ trợ 3 cổng rẽ nhánh + Cổng Mặt Đất sau Tầng 10)
         if (portalOpen) {
             for (const auto& pc : portalChoices) {
+                if (pc.nextMod == -99) {
+                    if (Vector2Distance(player.pos, pc.pos) < 75.0f && (IsKeyPressed(KEY_F) || IsKeyPressed(KEY_G) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_UP))) {
+                        EnterSurface(floor + 1);
+                        break;
+                    }
+                    continue;
+                }
                 if (Vector2Distance(player.pos, pc.pos) < 46.0f) {
                     forcedNextMod = pc.nextMod;
                     forcedNextReward = pc.rewardKind;
                     floor++;
+                    if (isNoble) {
+                        player.gold += 30;
+                        SpawnPopup(player.pos, L("+30G NOBLE", "+30V QUÝ TỘC"), GOLD);
+                    }
                     PlaySound(snd.sndPortal);
                     BuildFloor();
                     break;
@@ -2887,6 +3486,7 @@ public:
         if (e.type == BOSS && e.bossKind == 1 && e.chargeState == 5) dmg *= 1.3f; // Colossus kiệt sức: nhận thêm sát thương
         if (e.stunTimer > 0.0f) dmg *= 1.20f; // Kẻ địch đang choáng nhận thêm 20% sát thương
         if (HasRelic(RELIC_BERSERK) && player.hp < player.maxHp * 0.4f) dmg *= 1.4f;
+        dmg *= HungerDamageMult();
         e.hp -= dmg;
         e.pos = Vector2Add(e.pos, Vector2Scale(kb, kbForce * 0.05f));
         SpawnPopup(e.pos, (isCrit ? "!" : "") + std::to_string((int)dmg), isCrit ? YELLOW : WHITE);
@@ -2959,6 +3559,11 @@ public:
         comboTimer = 3.0f;
         PlaySound(snd.sndDeath);
         AddRage(e.type == BOSS ? 35.0f : (e.isElite || e.isWarden ? 15.0f : 6.0f));
+        if (royalQuestActive && !isNoble && !(e.type == SPLITTER && e.splitLevel > 0)) {
+            royalQuestKills++;
+            if (e.type == BOSS) royalQuestBosses++;
+            if (royalQuestKills >= 35 && royalQuestBosses >= 1) CompleteRoyalCommission();
+        }
 
         // Nội tại Sát Thủ: hạ gục hoàn 50% hồi chiêu Dash và tăng 25% tốc chạy trong 2s
         if (player.heroClass == CLASS_ASSASSIN) {
@@ -2986,7 +3591,9 @@ public:
 
         // Combo gold payout every 5 kills
         if (comboCount % 5 == 0) {
-            player.gold += comboCount * 2;
+            int cg = comboCount * 2;
+            if (isNoble) cg = (int)roundf(cg * 1.25f);
+            player.gold += cg;
             SpawnPopup(player.pos, "+GOLD COMBO!", GOLD);
         }
 
@@ -4110,7 +4717,7 @@ public:
     float EliteChance() const { return std::min(0.45f, 0.20f + std::max(0, floor - 8) * 0.015f); }
 
     // ── Nút bấm trên màn hình (dùng được cho chuột lẫn chạm) ──
-    enum UiAction { UI_NONE = 0, UI_START, UI_SAVE_LOAD, UI_SANCT, UI_SETTINGS, UI_HELP, UI_QUIT, UI_RESUME, UI_EQUIP, UI_RESTART, UI_BACK, UI_CLOSE_HELP, UI_CLOSE_INV, UI_CHANGE_CLASS, UI_MAIN_MENU };
+    enum UiAction { UI_NONE = 0, UI_START, UI_SAVE_LOAD, UI_SANCT, UI_SETTINGS, UI_HELP, UI_QUIT, UI_RESUME, UI_EQUIP, UI_RESTART, UI_BACK, UI_CLOSE_HELP, UI_CLOSE_INV, UI_CHANGE_CLASS, UI_MAIN_MENU, UI_FAMILY_TREE, UI_CONTINUE_HEIR, UI_SURFACE_RETURN };
     struct UiBtn { Rectangle r; std::string label; int action; Color col; };
 
     std::vector<UiBtn> BuildButtons() {
@@ -4135,29 +4742,36 @@ public:
                 if (showHelp) {
                     b.push_back({ { 540, 650, 200, 44 }, L("CLOSE", "ĐÓNG"), UI_CLOSE_HELP, grey });
                 } else {
-                    float y = 212;
-                    b.push_back({ { 480, y, 320, 38 }, L("RESUME", "TIẾP TỤC"), UI_RESUME, green }); y += 43;
-                    b.push_back({ { 480, y, 320, 38 }, L("SAVE / LOAD GAME", "LƯU / TẢI GAME"), UI_SAVE_LOAD, teal }); y += 43;
-                    b.push_back({ { 480, y, 320, 38 }, L("EQUIPMENT & SKILLS", "TRANG BỊ & KỸ NĂNG"), UI_EQUIP, blue }); y += 43;
-                    b.push_back({ { 480, y, 320, 38 }, L("CHANGE HERO", "ĐỔI TƯỚNG"), UI_CHANGE_CLASS, purple }); y += 43;
-                    b.push_back({ { 480, y, 320, 38 }, L("SETTINGS", "CÀI ĐẶT"), UI_SETTINGS, blue }); y += 43;
-                    b.push_back({ { 480, y, 320, 38 }, L("RESTART RUN", "CHƠI LẠI"), UI_RESTART, purple }); y += 43;
-                    b.push_back({ { 480, y, 320, 38 }, L("CONTROLS", "ĐIỀU KHIỂN"), UI_HELP, grey }); y += 43;
-                    b.push_back({ { 480, y, 320, 38 }, L("MAIN MENU", "MENU CHÍNH"), UI_MAIN_MENU, red });
+                    float y = 202;
+                    b.push_back({ { 480, y, 320, 34 }, L("RESUME", "TIẾP TỤC"), UI_RESUME, green }); y += 38;
+                    b.push_back({ { 480, y, 320, 34 }, L("SAVE / LOAD GAME", "LƯU / TẢI GAME"), UI_SAVE_LOAD, teal }); y += 38;
+                    b.push_back({ { 480, y, 320, 34 }, L("EQUIPMENT & SKILLS", "TRANG BỊ & KỸ NĂNG"), UI_EQUIP, blue }); y += 38;
+                    b.push_back({ { 480, y, 320, 34 }, L("FAMILY TREE [Y]", "CÂY GIA PHẢ [Y]"), UI_FAMILY_TREE, purple }); y += 38;
+                    b.push_back({ { 480, y, 320, 34 }, L("CHANGE HERO", "ĐỔI TƯỚNG"), UI_CHANGE_CLASS, purple }); y += 38;
+                    b.push_back({ { 480, y, 320, 34 }, L("SETTINGS", "CÀI ĐẶT"), UI_SETTINGS, blue }); y += 38;
+                    b.push_back({ { 480, y, 320, 34 }, L("RESTART RUN", "CHƠI LẠI"), UI_RESTART, purple }); y += 38;
+                    b.push_back({ { 480, y, 320, 34 }, L("CONTROLS", "ĐIỀU KHIỂN"), UI_HELP, grey }); y += 38;
+                    b.push_back({ { 480, y, 320, 34 }, L("MAIN MENU", "MENU CHÍNH"), UI_MAIN_MENU, red });
                 }
                 break;
             case GAME_OVER:
+                if (!children.empty()) {
+                    b.push_back({ { 430, 444, 420, 42 }, L("CONTINUE AS HEIR (REST IN PEACE)", "TIẾP TỤC ĐỜI CON (REST IN PEACE)"), UI_CONTINUE_HEIR, green });
+                }
                 b.push_back({ { 510, 496, 260, 44 }, L("PLAY AGAIN", "CHƠI LẠI"), UI_RESTART, red });
                 b.push_back({ { 510, 548, 260, 40 }, L("CHANGE HERO", "ĐỔI TƯỚNG"), UI_CHANGE_CLASS, blue });
                 b.push_back({ { 510, 596, 260, 40 }, L("SANCTUARY", "THÁNH ĐIỆN"), UI_SANCT, purple });
                 b.push_back({ { 510, 644, 260, 40 }, L("LOAD SAVE", "TẢI BẢN LƯU"), UI_SAVE_LOAD, teal });
                 break;
             case INVENTORY:
+                b.push_back({ { 856, 622, 174, 40 }, L("FAMILY TREE [Y]", "CÂY GIA PHẢ [Y]"), UI_FAMILY_TREE, purple });
                 b.push_back({ { 1040, 622, 146, 40 }, L("CLOSE", "ĐÓNG"), UI_CLOSE_INV, grey });
                 break;
             case META:
             case SHOP:
             case SAVE_LOAD:
+            case SURFACE_UI:
+            case FAMILY_TREE:
                 b.push_back({ { 30, 28, 150, 44 }, L("< BACK", "< QUAY LẠI"), UI_BACK, grey });
                 break;
             default:
@@ -4191,7 +4805,14 @@ public:
             case UI_RESUME: showHelp = false; state = PLAYING; break;
             case UI_EQUIP: prevState = PAUSED; state = INVENTORY; break;
             case UI_RESTART: showHelp = false; RestartRun(); break;
-            case UI_BACK: if (state == META) CloseSanctuary(); else if (state == SHOP) state = PLAYING; else if (state == SAVE_LOAD) state = saveLoadReturn; break;
+            case UI_FAMILY_TREE: showHelp = false; OpenFamilyTree(state); break;
+            case UI_CONTINUE_HEIR: showHelp = false; if (!children.empty()) SuccessionToChild(0); break;
+            case UI_BACK:
+                if (state == META) CloseSanctuary();
+                else if (state == SHOP || state == SURFACE_UI) state = PLAYING;
+                else if (state == FAMILY_TREE) state = familyTreeReturn;
+                else if (state == SAVE_LOAD) state = saveLoadReturn;
+                break;
             case UI_CLOSE_INV: state = prevState; break;
             default: break;
         }
@@ -6374,6 +6995,12 @@ public:
                           + L("Ember Lv", "Lửa Cấp ") + std::to_string(player.igniteLevel) + "   "
                           + L("Frost Lv", "Băng Cấp ") + std::to_string(player.frostLevel);
         DrawText(extra.c_str(), px + pw - 36 - MeasureText(extra.c_str(), 15), sy + 2, 15, { 150, 165, 200, 255 });
+        std::string dynInfo = std::string(L("Gen ", "Đời ")) + std::to_string(generation)
+                            + " | " + (isNoble ? L("NOBLE", "QUÝ TỘC") : L("Commoner", "Thường Dân"))
+                            + " | " + HouseName(houseTier)
+                            + " | " + L("Spouse: ", "Vợ: ") + SpouseName(hasSpouse ? spouseIdx : -1)
+                            + " | " + L("Heirs: ", "Con: ") + std::to_string((int)children.size());
+        DrawText(dynInfo.c_str(), px + 225, sy + 2, 13, isNoble ? GOLD : Color{ 195, 225, 195, 255 });
 
         // Bộ 4 kỹ năng của Class / Nhánh phụ
         int ky = sy + 106;
@@ -6955,7 +7582,45 @@ public:
           << "player_igniteLevel=" << player.igniteLevel << "\n"
           << "player_frostLevel=" << player.frostLevel << "\n"
           << "player_shieldActive=" << (player.shieldActive ? 1 : 0) << "\n"
+          << "surfaceUnlocked=" << (surfaceUnlocked ? 1 : 0) << "\n"
+          << "inSurface=" << (inSurface ? 1 : 0) << "\n"
+          << "nextDungeonFloor=" << nextDungeonFloor << "\n"
+          << "hunger=" << hunger << "\n"
+          << "foodRations=" << foodRations << "\n"
+          << "generation=" << generation << "\n"
+          << "heroGivenName=" << heroGivenName << "\n"
+          << "houseTier=" << houseTier << "\n"
+          << "isNoble=" << (isNoble ? 1 : 0) << "\n"
+          << "royalQuestActive=" << (royalQuestActive ? 1 : 0) << "\n"
+          << "royalQuestKills=" << royalQuestKills << "\n"
+          << "royalQuestBosses=" << royalQuestBosses << "\n"
+          << "hasSpouse=" << (hasSpouse ? 1 : 0) << "\n"
+          << "spouseIdx=" << spouseIdx << "\n"
+          << "legacyHp=" << legacyHp << "\n"
+          << "legacyDmg=" << legacyDmg << "\n"
+          << "legacyArmor=" << legacyArmor << "\n"
+          << "legacySpeed=" << legacySpeed << "\n"
+          << "childCount=" << (int)children.size() << "\n"
+          << "ancestorCount=" << (int)familyTree.size() << "\n"
           << "relicCount=" << (int)player.relics.size() << "\n";
+        for (size_t i = 0; i < children.size(); ++i) {
+            o << "child_" << i << "_name=" << children[i].name << "\n"
+              << "child_" << i << "_cls=" << children[i].heroClass << "\n"
+              << "child_" << i << "_hp=" << children[i].bonusHp << "\n"
+              << "child_" << i << "_dmg=" << children[i].bonusDmg << "\n"
+              << "child_" << i << "_arm=" << children[i].bonusArmor << "\n"
+              << "child_" << i << "_spd=" << children[i].bonusSpeed << "\n";
+        }
+        for (size_t i = 0; i < familyTree.size(); ++i) {
+            o << "anc_" << i << "_gen=" << familyTree[i].generation << "\n"
+              << "anc_" << i << "_name=" << familyTree[i].name << "\n"
+              << "anc_" << i << "_cls=" << familyTree[i].heroClass << "\n"
+              << "anc_" << i << "_sub=" << familyTree[i].subClass << "\n"
+              << "anc_" << i << "_noble=" << (familyTree[i].wasNoble ? 1 : 0) << "\n"
+              << "anc_" << i << "_spouse=" << familyTree[i].spouseName << "\n"
+              << "anc_" << i << "_floor=" << familyTree[i].floorReached << "\n"
+              << "anc_" << i << "_slain=" << familyTree[i].enemiesSlain << "\n";
+        }
         for (size_t i = 0; i < player.relics.size(); ++i) {
             o << "relic_" << i << "=" << (int)player.relics[i].type << "\n";
         }
@@ -7010,6 +7675,13 @@ public:
         int roomCleared = 0;
         int relicCount = 0;
         std::vector<int> relicTypes;
+        bool lSurfaceUnlocked = false, lInSurface = false, lNoble = false, lRqActive = false, lHasSpouse = false;
+        int lNextFloor = 11, lRations = 2, lGen = 1, lHouseTier = 0, lRqKills = 0, lRqBosses = 0, lSpouseIdx = -1;
+        float lHunger = 100.0f, lLegHp = 0.0f, lLegDmg = 0.0f, lLegArm = 0.0f, lLegSpd = 0.0f;
+        std::string lHeroName = "";
+        int lChildCount = 0, lAncCount = 0;
+        std::vector<ChildInfo> lChildren;
+        std::vector<AncestorRecord> lAncestors;
 
         std::string line;
         while (std::getline(in, line)) {
@@ -7049,6 +7721,55 @@ public:
             else if (k == "player_igniteLevel") loadedP.igniteLevel = std::max(0, iv);
             else if (k == "player_frostLevel") loadedP.frostLevel = std::max(0, iv);
             else if (k == "player_shieldActive") loadedP.shieldActive = (iv != 0);
+            else if (k == "surfaceUnlocked") lSurfaceUnlocked = (iv != 0);
+            else if (k == "inSurface") lInSurface = (iv != 0);
+            else if (k == "nextDungeonFloor") lNextFloor = std::max(1, iv);
+            else if (k == "hunger") lHunger = Clamp(fv, 0.0f, 100.0f);
+            else if (k == "foodRations") lRations = std::max(0, iv);
+            else if (k == "generation") lGen = std::max(1, iv);
+            else if (k == "heroGivenName") lHeroName = v;
+            else if (k == "houseTier") lHouseTier = std::max(0, std::min(3, iv));
+            else if (k == "isNoble") lNoble = (iv != 0);
+            else if (k == "royalQuestActive") lRqActive = (iv != 0);
+            else if (k == "royalQuestKills") lRqKills = std::max(0, iv);
+            else if (k == "royalQuestBosses") lRqBosses = std::max(0, iv);
+            else if (k == "hasSpouse") lHasSpouse = (iv != 0);
+            else if (k == "spouseIdx") lSpouseIdx = std::max(-1, std::min(3, iv));
+            else if (k == "legacyHp") lLegHp = std::max(0.0f, fv);
+            else if (k == "legacyDmg") lLegDmg = std::max(0.0f, fv);
+            else if (k == "legacyArmor") lLegArm = std::max(0.0f, fv);
+            else if (k == "legacySpeed") lLegSpd = std::max(0.0f, fv);
+            else if (k == "childCount") { lChildCount = std::max(0, std::min(8, iv)); lChildren.resize(lChildCount); }
+            else if (k == "ancestorCount") { lAncCount = std::max(0, std::min(32, iv)); lAncestors.resize(lAncCount); }
+            else if (k.compare(0, 6, "child_") == 0 && k.size() > 8) {
+                int ci = atoi(k.c_str() + 6);
+                size_t us = k.find('_', 6);
+                if (us != std::string::npos && ci >= 0 && ci < 8) {
+                    if ((int)lChildren.size() <= ci) lChildren.resize(ci + 1);
+                    std::string f = k.substr(us + 1);
+                    if (f == "name") lChildren[ci].name = v;
+                    else if (f == "cls") lChildren[ci].heroClass = std::max(0, std::min(3, iv));
+                    else if (f == "hp") lChildren[ci].bonusHp = fv;
+                    else if (f == "dmg") lChildren[ci].bonusDmg = fv;
+                    else if (f == "arm") lChildren[ci].bonusArmor = fv;
+                    else if (f == "spd") lChildren[ci].bonusSpeed = fv;
+                }
+            } else if (k.compare(0, 4, "anc_") == 0 && k.size() > 6) {
+                int ai = atoi(k.c_str() + 4);
+                size_t us = k.find('_', 4);
+                if (us != std::string::npos && ai >= 0 && ai < 32) {
+                    if ((int)lAncestors.size() <= ai) lAncestors.resize(ai + 1);
+                    std::string f = k.substr(us + 1);
+                    if (f == "gen") lAncestors[ai].generation = std::max(1, iv);
+                    else if (f == "name") lAncestors[ai].name = v;
+                    else if (f == "cls") lAncestors[ai].heroClass = std::max(0, std::min(3, iv));
+                    else if (f == "sub") lAncestors[ai].subClass = std::max(0, std::min(2, iv));
+                    else if (f == "noble") lAncestors[ai].wasNoble = (iv != 0);
+                    else if (f == "spouse") lAncestors[ai].spouseName = v;
+                    else if (f == "floor") lAncestors[ai].floorReached = std::max(1, iv);
+                    else if (f == "slain") lAncestors[ai].enemiesSlain = std::max(0, iv);
+                }
+            }
             else if (k == "relicCount") relicCount = std::max(0, std::min(16, iv));
             else if (k.compare(0, 6, "relic_") == 0) {
                 int rIdx = atoi(k.c_str() + 6);
@@ -7114,20 +7835,50 @@ public:
         newRecord = false;
         (void)loadedSelClass;
 
-        BuildFloor();
-        player.pos = { 0, roomH / 2.0f - 90.0f };
+        surfaceUnlocked = lSurfaceUnlocked;
+        inSurface = lInSurface && lSurfaceUnlocked;
+        nextDungeonFloor = lNextFloor;
+        hunger = lHunger;
+        foodRations = lRations;
+        generation = lGen;
+        heroGivenName = lHeroName;
+        houseTier = lHouseTier;
+        isNoble = lNoble;
+        royalQuestActive = lRqActive;
+        royalQuestKills = lRqKills;
+        royalQuestBosses = lRqBosses;
+        hasSpouse = lHasSpouse;
+        spouseIdx = lSpouseIdx;
+        legacyHp = lLegHp;
+        legacyDmg = lLegDmg;
+        legacyArmor = lLegArm;
+        legacySpeed = lLegSpd;
+        if ((int)lChildren.size() > lChildCount) lChildren.resize(lChildCount);
+        if ((int)lAncestors.size() > lAncCount) lAncestors.resize(lAncCount);
+        children = lChildren;
+        familyTree = lAncestors;
+
+        if (inSurface) {
+            EnterSurface(nextDungeonFloor);
+            player.pos = { 0.0f, 200.0f };
+        } else {
+            roomW = 1200.0f;
+            roomH = 750.0f;
+            BuildFloor();
+            player.pos = { 0, roomH / 2.0f - 90.0f };
+            if (roomCleared) {
+                enemies.clear();
+                pendingSpawns.clear();
+                wave2Spawns.clear();
+                hasTrialTotem = false;
+                portalOpen = true;
+                BuildPortalChoices();
+            }
+        }
         player.hpDisplay = player.hp;
         player.specialCooldown = Skill1MaxCd();
         player.skill2Cooldown = Skill2MaxCd();
         camera.target = player.pos;
-        if (roomCleared) {
-            enemies.clear();
-            pendingSpawns.clear();
-            wave2Spawns.clear();
-            hasTrialTotem = false;
-            portalOpen = true;
-            BuildPortalChoices();
-        }
         state = PLAYING;
         PlaySound(snd.sndPortal);
         ShowBanner("LOADED SLOT " + std::to_string(slot + 1) + " - FLOOR " + std::to_string(floor), 3.0f);
@@ -7396,14 +8147,512 @@ public:
         DrawText(info.c_str(), 1280 / 2 - MeasureText(info.c_str(), 20) / 2, 170, 20, HeroColor());
     }
 
+    int SurfaceOptionCount() const {
+        if (surfaceBuilding == 0) return 4;
+        if (surfaceBuilding == 1) return 3;
+        if (surfaceBuilding == 2) return hasSpouse ? (1 + (int)children.size()) : 4;
+        return 2;
+    }
+
+    void TriggerSurfaceOption(int tab, int opt) {
+        if (tab == 0) BuyMeal(opt);
+        else if (tab == 1) BuyHouseUpgrade(opt + 1);
+        else if (tab == 2) {
+            if (!hasSpouse) TryMarrySpouse(opt);
+            else if (opt == 0) TryHaveChild();
+            else SuccessionToChild(opt - 1);
+        } else if (tab == 3) {
+            if (opt == 0) BuyNobleTitleDirect();
+            else AcceptRoyalCommission();
+        }
+    }
+
+    void UpdateSurfaceUi() {
+        { int ua = HitButton(); if (ua) { HandleUiAction(ua); return; } }
+        if (EscPressed() || IsKeyPressed(KEY_F) || IsKeyPressed(KEY_BACKSPACE) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) {
+            state = PLAYING;
+            return;
+        }
+        if (IsKeyPressed(KEY_Y)) { OpenFamilyTree(SURFACE_UI); return; }
+        for (int i = 0; i < 4; ++i) {
+            if (IsKeyPressed(KEY_ONE + i)) { surfaceBuilding = i; surfaceSel = 0; PlaySound(snd.sndCoin); }
+        }
+        if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D)) { surfaceBuilding = (surfaceBuilding + 1) % 4; surfaceSel = 0; PlaySound(snd.sndCoin); }
+        if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A)) { surfaceBuilding = (surfaceBuilding + 3) % 4; surfaceSel = 0; PlaySound(snd.sndCoin); }
+
+        int cnt = std::max(1, SurfaceOptionCount());
+        if (surfaceSel >= cnt) surfaceSel = cnt - 1;
+        if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) surfaceSel = (surfaceSel + 1) % cnt;
+        if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) surfaceSel = (surfaceSel + cnt - 1) % cnt;
+        if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) {
+            TriggerSurfaceOption(surfaceBuilding, surfaceSel);
+            return;
+        }
+
+        Vector2 m = GetMousePosition();
+        for (int i = 0; i < 4; ++i) {
+            Rectangle tr = { 100.0f + i * 274.0f, 92.0f, 258.0f, 40.0f };
+            if (CheckCollisionPointRec(m, tr) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                surfaceBuilding = i;
+                surfaceSel = 0;
+                PlaySound(snd.sndCoin);
+                return;
+            }
+        }
+        if (surfaceBuilding == 0) {
+            for (int i = 0; i < 4; ++i) {
+                Rectangle r = { 120.0f, 186.0f + i * 96.0f, 1040.0f, 84.0f };
+                if (CheckCollisionPointRec(m, r)) {
+                    if (GetMouseDelta().x != 0 || GetMouseDelta().y != 0) surfaceSel = i;
+                    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { surfaceSel = i; TriggerSurfaceOption(0, i); return; }
+                }
+            }
+        } else if (surfaceBuilding == 1) {
+            for (int i = 0; i < 3; ++i) {
+                Rectangle r = { 120.0f, 186.0f + i * 124.0f, 1040.0f, 110.0f };
+                if (CheckCollisionPointRec(m, r)) {
+                    if (GetMouseDelta().x != 0 || GetMouseDelta().y != 0) surfaceSel = i;
+                    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { surfaceSel = i; TriggerSurfaceOption(1, i); return; }
+                }
+            }
+        } else if (surfaceBuilding == 2) {
+            if (!hasSpouse) {
+                for (int i = 0; i < 4; ++i) {
+                    Rectangle r = { 120.0f, 214.0f + i * 96.0f, 1040.0f, 84.0f };
+                    if (CheckCollisionPointRec(m, r)) {
+                        if (GetMouseDelta().x != 0 || GetMouseDelta().y != 0) surfaceSel = i;
+                        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { surfaceSel = i; TriggerSurfaceOption(2, i); return; }
+                    }
+                }
+            } else {
+                Rectangle rChild = { 120.0f, 252.0f, 510.0f, 58.0f };
+                Rectangle rTree  = { 650.0f, 252.0f, 510.0f, 58.0f };
+                if (CheckCollisionPointRec(m, rChild)) {
+                    if (GetMouseDelta().x != 0 || GetMouseDelta().y != 0) surfaceSel = 0;
+                    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { surfaceSel = 0; TriggerSurfaceOption(2, 0); return; }
+                }
+                if (CheckCollisionPointRec(m, rTree) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                    OpenFamilyTree(SURFACE_UI);
+                    return;
+                }
+                for (size_t i = 0; i < children.size(); ++i) {
+                    Rectangle r = { 120.0f, 326.0f + i * 88.0f, 1040.0f, 76.0f };
+                    if (CheckCollisionPointRec(m, r)) {
+                        if (GetMouseDelta().x != 0 || GetMouseDelta().y != 0) surfaceSel = (int)i + 1;
+                        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { surfaceSel = (int)i + 1; TriggerSurfaceOption(2, (int)i + 1); return; }
+                    }
+                }
+            }
+        } else {
+            for (int i = 0; i < 2; ++i) {
+                Rectangle r = { 120.0f, 196.0f + i * 190.0f, 1040.0f, 168.0f };
+                if (CheckCollisionPointRec(m, r)) {
+                    if (GetMouseDelta().x != 0 || GetMouseDelta().y != 0) surfaceSel = i;
+                    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { surfaceSel = i; TriggerSurfaceOption(3, i); return; }
+                }
+            }
+        }
+    }
+
+    void DrawSurfaceUi() {
+        DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.84f));
+        Rectangle panel = { 80.0f, 78.0f, 1120.0f, 594.0f };
+        DrawRectangleRec(panel, { 16, 22, 36, 250 });
+        DrawRectangleLinesEx(panel, 2.5f, GOLD);
+
+        const char* tabNames[4] = {
+            L("[1] TAVERN & FOOD", "[1] QUÁN TRỌ & ĐỒ ĂN"),
+            L("[2] HOUSING GUILD", "[2] PHƯỜNG GIA TRANG"),
+            L("[3] FAMILY & HEIRS", "[3] TỔ ẤM & ĐỜI CON"),
+            L("[4] ROYAL PALACE", "[4] HOÀNG CUNG & VUA")
+        };
+        Color tabCols[4] = { ORANGE, SKYBLUE, { 255, 130, 175, 255 }, GOLD };
+        for (int i = 0; i < 4; ++i) {
+            Rectangle tr = { 100.0f + i * 274.0f, 92.0f, 258.0f, 40.0f };
+            bool active = (surfaceBuilding == i);
+            DrawRectangleRec(tr, active ? Fade(tabCols[i], 0.28f) : Color{ 22, 28, 46, 240 });
+            DrawRectangleLinesEx(tr, active ? 2.5f : 1.0f, active ? tabCols[i] : Color{ 70, 82, 115, 255 });
+            DrawText(tabNames[i], (int)(tr.x + tr.width / 2) - MeasureText(tabNames[i], 15) / 2, (int)tr.y + 12, 15, active ? WHITE : Color{ 170, 185, 215, 255 });
+        }
+
+        // Thanh trạng thái nhanh trên đầu bảng
+        DrawRectangle(100, 140, 1080, 32, { 12, 16, 28, 240 });
+        std::string info = std::string(L("Gold: ", "Vàng: ")) + std::to_string(player.gold)
+                         + "   |   " + L("Hunger: ", "Độ No: ") + std::to_string((int)ceilf(hunger)) + "/100"
+                         + "   |   " + L("Rations [H]: ", "Lương Khô [H]: ") + std::to_string(foodRations)
+                         + "   |   " + HouseName(houseTier)
+                         + "   |   " + (isNoble ? L("NOBLE", "QUÝ TỘC") : L("Commoner", "Thường Dân"));
+        DrawText(info.c_str(), 120, 148, 16, GOLD);
+
+        if (surfaceBuilding == 0) {
+            struct MealRow { const char* nameEn; const char* nameVi; const char* descEn; const char* descVi; int baseCost; Color col; };
+            static const MealRow meals[4] = {
+                { "Warm Village Bread", "Bánh Mì Nóng Hổi", "+35 Hunger & +18 HP immediately", "+35 Độ No & hồi +18 Máu ngay lập tức", 15, { 245, 205, 115, 255 } },
+                { "Savory Roast Platter", "Thịt Nướng Đậm Đà", "+70 Hunger & +40% Max HP", "+70 Độ No & hồi +40% Máu Tối Đa", 35, ORANGE },
+                { "Royal Palace Banquet", "Yến Tiệc Thịnh Soạn", "Full 100 Hunger, Full 100% HP & +25 Rage", "Đầy 100 Độ No, Đầy 100% Máu & +25 Nộ", 70, GOLD },
+                { "Dungeon Ration Pack (x2)", "Túi Lương Khô Hầm Ngục (x2)", "Stores +2 portable Rations. Press [H] anywhere to eat (+45 Hunger & +25% HP)", "Tích +2 Lương Khô mang đi. Nhấn [H] mọi lúc (+45 No & +25% Máu)", 25, { 125, 235, 155, 255 } }
+            };
+            for (int i = 0; i < 4; ++i) {
+                Rectangle r = { 120.0f, 186.0f + i * 96.0f, 1040.0f, 84.0f };
+                bool sel = (surfaceSel == i);
+                int price = MealPrice(meals[i].baseCost);
+                bool afford = player.gold >= price;
+                DrawRectangleRec(r, sel ? Color{ 34, 42, 68, 252 } : Color{ 20, 26, 44, 240 });
+                DrawRectangleLinesEx(r, sel ? 2.5f : 1.2f, sel ? GOLD : Fade(meals[i].col, 0.55f));
+                DrawText(L(meals[i].nameEn, meals[i].nameVi), (int)r.x + 22, (int)r.y + 14, 22, meals[i].col);
+                DrawText(L(meals[i].descEn, meals[i].descVi), (int)r.x + 22, (int)r.y + 46, 15, RAYWHITE);
+                Rectangle b = { r.x + r.width - 190.0f, r.y + 20.0f, 168.0f, 44.0f };
+                DrawRectangleRec(b, afford ? Color{ 34, 96, 56, 255 } : Color{ 82, 32, 38, 255 });
+                DrawRectangleLinesEx(b, 1.5f, afford ? Color{ 120, 240, 150, 255 } : Color{ 240, 120, 130, 255 });
+                std::string pTxt = std::to_string(price) + L(" G", " Vàng");
+                DrawText(pTxt.c_str(), (int)(b.x + b.width / 2) - MeasureText(pTxt.c_str(), 19) / 2, (int)b.y + 12, 19, afford ? WHITE : Color{ 255, 175, 175, 255 });
+            }
+        } else if (surfaceBuilding == 1) {
+            for (int t = 1; t <= 3; ++t) {
+                Rectangle r = { 120.0f, 186.0f + (t - 1) * 124.0f, 1040.0f, 110.0f };
+                bool sel = (surfaceSel == t - 1);
+                bool owned = (houseTier >= t);
+                bool nextTier = (houseTier + 1 == t);
+                int price = HouseUpgradeCost(t);
+                bool afford = nextTier && player.gold >= price;
+                Color hc = owned ? Color{ 115, 240, 155, 255 } : (nextTier ? GOLD : GRAY);
+                DrawRectangleRec(r, sel ? Color{ 32, 42, 68, 252 } : Color{ 20, 26, 44, 240 });
+                DrawRectangleLinesEx(r, sel ? 2.5f : 1.2f, sel ? GOLD : Fade(hc, 0.55f));
+                DrawText(HouseName(t), (int)r.x + 24, (int)r.y + 16, 24, hc);
+                DrawText(L(kHouses[t].descEn, kHouses[t].descVi), (int)r.x + 24, (int)r.y + 54, 16, RAYWHITE);
+                DrawText(TextFormat(L("Total Bonus: +%d Max HP   +%d Damage   Up to %d Children", "Tổng Cộng: +%d Máu Tối Đa   +%d Sát Thương   Tối đa %d Con"),
+                    (int)kHouses[t].hpBonus, (int)kHouses[t].dmgBonus, kHouses[t].maxKids), (int)r.x + 24, (int)r.y + 80, 14, SKYBLUE);
+
+                Rectangle b = { r.x + r.width - 230.0f, r.y + 30.0f, 206.0f, 48.0f };
+                const char* bTxt = owned ? L("OWNED", "ĐÃ SỞ HỮU") : (nextTier ? TextFormat(L("BUY %d G", "MUA %d VÀNG"), price) : L("REQUIRES PREV TIER", "CẦN CẤP TRƯỚC"));
+                Color bFill = owned ? Color{ 28, 72, 48, 255 } : (afford ? Color{ 38, 102, 62, 255 } : Color{ 64, 34, 42, 255 });
+                DrawRectangleRec(b, bFill);
+                DrawRectangleLinesEx(b, 1.5f, hc);
+                DrawText(bTxt, (int)(b.x + b.width / 2) - MeasureText(bTxt, 17) / 2, (int)b.y + 15, 17, WHITE);
+            }
+        } else if (surfaceBuilding == 2) {
+            if (!hasSpouse) {
+                const char* msg = (houseTier <= 0)
+                    ? L("Buy a House in Tab [2] Housing Guild before getting married!", "Bạn chưa có Nhà! Hãy mua Nhà Gỗ ở Tab [2] Phường Gia Trang trước khi Cưới Vợ.")
+                    : L("Choose your life partner! Marriage grants permanent stats & lets you raise Heirs.", "Chọn ý trung nhân! Cưới Vợ giúp tăng chỉ số & mở khóa Sinh Con Nối Dõi.");
+                DrawText(msg, 120, 184, 16, houseTier <= 0 ? Color{ 255, 130, 130, 255 } : Color{ 255, 200, 225, 255 });
+                for (int i = 0; i < 4; ++i) {
+                    const SpouseDef& sp = kSpouses[i];
+                    Rectangle r = { 120.0f, 214.0f + i * 96.0f, 1040.0f, 84.0f };
+                    bool sel = (surfaceSel == i);
+                    int price = SpouseCost(i);
+                    bool can = (houseTier >= 1 && player.gold >= price);
+                    DrawRectangleRec(r, sel ? Color{ 38, 32, 62, 252 } : Color{ 22, 24, 42, 240 });
+                    DrawRectangleLinesEx(r, sel ? 2.5f : 1.2f, sel ? GOLD : Fade(sp.dressCol, 0.6f));
+                    DrawCircle((int)r.x + 42, (int)r.y + 42, 20.0f, Fade(sp.dressCol, 0.25f));
+                    DrawCircle((int)r.x + 42, (int)r.y + 42, 11.0f, sp.dressCol);
+                    DrawText(SpouseName(i), (int)r.x + 78, (int)r.y + 12, 22, sp.dressCol);
+                    DrawText(L(sp.roleEn, sp.roleVi), (int)r.x + 78, (int)r.y + 40, 15, WHITE);
+                    DrawText(TextFormat(L("+%d HP  +%d DMG  +%d%% CRIT  +%.2f ATK/s", "+%d Máu  +%d ST  +%d%% Chí Mạng  +%.2f Đánh/s"),
+                        (int)sp.hpBonus, (int)sp.dmgBonus, (int)roundf(sp.critBonus * 100), sp.atkSpdBonus), (int)r.x + 430, (int)r.y + 34, 15, SKYBLUE);
+
+                    Rectangle b = { r.x + r.width - 200.0f, r.y + 20.0f, 178.0f, 44.0f };
+                    DrawRectangleRec(b, can ? Color{ 115, 42, 82, 255 } : Color{ 56, 36, 48, 255 });
+                    DrawRectangleLinesEx(b, 1.5f, can ? Color{ 255, 165, 210, 255 } : GRAY);
+                    std::string pTxt = std::string(L("MARRY ", "CƯỚI ")) + std::to_string(price) + L("G", "V");
+                    DrawText(pTxt.c_str(), (int)(b.x + b.width / 2) - MeasureText(pTxt.c_str(), 17) / 2, (int)b.y + 13, 17, WHITE);
+                }
+            } else {
+                const SpouseDef& sp = kSpouses[std::max(0, std::min(3, spouseIdx))];
+                int maxKids = kHouses[std::max(0, std::min(3, houseTier))].maxKids;
+                DrawRectangle(120, 184, 1040, 56, { 34, 26, 52, 240 });
+                DrawRectangleLines(120, 184, 1040, 56, sp.dressCol);
+                std::string fam = std::string(L("Spouse: ", "Bạn Đời: ")) + SpouseName(spouseIdx)
+                                + "  (" + L(sp.roleEn, sp.roleVi) + ")   |   "
+                                + L("Heirs: ", "Đời Con: ") + std::to_string((int)children.size()) + " / " + std::to_string(maxKids);
+                DrawText(fam.c_str(), 142, 202, 18, WHITE);
+
+                Rectangle rChild = { 120.0f, 252.0f, 510.0f, 58.0f };
+                Rectangle rTree  = { 650.0f, 252.0f, 510.0f, 58.0f };
+                int childCost = MealPrice(100);
+                bool canKid = ((int)children.size() < maxKids && player.gold >= childCost);
+                DrawRectangleRec(rChild, surfaceSel == 0 ? Color{ 38, 72, 62, 255 } : Color{ 26, 48, 44, 245 });
+                DrawRectangleLinesEx(rChild, surfaceSel == 0 ? 2.5f : 1.5f, surfaceSel == 0 ? GOLD : (canKid ? Color{ 120, 240, 170, 255 } : GRAY));
+                std::string kcTxt = ((int)children.size() >= maxKids)
+                    ? L("MAX CHILDREN (Upgrade House)", "ĐỦ SỐ CON (Nâng cấp Nhà)")
+                    : (std::string(L("HAVE A CHILD (", "SINH CON NỐI DÕI (")) + std::to_string(childCost) + L(" Gold)", " Vàng)"));
+                DrawText(kcTxt.c_str(), (int)(rChild.x + rChild.width / 2) - MeasureText(kcTxt.c_str(), 17) / 2, (int)rChild.y + 20, 17, canKid ? WHITE : GRAY);
+
+                DrawRectangleRec(rTree, { 42, 36, 78, 245 });
+                DrawRectangleLinesEx(rTree, 1.5f, { 190, 150, 255, 255 });
+                const char* ftLbl = L("VIEW FAMILY TREE [Y]", "XEM CÂY GIA PHẢ [Y]");
+                DrawText(ftLbl, (int)(rTree.x + rTree.width / 2) - MeasureText(ftLbl, 18) / 2, (int)rTree.y + 19, 18, GOLD);
+
+                if (children.empty()) {
+                    const char* noKid = L("No children yet. Raise an Heir so your Bloodline lives on via Rest in Peace!",
+                                          "Chưa có con nối dõi. Hãy Sinh Con để có thể An Nghỉ (Rest in Peace) & truyền đời!");
+                    DrawText(noKid, 1280 / 2 - MeasureText(noKid, 17) / 2, 415, 17, { 185, 198, 225, 255 });
+                } else {
+                    for (size_t i = 0; i < children.size(); ++i) {
+                        const ChildInfo& ch = children[i];
+                        Rectangle r = { 120.0f, 326.0f + i * 88.0f, 1040.0f, 76.0f };
+                        bool sel = (surfaceSel == (int)i + 1);
+                        Color cc = kClasses[std::max(0, std::min(3, ch.heroClass))].color;
+                        DrawRectangleRec(r, sel ? Color{ 34, 42, 68, 252 } : Color{ 20, 26, 44, 240 });
+                        DrawRectangleLinesEx(r, sel ? 2.5f : 1.2f, sel ? GOLD : Fade(cc, 0.65f));
+                        DrawText(TextFormat(L("Heir %d: %s  (%s)", "Con %d: %s  (%s)"), (int)i + 1, ch.name.c_str(), ClassDisplayName(ch.heroClass)), (int)r.x + 22, (int)r.y + 12, 20, cc);
+                        DrawText(TextFormat(L("Inherits Gold, Gear, House, Noble & +%d HP +%d DMG +%.1f ARM +%d SPD",
+                                              "Kế thừa Vàng, Đồ, Nhà, Quý Tộc & +%d Máu +%d ST +%.1f Giáp +%d Chạy"),
+                            (int)ch.bonusHp, (int)ch.bonusDmg, ch.bonusArmor, (int)ch.bonusSpeed), (int)r.x + 22, (int)r.y + 44, 14, RAYWHITE);
+
+                        Rectangle rb = { r.x + r.width - 290.0f, r.y + 16.0f, 268.0f, 44.0f };
+                        DrawRectangleRec(rb, { 112, 74, 24, 255 });
+                        DrawRectangleLinesEx(rb, 1.8f, GOLD);
+                        const char* ripLbl = L("REST IN PEACE -> PLAY HEIR", "REST IN PEACE -> CHƠI ĐỜI CON");
+                        DrawText(ripLbl, (int)(rb.x + rb.width / 2) - MeasureText(ripLbl, 14) / 2, (int)rb.y + 15, 14, WHITE);
+                    }
+                }
+            }
+        } else {
+            // Hoàng Cung & Vua
+            Rectangle r0 = { 120.0f, 196.0f, 1040.0f, 168.0f };
+            bool sel0 = (surfaceSel == 0);
+            bool affordN = (!isNoble && player.gold >= 1500);
+            DrawRectangleRec(r0, sel0 ? Color{ 44, 38, 28, 252 } : Color{ 24, 22, 34, 245 });
+            DrawRectangleLinesEx(r0, sel0 ? 2.8f : 1.5f, sel0 ? GOLD : Color{ 195, 155, 65, 255 });
+            DrawText(L("DIRECT ROYAL GRANT: BUY NOBLE TITLE (1500 GOLD)", "MUA TƯỚC VỊ QUÝ TỘC TRỰC TIẾP (1500 VÀNG)"), (int)r0.x + 26, (int)r0.y + 18, 22, GOLD);
+            DrawText(L("High-gold shortcut to Nobility: +35 HP, +6 DMG, +1.5 Armor, +25% Gold drops, +30G/Floor,",
+                       "Dùng lượng Vàng lớn phong tước ngay: +35 Máu, +6 ST, +1.5 Giáp, +25% Vàng rơi, +30V/Tầng,"), (int)r0.x + 26, (int)r0.y + 56, 15, RAYWHITE);
+            DrawText(L("30% discount on Food/Marriage/Children & 50% discount on Noble Estate Manor.",
+                       "Giảm 30% Đồ Ăn/Cưới/Sinh Con và giảm 50% giá Dinh Thự Quý Tộc."), (int)r0.x + 26, (int)r0.y + 80, 15, SKYBLUE);
+            Rectangle b0 = { r0.x + r0.width - 260.0f, r0.y + 106.0f, 236.0f, 44.0f };
+            DrawRectangleRec(b0, isNoble ? Color{ 38, 86, 54, 255 } : (affordN ? Color{ 138, 96, 22, 255 } : Color{ 68, 34, 38, 255 }));
+            DrawRectangleLinesEx(b0, 1.5f, GOLD);
+            const char* nLbl = isNoble ? L("NOBLE TITLE OWNED", "ĐÃ LÀ QUÝ TỘC") : L("BUY NOBILITY - 1500G", "MUA QUÝ TỘC - 1500V");
+            DrawText(nLbl, (int)(b0.x + b0.width / 2) - MeasureText(nLbl, 16) / 2, (int)b0.y + 14, 16, WHITE);
+
+            Rectangle r1 = { 120.0f, 386.0f, 1040.0f, 168.0f };
+            bool sel1 = (surfaceSel == 1);
+            bool readyQ = (royalQuestActive && royalQuestKills >= 35 && royalQuestBosses >= 1);
+            DrawRectangleRec(r1, sel1 ? Color{ 32, 42, 68, 252 } : Color{ 20, 26, 44, 245 });
+            DrawRectangleLinesEx(r1, sel1 ? 2.8f : 1.5f, sel1 ? GOLD : SKYBLUE);
+            DrawText(L("KING'S DUNGEON SUBJUGATION COMMISSION (FREE PATH TO NOBILITY)", "ỦY THÁC THẢO PHẠT HẦM NGỤC CỦA VUA (CON ĐƯỜNG MIỄN PHÍ)"), (int)r1.x + 26, (int)r1.y + 18, 21, SKYBLUE);
+            DrawText(L("Descend into the Dungeon, slay 35 Monsters and defeat 1 Boss to earn Nobility + 300G + Relic!",
+                       "Xuống Hầm Ngục, tiêu diệt 35 Quái vật và 1 Trùm để Vua phong Tước Quý Tộc + 300 Vàng + Thánh Tích!"), (int)r1.x + 26, (int)r1.y + 54, 15, RAYWHITE);
+            DrawText(TextFormat(L("Progress:  Monsters %d / 35    |    Bosses %d / 1", "Tiến Độ:  Quái Đã Hạ %d / 35    |    Trùm Đã Hạ %d / 1"),
+                royalQuestKills, royalQuestBosses), (int)r1.x + 26, (int)r1.y + 84, 17, readyQ ? GREEN : GOLD);
+            Rectangle b1 = { r1.x + r1.width - 290.0f, r1.y + 106.0f, 266.0f, 44.0f };
+            Color qFill = isNoble ? Color{ 38, 86, 54, 255 } : (readyQ ? Color{ 38, 128, 66, 255 } : (royalQuestActive ? Color{ 44, 62, 102, 255 } : Color{ 118, 52, 40, 255 }));
+            DrawRectangleRec(b1, qFill);
+            DrawRectangleLinesEx(b1, 1.5f, isNoble || readyQ ? GOLD : SKYBLUE);
+            const char* qLbl = isNoble ? L("NOBILITY ACHIEVED", "ĐÃ HOÀN THÀNH") : (readyQ ? L("CLAIM NOBILITY!", "NHẬN PHONG QUÝ TỘC!") : (royalQuestActive ? L("IN PROGRESS (ENTER DUNGEON)", "ĐANG LÀM (XUỐNG HẦM NGỤC)") : L("ACCEPT KING'S COMMISSION", "NHẬN ỦY THÁC CỦA VUA")));
+            DrawText(qLbl, (int)(b1.x + b1.width / 2) - MeasureText(qLbl, 14) / 2, (int)b1.y + 15, 14, WHITE);
+        }
+
+        const char* foot = L("1-4 / Left-Right: Switch Building    Up/Down + Enter or Click: Action    Y: Family Tree    Esc: Back",
+                             "1-4 / Trái-Phải: Đổi Khu Vực    Lên/Xuống + Enter hoặc Nhấp: Chọn    Y: Cây Gia Phả    Esc: Thoát");
+        DrawText(foot, 1280 / 2 - MeasureText(foot, 15) / 2, 636, 15, { 165, 180, 215, 255 });
+    }
+
+    void UpdateFamilyTree() {
+        { int ua = HitButton(); if (ua) { HandleUiAction(ua); return; } }
+        if (EscPressed() || IsKeyPressed(KEY_Y) || IsKeyPressed(KEY_BACKSPACE) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) {
+            state = familyTreeReturn;
+            return;
+        }
+    }
+
+    void DrawFamilyTreeScreen() {
+        DrawRectangle(0, 0, 1280, 720, Fade({ 8, 10, 18, 255 }, 0.94f));
+        const char* hdr = L("ROYAL BLOODLINE & FAMILY TREE", "CÂY GIA PHẢ DÒNG TỘC");
+        OutlinedText(hdr, 1280 / 2 - MeasureText(hdr, 38) / 2, 28, 38, GOLD, { 70, 42, 10, 255 });
+        std::string sub = std::string(L("Current Generation: ", "Thế Hệ Hiện Tại: Đời ")) + std::to_string(generation)
+                        + "   |   " + (isNoble ? L("NOBLE DYNASTY", "GIA TỘC QUÝ TỘC") : L("Dungeon Lineage", "Dòng Tộc Chiến Binh"))
+                        + "   |   " + L("Legacy Bonus: ", "Di Sản Tích Lũy: ")
+                        + "+" + std::to_string((int)legacyHp) + "HP +" + std::to_string((int)legacyDmg) + "ST";
+        DrawText(sub.c_str(), 1280 / 2 - MeasureText(sub.c_str(), 16) / 2, 74, 16, SKYBLUE);
+
+        // Hàng 1: Tổ tiên đã Rest in Peace (tối đa 4 thẻ mới nhất hiển thị theo chuỗi ngang)
+        int ancY = 108;
+        if (familyTree.empty()) {
+            DrawRectangleLines(220, ancY, 840, 118, { 75, 85, 118, 255 });
+            const char* noAnc = L("No Ancestors resting in peace yet. Raise an Heir on the Surface to begin your Dynasty!",
+                                  "Chưa có Tổ Tiên nào an nghỉ. Hãy Lên Mặt Đất, Sinh Con và chọn Rest in Peace để lập Gia Phả!");
+            DrawText(noAnc, 1280 / 2 - MeasureText(noAnc, 16) / 2, ancY + 48, 16, { 165, 180, 210, 255 });
+        } else {
+            int startIdx = std::max(0, (int)familyTree.size() - 4);
+            int showCnt = (int)familyTree.size() - startIdx;
+            int cw = 266, gap = 20, x0 = 1280 / 2 - (showCnt * cw + (showCnt - 1) * gap) / 2;
+            for (int k = 0; k < showCnt; ++k) {
+                const AncestorRecord& a = familyTree[startIdx + k];
+                int cx = x0 + k * (cw + gap);
+                DrawRectangle(cx, ancY, cw, 128, { 22, 24, 38, 245 });
+                DrawRectangleLinesEx({ (float)cx, (float)ancY, (float)cw, 128.0f }, 1.6f, a.wasNoble ? GOLD : Color{ 125, 140, 180, 255 });
+                DrawRectangle(cx, ancY, cw, 24, { 40, 32, 46, 255 });
+                const char* ripTag = L("REST IN PEACE", "AN NGHỈ");
+                DrawText(TextFormat(L("Gen %d", "Đời %d"), a.generation), cx + 10, ancY + 4, 15, GOLD);
+                DrawText(ripTag, cx + cw - 10 - MeasureText(ripTag, 13), ancY + 5, 13, { 185, 195, 225, 255 });
+                DrawText(a.name.c_str(), cx + 12, ancY + 32, 18, kClasses[std::max(0, std::min(3, a.heroClass))].color);
+                DrawText(a.wasNoble ? L("[Noble]", "[Quý Tộc]") : L("[Commoner]", "[Thường Dân]"), cx + 12, ancY + 55, 13, a.wasNoble ? GOLD : GRAY);
+                DrawText((std::string(L("Spouse: ", "Vợ: ")) + a.spouseName).c_str(), cx + 12, ancY + 74, 14, { 245, 175, 210, 255 });
+                DrawText(TextFormat(L("Floor %d  |  Slain %d", "Tầng %d  |  Hạ %d quái"), a.floorReached, a.enemiesSlain), cx + 12, ancY + 98, 14, RAYWHITE);
+                if (k + 1 < showCnt) {
+                    DrawLineEx({ (float)(cx + cw), (float)(ancY + 64) }, { (float)(cx + cw + gap), (float)(ancY + 64) }, 2.5f, GOLD);
+                }
+            }
+            DrawLineEx({ 640.0f, (float)(ancY + 128) }, { 640.0f, 272.0f }, 2.5f, GOLD);
+        }
+
+        // Hàng 2: Đời hiện tại + Bạn đời
+        int curY = 272;
+        Rectangle curCard = { 290.0f, (float)curY, 700.0f, 128.0f };
+        DrawRectangleRec(curCard, { 24, 34, 58, 250 });
+        DrawRectangleLinesEx(curCard, 2.5f, isNoble ? GOLD : HeroColor());
+        DrawHeroModel({ 352.0f, (float)curY + 66.0f }, player.heroClass, ClassWeaponType(player.heroClass), { 1, 0 }, false, 0.0f, true, 0.25f, false, false, 0.0f, 0.0f, player.subClass, 0.0f);
+        DrawText(TextFormat(L("CURRENT GENERATION (%d): %s", "ĐỜI HIỆN TẠI (ĐỜI %d): %s"), generation, CurrentHeroDisplayName().c_str()),
+                 408, curY + 16, 20, HeroColor());
+        DrawText(TextFormat(L("Class: %s  |  House: %s  |  Status: %s", "Hệ: %s  |  Nhà: %s  |  Thân phận: %s"),
+                 HeroTitle(), HouseName(houseTier), isNoble ? L("NOBLE", "QUÝ TỘC") : L("Commoner", "Thường Dân")),
+                 408, curY + 46, 15, WHITE);
+        DrawText(TextFormat(L("Spouse: %s   |   HP: %d/%d   DMG: %d   Gold: %d", "Vợ: %s   |   Máu: %d/%d   ST: %d   Vàng: %d"),
+                 SpouseName(hasSpouse ? spouseIdx : -1), (int)player.hp, (int)player.maxHp, (int)player.baseDmg, player.gold),
+                 408, curY + 72, 15, { 255, 210, 225, 255 });
+        DrawText(TextFormat(L("Floor %d   |   Level %d   |   Slain %d", "Tầng %d   |   Cấp %d   |   Đã hạ %d quái"),
+                 floor, player.level, enemiesSlain), 408, curY + 96, 14, SKYBLUE);
+
+        // Hàng 3: Thế hệ Con cái (Heirs)
+        int kidY = 442;
+        if (children.empty()) {
+            DrawRectangleLines(290, kidY, 700, 124, { 75, 85, 118, 255 });
+            const char* nk = L("No children yet. Build a House & Marry on the Surface to have Heirs!",
+                               "Chưa có thế hệ con. Hãy Mua Nhà & Cưới Vợ trên Mặt Đất để Sinh Con nối dõi!");
+            DrawText(nk, 1280 / 2 - MeasureText(nk, 16) / 2, kidY + 52, 16, { 165, 180, 210, 255 });
+        } else {
+            DrawLineEx({ 640.0f, (float)(curY + 128) }, { 640.0f, (float)(kidY - 18) }, 2.5f, GOLD);
+            int n = (int)children.size();
+            int kw = 310, kgap = 24, x0 = 1280 / 2 - (n * kw + (n - 1) * kgap) / 2;
+            if (n > 1) DrawLineEx({ (float)(x0 + kw / 2), (float)(kidY - 18) }, { (float)(x0 + (n - 1) * (kw + kgap) + kw / 2), (float)(kidY - 18) }, 2.5f, GOLD);
+            for (int i = 0; i < n; ++i) {
+                const ChildInfo& ch = children[i];
+                int cx = x0 + i * (kw + kgap);
+                DrawLineEx({ (float)(cx + kw / 2), (float)(kidY - 18) }, { (float)(cx + kw / 2), (float)kidY }, 2.5f, GOLD);
+                DrawRectangle(cx, kidY, kw, 142, { 22, 30, 48, 245 });
+                Color cc = kClasses[std::max(0, std::min(3, ch.heroClass))].color;
+                DrawRectangleLinesEx({ (float)cx, (float)kidY, (float)kw, 142.0f }, 1.8f, cc);
+                DrawText(TextFormat(L("HEIR %d (Gen %d)", "CON THỨ %d (ĐỜI %d)"), i + 1, generation + 1), cx + 14, kidY + 10, 14, GOLD);
+                DrawText(ch.name.c_str(), cx + 14, kidY + 32, 20, cc);
+                DrawText(ClassDisplayName(ch.heroClass), cx + 14, kidY + 58, 15, WHITE);
+                DrawText(TextFormat(L("+%d HP  +%d DMG", "+%d Máu  +%d ST"), (int)ch.bonusHp, (int)ch.bonusDmg), cx + 14, kidY + 86, 15, { 125, 240, 165, 255 });
+                DrawText(TextFormat(L("+%.1f ARM  +%d SPD", "+%.1f Giáp  +%d Chạy"), ch.bonusArmor, (int)ch.bonusSpeed), cx + 14, kidY + 108, 14, SKYBLUE);
+            }
+        }
+        const char* foot = L("Press Y or Esc to return   |   Visit Family Home on Surface to trigger Rest in Peace",
+                             "Nhấn Y hoặc Esc để quay lại   |   Vào Tổ Ấm trên Mặt Đất để chọn Rest in Peace kế thừa");
+        DrawText(foot, 1280 / 2 - MeasureText(foot, 15) / 2, 654, 15, { 165, 180, 215, 255 });
+    }
+
+    void DrawSurfaceWorld() {
+        int halfW = (int)roomW / 2, halfH = (int)roomH / 2;
+        int tileSize = 48;
+        float tm = (float)GetTime();
+
+        // Nền cỏ xanh & đường lát đá làng mạc - kinh thành
+        for (int y = -halfH; y < halfH; y += tileSize) {
+            for (int x = -halfW; x < halfW; x += tileSize) {
+                int tx = x / tileSize, ty = y / tileSize;
+                bool alt = ((tx + ty) & 1) == 0;
+                float cxT = x + tileSize * 0.5f, cyT = y + tileSize * 0.5f;
+                bool isRoad = (fabsf(cxT) < 68.0f || fabsf(cyT) < 68.0f);
+                bool isPlaza = (Vector2Length({ cxT, cyT }) < 175.0f);
+                Color tc = (isRoad || isPlaza)
+                         ? (alt ? Color{ 162, 152, 132, 255 } : Color{ 146, 136, 118, 255 })
+                         : (alt ? Color{ 62, 132, 66, 255 } : Color{ 54, 118, 58, 255 });
+                DrawRectangle(x, y, tileSize, tileSize, tc);
+                if (isRoad || isPlaza) DrawRectangleLines(x + 2, y + 2, tileSize - 4, tileSize - 4, Fade(BLACK, 0.14f));
+                int th = ((tx * 73856093) ^ (ty * 19349663)) & 15;
+                if (!isRoad && !isPlaza && th == 3) DrawCircle(x + 22, y + 24, 3.5f, { 255, 225, 110, 255 });
+                else if (!isRoad && !isPlaza && th == 9) DrawCircle(x + 18, y + 20, 3.0f, { 255, 145, 195, 255 });
+            }
+        }
+        // Hàng rào gỗ viền làng
+        DrawRectangleLinesEx({ (float)-halfW + 12.0f, (float)-halfH + 12.0f, roomW - 24.0f, roomH - 24.0f }, 6.0f, { 118, 78, 44, 255 });
+
+        // Đài phun nước quảng trường trung tâm
+        DrawCircle(0, 0, 74.0f, { 132, 126, 116, 255 });
+        DrawCircle(0, 0, 56.0f, { 58, 172, 225, 255 });
+        DrawCircleLines(0, 0, 22.0f + sinf(tm * 3.0f) * 8.0f, Fade(WHITE, 0.65f));
+        DrawCircle(0, 0, 14.0f, { 205, 200, 190, 255 });
+
+        // Vẽ 4 công trình tương tác trên Mặt Đất
+        struct BldgArt { Color roof; Color wall; const char* en; const char* vi; };
+        Color famRoof = houseTier == 0 ? Color{ 120, 115, 95, 255 } : (houseTier == 1 ? Color{ 165, 92, 48, 255 } : (houseTier == 2 ? Color{ 62, 118, 185, 255 } : Color{ 215, 165, 45, 255 }));
+        BldgArt bldgs[4] = {
+            { { 188, 78, 42, 255 },  { 215, 188, 145, 255 }, "[1 / F] TAVERN & FOOD",        "[1 / F] QUÁN TRỌ & ĐỒ ĂN" },
+            { { 58, 124, 168, 255 }, { 210, 206, 195, 255 }, "[2 / F] BUY / UPGRADE HOUSE",  "[2 / F] PHƯỜNG MUA NHÀ" },
+            { famRoof,               { 225, 210, 185, 255 }, "[3 / F] FAMILY & REST IN PEACE","[3 / F] TỔ ẤM, VỢ CON & GIA PHẢ" },
+            { { 175, 42, 62, 255 },  { 235, 228, 210, 255 }, "[4 / F] ROYAL PALACE (KING)",  "[4 / F] HOÀNG CUNG (VUA & QUÝ TỘC)" }
+        };
+        for (int i = 0; i < 4; ++i) {
+            Vector2 bp = SurfaceLandmarkPos(i);
+            bool near = Vector2Distance(player.pos, bp) < 120.0f;
+            DrawEllipse((int)bp.x, (int)bp.y + 42, 76.0f, 18.0f, Fade(BLACK, 0.25f));
+            DrawRectangle((int)bp.x - 62, (int)bp.y - 24, 124, 62, bldgs[i].wall);
+            DrawRectangleLines((int)bp.x - 62, (int)bp.y - 24, 124, 62, near ? GOLD : Color{ 45, 36, 32, 255 });
+            Tri({ bp.x - 76.0f, bp.y - 22.0f }, { bp.x + 76.0f, bp.y - 22.0f }, { bp.x, bp.y - 72.0f }, bldgs[i].roof);
+            DrawRectangle((int)bp.x - 16, (int)bp.y + 6, 32, 32, { 92, 56, 34, 255 });
+            if (i == 3) {
+                Diamond({ bp.x, bp.y - 54.0f }, 8.0f, 12.0f, GOLD, WHITE); // Vương miện Hoàng Cung
+            }
+            const char* lbl = L(bldgs[i].en, bldgs[i].vi);
+            OutlinedText(lbl, (int)bp.x - MeasureText(lbl, 14) / 2, (int)bp.y + 48, 14, near ? GOLD : WHITE, { 18, 20, 28, 255 });
+        }
+
+        // Vẽ Vợ và Các Con đứng ở sân Tổ Ấm (landmark 2)
+        Vector2 homeP = SurfaceLandmarkPos(2);
+        if (hasSpouse && spouseIdx >= 0 && spouseIdx < 4) {
+            Vector2 spPos = { homeP.x - 86.0f, homeP.y + 24.0f };
+            Color dc = kSpouses[spouseIdx].dressCol;
+            DrawEllipse((int)spPos.x, (int)spPos.y + 14, 14, 5, Fade(BLACK, 0.3f));
+            Tri({ spPos.x - 10, spPos.y + 14 }, { spPos.x + 10, spPos.y + 14 }, { spPos.x, spPos.y - 8 }, dc);
+            DrawCircleV({ spPos.x, spPos.y - 14 }, 7.0f, { 255, 224, 196, 255 });
+            DrawText(SpouseName(spouseIdx), (int)spPos.x - MeasureText(SpouseName(spouseIdx), 11) / 2, (int)spPos.y - 32, 11, dc);
+        }
+        for (size_t k = 0; k < children.size(); ++k) {
+            Vector2 kp = { homeP.x + 84.0f + k * 28.0f, homeP.y + 26.0f };
+            Color kc = kClasses[std::max(0, std::min(3, children[k].heroClass))].color;
+            DrawCircleV(kp, 8.0f, kc);
+            DrawCircleV({ kp.x, kp.y - 10.0f }, 5.0f, { 255, 224, 196, 255 });
+            DrawText(children[k].name.c_str(), (int)kp.x - MeasureText(children[k].name.c_str(), 10) / 2, (int)kp.y - 26, 10, WHITE);
+        }
+
+        // Vẽ Cổng Hầm Ngục phía Bắc để quay xuống hầm ngục
+        Vector2 dp = SurfaceLandmarkPos(4);
+        BeginBlendMode(BLEND_ADDITIVE);
+        CircleGrad(dp.x, dp.y, 64.0f + sinf(tm * 5.0f) * 5.0f, Fade({ 165, 85, 255, 255 }, 0.55f), Fade({ 165, 85, 255, 255 }, 0.0f));
+        EndBlendMode();
+        DrawRing(dp, 30.0f, 36.0f, tm * 70.0f, tm * 70.0f + 275.0f, 24, { 185, 110, 255, 255 });
+        DrawCircle((int)dp.x, (int)dp.y, 20.0f, { 58, 22, 92, 240 });
+        std::string dgLbl = std::string(L("ENTER DUNGEON (FLOOR ", "XUỐNG HẦM NGỤC (TẦNG ")) + std::to_string(nextDungeonFloor) + ")";
+        OutlinedText(dgLbl.c_str(), (int)dp.x - MeasureText(dgLbl.c_str(), 15) / 2, (int)dp.y + 42, 15, { 215, 165, 255, 255 }, { 12, 14, 24, 255 });
+
+        // Nhân vật người chơi & hiệu ứng
+        DrawEllipse((int)player.pos.x, (int)player.pos.y + 16, 20, 8, { 0, 0, 0, 100 });
+        DrawPlayerSprite();
+        for (const auto& pt : particles) {
+            float k = pt.life / pt.maxLife;
+            DrawCircleV(pt.pos, pt.size * (0.3f + 0.7f * k), Fade(pt.color, k * k));
+        }
+        for (const auto& p : popups) DrawText(p.text.c_str(), (int)p.pos.x - 10, (int)p.pos.y, 18, p.color);
+    }
+
     // ── Drawing ──
     void Draw() {
-        if (settings.lighting) RenderLightmap();
+        if (settings.lighting && !inSurface) RenderLightmap();
         BeginTextureMode(screenRT);
         BiomeColors biome = Biome();
-        ClearBackground(biome.bg);
+        ClearBackground(inSurface ? Color{ 44, 96, 48, 255 } : biome.bg);
 
         BeginMode2D(camera);
+
+        if (inSurface) {
+            DrawSurfaceWorld();
+            EndMode2D();
+        } else {
 
         // 1. Tường gạch, sàn đa sắc vùng hành lang/viền/trung tâm, bóng viền, huy hiệu, cảnh quan biome, đuốc, cột
         int halfW = (int)roomW / 2;
@@ -7824,9 +9073,10 @@ public:
         EndMode2D();
 
         if (settings.lighting) ApplyLighting();
+        }
 
         // Vignette + viền đỏ khi bị đau
-        if (settings.vignette) {
+        if (settings.vignette && !inSurface) {
             Color edge = LerpColor({ 0, 0, 0, 120 }, { 170, 0, 20, 200 }, damagePulse);
             Color clear = { edge.r, edge.g, edge.b, 0 };
             int bh = 150, bw = 240;
@@ -7839,10 +9089,13 @@ public:
         // ── 2D Screen Space UI ──
         Color hCol = HeroColor();
         const char* hTitle = HeroTitle();
-        // Top-Left: Class / Subclass Badge, HP (with damage lag), XP, Rage, Gold
+        std::string badgeLeft = (isNoble ? std::string(L("[NOBLE] ", "[QT] ")) : std::string(""))
+                              + (generation > 1 ? (std::string(L("Gen", "Đ")) + std::to_string(generation) + " ") : std::string(""))
+                              + hTitle;
+        // Top-Left: Class / Subclass Badge, HP (with damage lag), XP, Rage, Hunger, Gold
         DrawRectangle(20, 14, 320, 22, { 18, 22, 34, 225 });
-        DrawRectangleLines(20, 14, 320, 22, Fade(hCol, 0.75f));
-        DrawText(hTitle, 28, 17, 15, hCol);
+        DrawRectangleLines(20, 14, 320, 22, Fade(isNoble ? GOLD : hCol, 0.85f));
+        DrawText(badgeLeft.c_str(), 28, 17, 15, isNoble ? GOLD : hCol);
         std::string clsRight = std::string(L("LVL ", "CẤP ")) + std::to_string(player.level);
         DrawText(clsRight.c_str(), 332 - MeasureText(clsRight.c_str(), 15), 17, 15, GOLD);
 
@@ -7870,31 +9123,51 @@ public:
         std::string rageTxt = rageReady ? L("RAGE 100/100  [R] ULTIMATE READY!", "NỘ 100/100  [R] TUYỆT KỸ SẴN SÀNG!") : (std::string(L("RAGE ", "NỘ ")) + std::to_string((int)player.rage) + " / 100");
         DrawText(rageTxt.c_str(), 180 - MeasureText(rageTxt.c_str(), 12) / 2, 88, 12, WHITE);
 
+        int yOff = 0;
+        if (surfaceUnlocked) {
+            yOff = 22;
+            DrawRectangle(20, 106, 320, 16, { 30, 24, 16, 225 });
+            float huPct = std::max(0.0f, std::min(1.0f, hunger / maxHunger));
+            Color huCol = (hunger >= 70.0f) ? Color{ 100, 225, 120, 255 } : ((hunger < 25.0f) ? RED : Color{ 235, 175, 60, 255 });
+            DrawRectangle(22, 108, (int)(316 * huPct), 12, huCol);
+            DrawRectangleLines(20, 106, 320, 16, hunger < 25.0f ? RED : Color{ 110, 88, 52, 255 });
+            std::string huTxt = std::string(L("HUNGER ", "ĐỘ NO ")) + std::to_string((int)ceilf(hunger)) + "/100   "
+                              + L("[H] Ration:", "[H] Lương:") + std::to_string(foodRations);
+            DrawText(huTxt.c_str(), 180 - MeasureText(huTxt.c_str(), 12) / 2, 108, 12, WHITE);
+        }
+
         std::string goldTxt = std::string(L("Gold: ", "Vàng: ")) + std::to_string(player.gold);
-        DrawText(goldTxt.c_str(), 24, 108, 18, GOLD);
+        DrawText(goldTxt.c_str(), 24, 108 + yOff, 18, GOLD);
 
         // Relics Row
         const char* relPrefix = L("Relics: ", "Thánh Tích: ");
-        DrawText(relPrefix, 24, 132, 15, SKYBLUE);
+        DrawText(relPrefix, 24, 132 + yOff, 15, SKYBLUE);
         if (player.relics.empty()) {
-            DrawText(L("None", "Chưa có"), 24 + MeasureText(relPrefix, 15), 132, 15, SKYBLUE);
+            DrawText(L("None", "Chưa có"), 24 + MeasureText(relPrefix, 15), 132 + yOff, 15, SKYBLUE);
         } else {
             int rx = 24 + MeasureText(relPrefix, 15);
             for (const auto& r : player.relics) {
-                DrawCircle(rx + 6, 139, 5.5f, r.color);
-                DrawCircleLines(rx + 6, 139, 5.5f, WHITE);
-                DrawText(r.name.c_str(), rx + 16, 132, 15, r.color);
+                DrawCircle(rx + 6, 139 + yOff, 5.5f, r.color);
+                DrawCircleLines(rx + 6, 139 + yOff, 5.5f, WHITE);
+                DrawText(r.name.c_str(), rx + 16, 132 + yOff, 15, r.color);
                 rx += 16 + MeasureText(r.name.c_str(), 15) + 12;
             }
         }
 
-        // Top-Center: Floor, Biome & Combo
-        std::string floorStr = std::string(L("FLOOR ", "TẦNG ")) + std::to_string(floor);
-        DrawText(floorStr.c_str(), 1280 / 2 - MeasureText(floorStr.c_str(), 30) / 2, 14, 30, RAYWHITE);
-        const char* biomeName = L(biome.nameEn, biome.nameVi);
-        DrawText(biomeName, 1280 / 2 - MeasureText(biomeName, 14) / 2, 46, 14, biome.accentCol);
+        // Top-Center: Surface / Floor, Biome / Royal Quest & Combo
+        if (inSurface) {
+            const char* surfTitle = L("SURFACE: VILLAGE & ROYAL CITY", "MẶT ĐẤT: LÀNG MẠC & KINH THÀNH");
+            DrawText(surfTitle, 1280 / 2 - MeasureText(surfTitle, 26) / 2, 14, 26, { 125, 245, 145, 255 });
+            std::string subS = std::string(L("Gen ", "Đời ")) + std::to_string(generation) + " | " + HouseName(houseTier) + " | " + (isNoble ? L("NOBLE", "QUÝ TỘC") : L("Commoner", "Thường Dân"));
+            DrawText(subS.c_str(), 1280 / 2 - MeasureText(subS.c_str(), 14) / 2, 44, 14, GOLD);
+        } else {
+            std::string floorStr = std::string(L("FLOOR ", "TẦNG ")) + std::to_string(floor);
+            DrawText(floorStr.c_str(), 1280 / 2 - MeasureText(floorStr.c_str(), 30) / 2, 14, 30, RAYWHITE);
+            const char* biomeName = L(biome.nameEn, biome.nameVi);
+            DrawText(biomeName, 1280 / 2 - MeasureText(biomeName, 14) / 2, 46, 14, biome.accentCol);
+        }
 
-        if (comboCount > 1) {
+        if (comboCount > 1 && !inSurface) {
             std::string comboStr = "COMBO x" + std::to_string(comboCount) + "!";
             Color cCol = comboCount >= 20 ? RED : (comboCount >= 10 ? ORANGE : YELLOW);
             DrawText(comboStr.c_str(), 1280 - 240, 154, 26, cCol);
@@ -7906,13 +9179,13 @@ public:
 
         // Trang bị đang đeo (HUD)
         for (int i = 0; i < 4; ++i) {
-            int hx = 24 + i * 36, hy = 156;
+            int hx = 24 + i * 36, hy = 156 + yOff;
             Color rc = hasEquip[i] ? equipped[i].RarityColor() : Color{ 60, 68, 90, 255 };
             DrawRectangle(hx, hy, 30, 30, { 14, 18, 30, 210 });
             DrawRectangleLines(hx, hy, 30, 30, rc);
             DrawItemIcon(i, { hx + 15.0f, hy + 15.0f }, 17.0f, hasEquip[i] ? rc : Color{ 70, 78, 100, 255 }, hasEquip[i] ? equipped[i].weaponType : 0);
         }
-        DrawText(L("[I] Gear & Skills", "[I] Đồ & Kỹ Năng"), 24 + 4 * 36 + 4, 164, 14, { 150, 165, 200, 255 });
+        DrawText(L("[I] Gear & Skills   [Y] Family Tree", "[I] Đồ & Kỹ Năng   [Y] Gia Phả"), 24 + 4 * 36 + 4, 164 + yOff, 14, { 150, 165, 200, 255 });
 
         if (touchMode && state == PLAYING) DrawTouchControls();
 
@@ -7936,6 +9209,11 @@ public:
         if (trialActive) {
             const char* tt = L("TRIAL AMBUSH ACTIVE!", "ĐANG TRONG PHỤC KÍCH THỬ THÁCH!");
             DrawText(tt, 1280 / 2 - MeasureText(tt, 17) / 2, bossBarActive ? 92 : 66, 17, GOLD);
+        }
+        if (royalQuestActive && !isNoble) {
+            std::string rqTxt = TextFormat(L("KING'S COMMISSION: %d/35 Monsters  |  %d/1 Boss", "ỦY THÁC CỦA VUA: %d/35 Quái  |  %d/1 Trùm"), royalQuestKills, royalQuestBosses);
+            int rqY = inSurface ? 64 : (bossBarActive ? (trialActive ? 114 : 92) : (trialActive ? 88 : 66));
+            DrawText(rqTxt.c_str(), 1280 / 2 - MeasureText(rqTxt.c_str(), 14) / 2, rqY, 14, ORANGE);
         }
 
         // Mini-Map Radar (Top-Right)
@@ -7970,8 +9248,15 @@ public:
             }
         }
 
-        // Thanh 5 ô kỹ năng ở giữa đáy màn hình (ẩn khi dùng cảm ứng vì đã có nút trên màn hình)
-        if (!touchMode) {
+        // Thanh 5 ô kỹ năng ở giữa đáy màn hình (hoặc thanh phím nhanh trên Mặt Đất)
+        if (inSurface && state == PLAYING) {
+            const char* sBar = L("[1] Tavern   [2] Buy House   [3] Family/RIP   [4] King/Noble   [Y] Family Tree   [H] Ration",
+                                 "[1] Quán Trọ   [2] Mua Nhà   [3] Gia Đình/RIP   [4] Hoàng Cung   [Y] Gia Phả   [H] Lương Khô");
+            int sbW = MeasureText(sBar, 15) + 32;
+            DrawRectangle(1280 / 2 - sbW / 2, 720 - 44, sbW, 30, { 14, 20, 32, 230 });
+            DrawRectangleLines(1280 / 2 - sbW / 2, 720 - 44, sbW, 30, GOLD);
+            DrawText(sBar, 1280 / 2 - MeasureText(sBar, 15) / 2, 720 - 36, 15, WHITE);
+        } else if (!touchMode) {
             const int slotW = 66, slotH = 66, gap = 10;
             const int dockX0 = 1280 / 2 - (slotW * 5 + gap * 4) / 2;
             const int dockY = 720 - 80;
@@ -8114,32 +9399,34 @@ public:
         if (state == GAME_OVER) {
             DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.88f));
             const char* goHdr = L("YOU HAVE FALLEN", "BẠN ĐÃ GỤC NGÃ");
-            DrawText(goHdr, 1280 / 2 - MeasureText(goHdr, 44) / 2, 160, 44, RED);
+            DrawText(goHdr, 1280 / 2 - MeasureText(goHdr, 44) / 2, 128, 44, RED);
 
-            std::string st0 = std::string(L("Class: ", "Hệ Tướng: ")) + HeroTitle();
+            std::string st0 = std::string(L("Class: ", "Hệ Tướng: ")) + HeroTitle() + (generation > 1 ? (" (" + std::string(L("Gen ", "Đời ")) + std::to_string(generation) + ")") : "");
             std::string st1 = std::string(L("Floor Reached: ", "Tầng Đạt Được: ")) + std::to_string(floor);
             std::string st2 = std::string(L("Final Level: ", "Cấp Độ Cuối: ")) + std::to_string(player.level);
             std::string st3 = std::string(L("Enemies Slain: ", "Kẻ Địch Đã Hạ: ")) + std::to_string(enemiesSlain);
             std::string st4 = std::string(L("Gold Accumulated: ", "Vàng Tích Lũy: ")) + std::to_string(player.gold);
             std::string st5 = std::string(L("Best Record: Floor ", "Kỷ Lục Cao Nhất: Tầng ")) + std::to_string(bestFloor) + (newRecord ? L("  (NEW RECORD!)", "  (KỶ LỤC MỚI!)") : "");
 
-            DrawText(st0.c_str(), 1280 / 2 - 150, 226, 22, hCol);
-            DrawText(st1.c_str(), 1280 / 2 - 150, 260, 22, RAYWHITE);
-            DrawText(st2.c_str(), 1280 / 2 - 150, 295, 22, RAYWHITE);
-            DrawText(st3.c_str(), 1280 / 2 - 150, 330, 22, RAYWHITE);
-            DrawText(st4.c_str(), 1280 / 2 - 150, 365, 22, GOLD);
-            DrawText(st5.c_str(), 1280 / 2 - 150, 400, 22, newRecord ? GREEN : SKYBLUE);
+            DrawText(st0.c_str(), 1280 / 2 - 150, 186, 21, hCol);
+            DrawText(st1.c_str(), 1280 / 2 - 150, 217, 21, RAYWHITE);
+            DrawText(st2.c_str(), 1280 / 2 - 150, 248, 21, RAYWHITE);
+            DrawText(st3.c_str(), 1280 / 2 - 150, 279, 21, RAYWHITE);
+            DrawText(st4.c_str(), 1280 / 2 - 150, 310, 21, GOLD);
+            DrawText(st5.c_str(), 1280 / 2 - 150, 341, 21, newRecord ? GREEN : SKYBLUE);
             if (bestCombo >= 2) {
                 std::string st6 = std::string(L("Best Combo: x", "Combo Cao Nhất: x")) + std::to_string(bestCombo);
-                DrawText(st6.c_str(), 1280 / 2 - 150, 428, 22, ORANGE);
+                DrawText(st6.c_str(), 1280 / 2 - 150, 372, 21, ORANGE);
             }
 
-            std::string st7 = "Souls earned: +" + std::to_string(lastRunSouls) + "   (total " + std::to_string(souls) + ")";
-            DrawText(st7.c_str(), 1280 / 2 - 140, 458, 22, { 190, 225, 255, 255 });
+            std::string st7 = std::string(L("Souls earned: +", "Linh Hồn nhận: +")) + std::to_string(lastRunSouls) + L("   (total ", "   (tổng ") + std::to_string(souls) + ")";
+            DrawText(st7.c_str(), 1280 / 2 - 150, 403, 21, { 190, 225, 255, 255 });
 
-            // nút PLAY AGAIN / CHANGE HERO / SANCTUARY được vẽ bởi DrawButtons()
+            // nút CONTINUE AS HEIR / PLAY AGAIN / CHANGE HERO / SANCTUARY được vẽ bởi DrawButtons()
         }
 
+        if (state == SURFACE_UI) DrawSurfaceUi();
+        if (state == FAMILY_TREE) DrawFamilyTreeScreen();
         if (state == INVENTORY) DrawInventory();
         if (state == SETTINGS) DrawSettingsScreen();
         if (state == SHOP) DrawShopScreen();
