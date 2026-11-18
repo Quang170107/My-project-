@@ -434,7 +434,7 @@ struct Enemy {
     bool isMinion = false;     // quái phụ: không rơi trang bị, ít XP
     int splitLevel = 0;        // Splitter: 0 = bản lớn, 1 = mảnh nhỏ
     float summonTimer = 3.0f;  // Summoner: đếm ngược triệu hồi; Colossus: đếm số đòn
-    int bossKind = 0;          // 0 = Void Sovereign, 1 = Molten Colossus
+    int bossKind = 0;          // 0 = Void Sovereign, 1 = Molten Colossus, 2 = Frost Dragon Archon
     bool isGoldenGoblin = false; // Yêu Tinh Vàng chạy trốn rơi kho báu
     float reactionCooldown = 0.0f; // Hồi chiêu phản ứng nguyên tố trên mục tiêu
     float escapeTimer = 18.0f; // Thời gian trước khi Yêu Tinh Vàng biến mất
@@ -728,6 +728,7 @@ struct Chest {
     bool opened = false;
     float anim = 0.0f;
     bool vault = false; // rương trong kho báu: chắc chắn có trang bị tốt
+    bool cursed = false; // rương nguyền rủa: triệu hồi tinh anh, thưởng Linh Thú & đồ xịn
 };
 
 struct ArenaBarrel {

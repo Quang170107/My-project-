@@ -15,7 +15,7 @@ inline void Game::DrawEnemyBody(const Enemy& e) {
     else if (e.type == SUMMONER) base = { 96, 60, 168, 255 };
     else if (e.type == RANGER) base = { 228, 72, 88, 255 };
     else if (e.type == BRUTE) base = e.isWarden ? Color{ 214, 156, 62, 255 } : Color{ 146, 92, 206, 255 };
-    else if (e.type == BOSS) base = (e.bossKind == 1) ? (e.enraged ? Color{ 205, 62, 30, 255 } : Color{ 165, 78, 44, 255 }) : (e.enraged ? Color{ 150, 40, 70, 255 } : Color{ 88, 46, 142, 255 });
+    else if (e.type == BOSS) base = (e.bossKind == 1) ? (e.enraged ? Color{ 205, 62, 30, 255 } : Color{ 165, 78, 44, 255 }) : (e.bossKind == 2 ? (e.enraged ? Color{ 45, 165, 235, 255 } : Color{ 58, 132, 205, 255 }) : (e.enraged ? Color{ 150, 40, 70, 255 } : Color{ 88, 46, 142, 255 }));
     else if (e.type == BOMBER) base = { 255, 140, 38, 255 };
     else if (e.type == CHARGER) base = { 205, 120, 66, 255 };
     if (e.isGoldenGoblin) base = { 255, 210, 55, 255 };
@@ -61,7 +61,7 @@ inline void Game::DrawEnemyBody(const Enemy& e) {
     }
     if (e.type == BOSS) {
         float k = 0.5f + 0.5f * sinf(t * 3.0f);
-        Color aura = (e.bossKind == 1) ? (e.enraged ? Color{ 255, 90, 30, 255 } : Color{ 255, 150, 50, 255 }) : (e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 170, 80, 255, 255 });
+        Color aura = (e.bossKind == 1) ? (e.enraged ? Color{ 255, 90, 30, 255 } : Color{ 255, 150, 50, 255 }) : (e.bossKind == 2 ? (e.enraged ? Color{ 120, 245, 255, 255 } : Color{ 80, 205, 255, 255 }) : (e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 170, 80, 255, 255 }));
         DrawPolyLinesEx(c, 8, r * 1.38f, t * 22.0f, 2.0f, Fade(aura, 0.25f + 0.15f * k));
         DrawPolyLinesEx(c, 8, r * 1.18f, -t * 18.0f, 1.5f, Fade(aura, 0.35f + 0.15f * k));
         for (int i = 0; i < 4; ++i) {
@@ -286,6 +286,60 @@ inline void Game::DrawEnemyBody(const Enemy& e) {
             float fh = r * (0.44f - 0.04f * abs(i)) * fl + 6.0f;
             Tri({ fx - 5.5f, fy }, { fx + 5.5f, fy }, { fx, fy - fh }, { 255, 130, 35, 255 });
             Tri({ fx - 2.6f, fy }, { fx + 2.6f, fy }, { fx, fy - fh * 0.62f }, { 255, 240, 140, 255 });
+        }
+    } else if (e.type == BOSS && e.bossKind == 2) {
+        // BĂNG LONG ĐẾ QUÂN (Frost Dragon Archon): Cánh rồng băng vỗ 3 khớp, sừng pha lê, vòng tinh thể tuyết
+        float flap = sinf(t * 3.2f) * r * 0.28f;
+        float hover = sinf(t * 2.4f) * 3.5f;
+        Vector2 bc = { c.x, c.y + hover };
+        Color iceDark = Shade(base, 0.52f);
+        Color iceHi = { 165, 240, 255, 255 };
+        Color iceCore = { 235, 252, 255, 255 };
+        // Đôi cánh rồng băng khổng lồ vỗ động
+        for (int s2 = -1; s2 <= 1; s2 += 2) {
+            Vector2 root = { bc.x + s2 * r * 0.42f, bc.y - r * 0.18f };
+            Vector2 mid = { bc.x + s2 * r * 1.15f, bc.y - r * 0.85f + flap * 0.6f };
+            Vector2 tip = { bc.x + s2 * r * 1.72f, bc.y - r * 0.35f + flap };
+            Vector2 low1 = { bc.x + s2 * r * 1.32f, bc.y + r * 0.38f + flap * 0.5f };
+            Vector2 low2 = { bc.x + s2 * r * 0.72f, bc.y + r * 0.42f };
+            Tri(root, mid, low2, Fade(base, 0.85f));
+            Tri(mid, tip, low1, Fade(iceDark, 0.88f));
+            Tri(root, mid, low1, Fade(iceHi, 0.42f));
+            DrawLineEx(root, mid, 3.8f, iceHi);
+            DrawLineEx(mid, tip, 3.2f, WHITE);
+        }
+        // Đuôi rồng băng cong uốn lượn
+        for (int ti = 0; ti < 3; ++ti) {
+            float tx = bc.x - face * r * (0.35f + ti * 0.32f);
+            float ty = bc.y + r * (0.45f + ti * 0.22f) + sinf(t * 4.0f + ti) * 4.0f;
+            Diamond({ tx, ty }, r * (0.28f - ti * 0.05f), r * (0.20f - ti * 0.03f), iceDark, iceHi);
+        }
+        // Thân giáp vảy rồng + lõi băng tim
+        QuadOut({ bc.x - r * 0.68f, bc.y - r * 0.38f }, { bc.x + r * 0.68f, bc.y - r * 0.38f },
+                { bc.x + r * 0.44f, bc.y + r * 0.54f }, { bc.x - r * 0.44f, bc.y + r * 0.54f }, base, ink, 2.2f);
+        QuadOut({ bc.x - r * 0.42f, bc.y - r * 0.26f }, { bc.x + r * 0.42f, bc.y - r * 0.26f },
+                { bc.x + r * 0.26f, bc.y + r * 0.38f }, { bc.x - r * 0.26f, bc.y + r * 0.38f }, iceDark, iceHi, 1.4f);
+        Diamond({ bc.x, bc.y + r * 0.05f }, r * 0.22f, r * 0.32f, iceCore, iceHi);
+        for (int s2 = -1; s2 <= 1; s2 += 2) {
+            BoxRot({ bc.x + s2 * r * 0.72f, bc.y - r * 0.30f }, r * 0.44f, r * 0.36f, s2 * 22.0f, iceHi, ink, 1.8f);
+        }
+        // Đầu Băng Long + 2 sừng pha lê + vương miện băng
+        Vector2 hc = { bc.x, bc.y - r * 0.62f };
+        for (int s2 = -1; s2 <= 1; s2 += 2) {
+            Tri({ hc.x + s2 * r * 0.22f, hc.y - r * 0.18f }, { hc.x + s2 * r * 0.42f, hc.y - r * 0.08f }, { hc.x + s2 * r * 0.96f, hc.y - r * 0.92f }, iceCore);
+            DrawLineEx({ hc.x + s2 * r * 0.32f, hc.y - r * 0.14f }, { hc.x + s2 * r * 0.96f, hc.y - r * 0.92f }, 2.0f, WHITE);
+        }
+        QuadOut({ hc.x - r * 0.42f, hc.y - r * 0.32f }, { hc.x + r * 0.42f, hc.y - r * 0.32f },
+                { hc.x + r * 0.30f, hc.y + r * 0.28f }, { hc.x - r * 0.30f, hc.y + r * 0.28f }, iceDark, ink, 2.0f);
+        Diamond({ hc.x, hc.y - r * 0.45f }, r * 0.18f, r * 0.28f, WHITE, iceHi);
+        Color eyeC = e.enraged ? Color{ 255, 110, 130, 255 } : iceCore;
+        for (int s2 = -1; s2 <= 1; s2 += 2) {
+            BoxRot({ hc.x + s2 * r * 0.18f, hc.y + r * 0.02f }, r * 0.20f, r * 0.09f, -s2 * 16.0f, eyeC, ink, 1.0f);
+        }
+        // 6 tinh thể tuyết xoay quanh
+        for (int bi = 0; bi < 6; ++bi) {
+            float a = t * 2.2f + bi * (PI / 3.0f);
+            Diamond({ bc.x + cosf(a) * r * 1.15f, bc.y + sinf(a) * r * 0.82f }, 4.5f, 6.5f, WHITE, iceHi);
         }
     } else if (e.type == BOSS) {
         // THE VOID SOVEREIGN: Hoàng đế Hư Không - 3 cặp cánh kiếm nổi, hào quang sau đầu, áo choàng, vương miện
@@ -847,6 +901,25 @@ inline void Game::DrawPlayerSprite() {
     if (nextHitCrit || (hasEquip[SLOT_WEAPON] && equipPlus[SLOT_WEAPON] > 0)) {
         DrawPolyLinesEx({ player.pos.x, player.pos.y + 14.0f }, 6, 24.0f, tm * 45.0f, 1.5f, Fade(GOLD, 0.55f));
     }
+    if (overdriveTimer > 0.0f || player.ultActiveTimer > 0.0f) {
+        // Đôi Cánh Ánh Sáng 2.5D bung sau lưng khi Bùng Nổ Linh Hồn hoặc Tuyệt Kỹ
+        Color wCol = (overdriveTimer > 0.0f) ? GOLD : HeroColor();
+        float flap = sinf(tm * 9.0f) * 5.0f;
+        BeginBlendMode(BLEND_ADDITIVE);
+        CircleGrad(player.pos.x, player.pos.y - 4.0f, 44.0f, Fade(wCol, 0.34f), Fade(wCol, 0.0f));
+        for (int s2 = -1; s2 <= 1; s2 += 2) {
+            for (int f = 0; f < 3; ++f) {
+                float len = 36.0f - f * 7.0f;
+                float yOff = -14.0f + f * 7.5f + flap * (1.0f - f * 0.25f);
+                Vector2 root = { player.pos.x + s2 * 5.0f, player.pos.y - 3.0f + f * 3.0f };
+                Vector2 tip = { player.pos.x + s2 * len, player.pos.y + yOff };
+                Vector2 low = { player.pos.x + s2 * (len * 0.58f), player.pos.y + yOff + 10.0f };
+                Tri(root, tip, low, Fade(wCol, 0.65f));
+                DrawLineEx(root, tip, 2.0f, Fade(WHITE, 0.85f));
+            }
+        }
+        EndBlendMode();
+    }
     DrawHeroModel(player.pos, player.heroClass, wt, aimDirDraw, player.facingLeft, player.walkTimer, moving, off, player.isInvuln, player.shieldActive, player.holyBuffTimer, player.ultActiveTimer, player.subClass, player.swordOrbitTimer);
     if (hasEquip[SLOT_WEAPON] && equipPlus[SLOT_WEAPON] > 0) {
         int cnt = std::min(5, equipPlus[SLOT_WEAPON]);
@@ -861,9 +934,9 @@ inline void Game::DrawPlayerSprite() {
 inline void Game::DrawChest(const Chest& c) {
     float t = (float)GetTime();
     Vector2 p = c.pos;
-    float s = c.vault ? 1.25f : 1.0f;
-    Color wood = c.vault ? Color{ 110, 56, 140, 255 } : Color{ 150, 96, 52, 255 };
-    Color band = c.vault ? Color{ 255, 224, 120, 255 } : Color{ 232, 190, 70, 255 };
+    float s = c.vault ? 1.25f : (c.cursed ? 1.15f : 1.0f);
+    Color wood = c.vault ? Color{ 110, 56, 140, 255 } : (c.cursed ? Color{ 58, 24, 52, 255 } : Color{ 150, 96, 52, 255 });
+    Color band = c.vault ? Color{ 255, 224, 120, 255 } : (c.cursed ? Color{ 235, 55, 85, 255 } : Color{ 232, 190, 70, 255 });
     DrawEllipse((int)p.x, (int)p.y + 18, 28.0f * s, 9.0f * s, Fade(BLACK, 0.38f));
     if (!c.opened) {
         BeginBlendMode(BLEND_ADDITIVE);
@@ -882,6 +955,13 @@ inline void Game::DrawChest(const Chest& c) {
         DrawRectangle((int)(p.x - 21 * s), (int)(p.y - 14 * s), (int)(42 * s), (int)(10 * s), Shade(wood, 1.15f));
         DrawRectangle((int)(p.x - 23 * s), (int)(p.y - 8 * s), (int)(46 * s), (int)(3 * s), band);
         DrawRectangle((int)(p.x - 4 * s), (int)(p.y - 6 * s), (int)(8 * s), (int)(8 * s), { 70, 50, 20, 255 });
+        if (c.cursed) {
+            DrawLineEx({ p.x - 21 * s, p.y - 15 * s }, { p.x + 21 * s, p.y + 15 * s }, 2.2f, band);
+            DrawLineEx({ p.x + 21 * s, p.y - 15 * s }, { p.x - 21 * s, p.y + 15 * s }, 2.2f, band);
+            Diamond({ p.x, p.y - 2 * s }, 5.0f, 6.5f, RED, GOLD);
+            const char* cLbl = L("CURSED CHEST", "RƯƠNG NGUYỀN RỦA");
+            DrawText(cLbl, (int)p.x - MeasureText(cLbl, 12) / 2, (int)(p.y + 22 * s), 12, { 255, 110, 130, 255 });
+        }
     } else {
         float lift = c.anim * 16.0f * s;
         DrawRectangle((int)(p.x - 21 * s), (int)(p.y - 28 * s - lift * 0.3f), (int)(42 * s), (int)(10 * s), Shade(wood, 0.8f));

@@ -762,6 +762,22 @@ inline void Game::BuyNobleTitleDirect() {
                  "SẮC PHONG QUÝ TỘC THÀNH CÔNG! (+Chỉ số, +25% Vàng, Giảm giá 30-50%)"), 4.0f);
 }
 
+inline void Game::ApplyEquipEnhanceStep(int s) {
+    if (s < 0 || s >= 4 || !hasEquip[s] || equipPlus[s] >= 5) return;
+    ApplyItem(equipped[s], -1.0f);
+    if (equipped[s].damage > 0) equipped[s].damage = roundf(equipped[s].damage * 1.22f + 1.0f);
+    if (equipped[s].maxHp > 0) equipped[s].maxHp = roundf(equipped[s].maxHp * 1.22f + 3.0f);
+    if (equipped[s].armor > 0) equipped[s].armor = R1(equipped[s].armor * 1.22f + 0.5f);
+    if (equipped[s].attackRate > 0) equipped[s].attackRate = R1(equipped[s].attackRate * 1.12f + 0.05f);
+    if (equipped[s].crit > 0) equipped[s].crit = std::min(0.35f, equipped[s].crit + 0.02f);
+    equipPlus[s]++;
+    ApplyItem(equipped[s], 1.0f);
+    PlaySound(snd.sndLevelUp);
+    Burst(player.pos, GOLD, 24, 240.0f, 0.6f);
+    ShowBanner(TextFormat(L("FORGED %s TO +%d!", "CƯỜNG HÓA %s LÊN +%d THÀNH CÔNG!"),
+                          equipped[s].name.c_str(), equipPlus[s]), 3.0f);
+}
+
 inline void Game::ReforgeEquipSlot(int s) {
     if (s < 0 || s >= 4 || !hasEquip[s]) {
         ShowBanner(L("No gear equipped in that slot!", "Chưa mặc trang bị ở ô này!"), 2.0f);
@@ -781,19 +797,8 @@ inline void Game::ReforgeEquipSlot(int s) {
     }
     player.gold -= goldCost;
     bossEssence -= essCost;
-    ApplyItem(equipped[s], -1.0f);
-    if (equipped[s].damage > 0) equipped[s].damage = roundf(equipped[s].damage * 1.22f + 1.0f);
-    if (equipped[s].maxHp > 0) equipped[s].maxHp = roundf(equipped[s].maxHp * 1.22f + 3.0f);
-    if (equipped[s].armor > 0) equipped[s].armor = R1(equipped[s].armor * 1.22f + 0.5f);
-    if (equipped[s].attackRate > 0) equipped[s].attackRate = R1(equipped[s].attackRate * 1.12f + 0.05f);
-    if (equipped[s].crit > 0) equipped[s].crit = std::min(0.35f, equipped[s].crit + 0.02f);
-    equipPlus[s]++;
-    ApplyItem(equipped[s], 1.0f);
     AdvanceTime(1.0f);
-    PlaySound(snd.sndLevelUp);
-    Burst(player.pos, GOLD, 24, 240.0f, 0.6f);
-    ShowBanner(TextFormat(L("FORGED %s TO +%d!", "CƯỜNG HÓA %s LÊN +%d THÀNH CÔNG!"),
-                          equipped[s].name.c_str(), equipPlus[s]), 3.0f);
+    ApplyEquipEnhanceStep(s);
 }
 
 inline void Game::AcceptOrClaimBounty() {

@@ -83,6 +83,25 @@ inline void Game::UpdateChests(float dt) {
                 d.phase = Rand01() * 6.0f;
                 itemDrops.push_back(d);
             }
+            if (c.cursed) { // Rương Nguyền Rủa: thả đồ hiếm + Linh Thú Hộ Vệ, triệu hồi Tinh Anh hộ vệ
+                ItemDrop d;
+                d.item = GenerateItem(floor + 2, ClassWeaponType(player.heroClass), LifestealScale());
+                for (int tries = 0; tries < 30 && d.item.rarity < 1; ++tries) d.item = GenerateItem(floor + 2, ClassWeaponType(player.heroClass), LifestealScale());
+                d.pos = { c.pos.x, c.pos.y + 48.0f };
+                d.life = 90.0f;
+                d.phase = Rand01() * 6.0f;
+                itemDrops.push_back(d);
+                GrantOrUpgradeFamiliar();
+                Enemy guard = BuildEnemy(BRUTE, { c.pos.x + (c.pos.x >= 0 ? -55.0f : 55.0f), c.pos.y });
+                guard.isElite = true;
+                guard.eliteAffix = 1 + (rand() % 4);
+                guard.maxHp *= 0.85f;
+                guard.hp = guard.maxHp;
+                enemies.push_back(guard);
+                NovaVisual nv; nv.pos = guard.pos; nv.maxRadius = 90.0f; nv.timer = 0.35f; nv.maxTimer = 0.35f; nv.color = RED;
+                novas.push_back(nv);
+                Burst(c.pos, RED, 28, 300.0f, 0.7f);
+            }
         }
     }
 }

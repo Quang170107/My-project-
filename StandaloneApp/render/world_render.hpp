@@ -338,7 +338,7 @@ inline void Game::RenderLightmap() {
         AddLight(nv.pos, nv.radius * 1.4f + 60.0f, nv.color, 0.55f * k);
     }
     for (const auto& d : itemDrops) AddLight(d.pos, 90.0f, d.item.RarityColor(), 0.55f);
-    for (const auto& ch : chests) if (!ch.opened) AddLight(ch.pos, ch.vault ? 150.0f : 110.0f, { 255, 214, 90, 255 }, 0.5f);
+    for (const auto& ch : chests) if (!ch.opened) AddLight(ch.pos, ch.vault ? 150.0f : (ch.cursed ? 135.0f : 110.0f), ch.cursed ? Color{ 245, 55, 95, 255 } : Color{ 255, 214, 90, 255 }, 0.5f);
     if (shopFloor) AddLight(merchantPos, 240.0f, { 255, 190, 100, 255 }, 0.6f);
     for (const auto& l : loots) {
         Color lc = (l.type == 1) ? Color{ 255, 215, 60, 255 } : (l.type == 2 ? Color{ 255, 100, 130, 255 } : Color{ 90, 200, 255, 255 });
@@ -348,7 +348,7 @@ inline void Game::RenderLightmap() {
         if (e.hp <= 0) continue;
         if (e.type == BOMBER && e.fusing) AddLight(e.pos, 170.0f, { 255, 90, 40, 255 }, 0.55f + 0.25f * sinf(e.fuseTimer * 40.0f));
         else if (e.burnTimer > 0) AddLight(e.pos, 90.0f, { 255, 140, 40, 255 }, 0.5f);
-        else if (e.type == BOSS) AddLight(e.pos, 260.0f, (e.bossKind == 1) ? Color{ 255, 140, 50, 255 } : (e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 170, 90, 255, 255 }), 0.5f);
+        else if (e.type == BOSS) AddLight(e.pos, 260.0f, (e.bossKind == 1) ? Color{ 255, 140, 50, 255 } : (e.bossKind == 2 ? Color{ 95, 220, 255, 255 } : (e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 170, 90, 255, 255 })), 0.5f);
         else if (e.isElite || e.isWarden) AddLight(e.pos, 110.0f, { 255, 215, 100, 255 }, 0.4f);
     }
 
@@ -868,6 +868,25 @@ inline void Game::DrawSurfaceWorld(const BiomeColors& biome) {
     else if (surfaceRoom == 3) DrawSurfaceFamilyHomeRoom(biome, tm);
     else if (surfaceRoom == 4) DrawSurfacePalaceRoom(biome, tm);
     else DrawSurfaceTownSquare(biome, tm);
+}
+
+inline void Game::DrawFamiliarSprite() {
+    if (familiarKind <= 0 || inSurface) return;
+    float t = (float)GetTime();
+    Color fc = FamiliarColor();
+    float bob = sinf(t * 6.5f) * 3.0f;
+    float wing = sinf(t * 14.0f) * 5.0f;
+    Vector2 fp = { familiarPos.x, familiarPos.y + bob };
+    DrawEllipse((int)familiarPos.x, (int)familiarPos.y + 20, 12.0f, 4.5f, Fade(BLACK, 0.32f));
+    BeginBlendMode(BLEND_ADDITIVE);
+    CircleGrad(fp.x, fp.y, 24.0f + familiarRank * 3.0f, Fade(fc, 0.36f), Fade(fc, 0.0f));
+    EndBlendMode();
+    // Đôi cánh Linh Thú + thân tinh thể + hào quang cấp độ
+    Tri({ fp.x - 4.0f, fp.y }, { fp.x - 16.0f - familiarRank * 2.0f, fp.y - 7.0f + wing }, { fp.x - 11.0f, fp.y + 6.0f }, Fade(fc, 0.85f));
+    Tri({ fp.x + 4.0f, fp.y }, { fp.x + 16.0f + familiarRank * 2.0f, fp.y - 7.0f + wing }, { fp.x + 11.0f, fp.y + 6.0f }, Fade(fc, 0.85f));
+    Diamond(fp, 7.5f + familiarRank, 9.0f + familiarRank, fc, WHITE);
+    Diamond({ fp.x, fp.y - 3.0f }, 3.5f, 3.5f, WHITE, fc);
+    DrawPolyLinesEx(fp, 6, 13.0f + familiarRank * 2.0f, t * 70.0f, 1.3f, Fade(GOLD, 0.45f));
 }
 
 inline void Game::Draw() {
@@ -1484,6 +1503,7 @@ inline void Game::Draw() {
         }
     }
     DrawPartyChildren(); // con cái theo cha rèn luyện
+    DrawFamiliarSprite(); // Linh Thú Hộ Vệ
     DrawEllipse((int)player.pos.x, (int)player.pos.y + 16, 20, 8, { 0, 0, 0, 100 }); // Shadow
     DrawPlayerSprite();
 
@@ -1701,42 +1721,53 @@ inline void Game::Draw() {
     if (comboCount > 1 && !inSurface) {
         std::string comboStr = "COMBO x" + std::to_string(comboCount) + "!";
         Color cCol = comboCount >= 20 ? RED : (comboCount >= 10 ? ORANGE : YELLOW);
-        DrawText(comboStr.c_str(), 1280 - 240, 154, 26, cCol);
+        DrawText(comboStr.c_str(), 1280 - 258, 154, 26, cCol);
         if (comboCount >= 10) {
-            DrawText(L("FRENZY OVERDRIVE!", "CUỒNG NỘ BÙNG NỔ!"), 1280 - 240, 182, 14, GOLD);
-            DrawText(L("+20% ATK SPD  +18% SPD", "+20% Tốc Đánh  +18% Chạy"), 1280 - 240, 198, 12, { 255, 200, 110, 255 });
+            DrawText(L("FRENZY OVERDRIVE!", "CUỒNG NỘ BÙNG NỔ!"), 1280 - 258, 182, 14, GOLD);
+            DrawText(L("+20% ATK SPD  +18% SPD", "+20% Tốc Đánh  +18% Chạy"), 1280 - 258, 198, 12, { 255, 200, 110, 255 });
         }
     }
 
-    // Style Rank Badge (D..SSS), Perfect Dodge / Next Crit & Boss Essence / Bounty
+    // Style Rank Badge (D..SSS), Perfect Dodge / Next Crit, Overdrive, Familiar & Boss Essence / Bounty
     if (!inSurface) {
         Color sCol = StyleRankColor();
-        DrawRectangle(1280 - 240, 218, 218, 44, { 14, 18, 30, 210 });
-        DrawRectangleLines(1280 - 240, 218, 218, 44, sCol);
-        DrawText(StyleRankLabel(), 1280 - 228, 224, 28, sCol);
-        DrawText(TextFormat(L("STYLE  +%d%% ATK  +%d%% LOOT", "PHONG ĐỘ  +%d%% ĐÁNH  +%d%% RƠI"),
+        DrawRectangle(1280 - 258, 218, 244, 44, { 14, 18, 30, 210 });
+        DrawRectangleLines(1280 - 258, 218, 244, 44, sCol);
+        DrawText(StyleRankLabel(), 1280 - 248, 224, 28, sCol);
+        DrawText(TextFormat(L("STYLE +%d%% ATK  +%d%% LOOT", "PHONG ĐỘ +%d%% ĐÁNH  +%d%% RƠI"),
                             (int)roundf(styleRank * 3.5f), styleRank * 6),
-                 1280 - 180, 224, 12, RAYWHITE);
-        DrawRectangle(1280 - 180, 244, 146, 8, { 28, 34, 52, 255 });
-        DrawRectangle(1280 - 180, 244, (int)(146.0f * Clamp(stylePoints / 100.0f, 0.0f, 1.0f)), 8, sCol);
+                 1280 - 196, 224, 12, RAYWHITE);
+        DrawRectangle(1280 - 196, 244, 170, 8, { 28, 34, 52, 255 });
+        DrawRectangle(1280 - 196, 244, (int)(170.0f * Clamp(stylePoints / 100.0f, 0.0f, 1.0f)), 8, sCol);
         int hyRight = 268;
         if (nextHitCrit) {
-            DrawText(L("SHADOW CRIT READY!", "SẴN SÀNG CHÍ MẠNG!"), 1280 - 240, hyRight, 14, GOLD);
+            DrawText(L("SHADOW CRIT READY!", "SẴN SÀNG CHÍ MẠNG!"), 1280 - 258, hyRight, 14, GOLD);
             hyRight += 18;
         }
+        if (overdriveTimer > 0.0f) {
+            DrawText(TextFormat(L("SOUL OVERDRIVE! (%.1fs)", "BÙNG NỔ LINH HỒN! (%.1fs)"), overdriveTimer),
+                     1280 - 258, hyRight, 13, { 255, 230, 115, 255 });
+            hyRight += 17;
+        }
         if (bossEssence > 0) {
-            DrawText(TextFormat(L("Boss Essence: %d", "Tinh Hoa Trùm: %d"), bossEssence), 1280 - 240, hyRight, 13, { 235, 165, 255, 255 });
+            DrawText(TextFormat(L("Boss Essence: %d  [B] Forge", "Tinh Hoa Trùm: %d  [B] Rèn"), bossEssence),
+                     1280 - 258, hyRight, 13, { 235, 165, 255, 255 });
+            hyRight += 17;
+        }
+        if (familiarKind > 0) {
+            DrawText(TextFormat("%s (Lv.%d)", FamiliarName(), familiarRank),
+                     1280 - 258, hyRight, 13, FamiliarColor());
             hyRight += 17;
         }
         if (activeRune > 0) {
             const char* rBuf = (activeRune == 3 && runeBuffTimer > 0.0f) ? L(" [SURGE]", " [CUỒNG TỐC]") : "";
-            DrawText(TextFormat("%s (Lv.%d)%s", RuneName(), runeRank, rBuf), 1280 - 240, hyRight, 13, RuneColor());
+            DrawText(TextFormat("%s (Lv.%d)%s", RuneName(), runeRank, rBuf), 1280 - 258, hyRight, 13, RuneColor());
             hyRight += 17;
         }
         if (bountyActive) {
             const char* bDesc = (bountyKind == 0) ? L("Elites", "Tinh Anh") : (bountyKind == 1 ? L("Reactions", "Phản Ứng") : L("Boss/Goblin", "Trùm/Yêu Tinh"));
             DrawText(TextFormat(L("Bounty (%s): %d/%d", "Truy Nã (%s): %d/%d"), bDesc, bountyProgress, bountyTarget),
-                     1280 - 240, hyRight, 13, (bountyProgress >= bountyTarget) ? Color{ 120, 245, 150, 255 } : SKYBLUE);
+                     1280 - 258, hyRight, 13, (bountyProgress >= bountyTarget) ? Color{ 120, 245, 150, 255 } : SKYBLUE);
         }
     }
 
@@ -1774,7 +1805,11 @@ inline void Game::Draw() {
             int bw = 468, bx = 1280 / 2 - bw / 2, by = 78;
             float pct = std::max(0.0f, e.hp / std::max(1.0f, e.maxHp));
             float lag = Clamp(bossHpLag, pct, 1.0f);
-            Color bCol = (e.bossKind == 1) ? (e.enraged ? Color{ 255, 90, 30, 255 } : Color{ 255, 150, 40, 255 }) : (e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 190, 60, 200, 255 });
+            Color bCol = (e.bossKind == 2)
+                ? (e.enraged ? Color{ 125, 235, 255, 255 } : Color{ 65, 195, 255, 255 })
+                : ((e.bossKind == 1)
+                    ? (e.enraged ? Color{ 255, 90, 30, 255 } : Color{ 255, 150, 40, 255 })
+                    : (e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 190, 60, 200, 255 }));
             DrawRectangle(bx - 4, by - 3, bw + 8, 32, { 10, 12, 22, 235 });
             DrawRectangle(bx, by, (int)(bw * lag), 17, { 245, 225, 225, 210 });
             DrawRectangle(bx, by, (int)(bw * pct), 17, bCol);
@@ -1783,9 +1818,11 @@ inline void Game::Draw() {
             DrawRectangleLinesEx({ (float)bx - 4, (float)by - 3, (float)bw + 8, 23.0f }, 1.8f, GOLD);
             Diamond({ (float)bx - 4, (float)by + 8.5f }, 4.5f, 4.5f, GOLD, WHITE);
             Diamond({ (float)bx + bw + 4, (float)by + 8.5f }, 4.5f, 4.5f, GOLD, WHITE);
-            const char* nm = (e.bossKind == 1)
-                ? (e.enraged ? L("THE MOLTEN COLOSSUS - ENRAGED", "KHỔNG LỒ DUNG NHAM - CUỒNG NỘ") : L("THE MOLTEN COLOSSUS", "KHỔNG LỒ DUNG NHAM"))
-                : (e.enraged ? L("THE VOID SOVEREIGN - ENRAGED", "CHÚA TỂ HƯ KHÔNG - CUỒNG NỘ") : L("THE VOID SOVEREIGN", "CHÚA TỂ HƯ KHÔNG"));
+            const char* nm = (e.bossKind == 2)
+                ? (e.enraged ? L("THE FROST DRAGON ARCHON - ENRAGED", "BĂNG LONG ĐẾ QUÂN - CUỒNG NỘ") : L("THE FROST DRAGON ARCHON", "BĂNG LONG ĐẾ QUÂN"))
+                : ((e.bossKind == 1)
+                    ? (e.enraged ? L("THE MOLTEN COLOSSUS - ENRAGED", "KHỔNG LỒ DUNG NHAM - CUỒNG NỘ") : L("THE MOLTEN COLOSSUS", "KHỔNG LỒ DUNG NHAM"))
+                    : (e.enraged ? L("THE VOID SOVEREIGN - ENRAGED", "CHÚA TỂ HƯ KHÔNG - CUỒNG NỘ") : L("THE VOID SOVEREIGN", "CHÚA TỂ HƯ KHÔNG")));
             DrawText(nm, 1280 / 2 - MeasureText(nm, 14) / 2, by + 1, 14, WHITE);
 
             // Thanh Phá Giáp Boss

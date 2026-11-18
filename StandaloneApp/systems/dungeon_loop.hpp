@@ -152,6 +152,8 @@ inline float Game::EffectiveMoveSpeed() const {
     }
     if (comboCount >= 10) s *= 1.18f; // Frenzy Overdrive
     if (runeBuffTimer > 0.0f && activeRune == 3) s *= 1.15f;
+    if (familiarKind == 3) s *= (1.0f + 0.05f * familiarRank); // Lôi Ưng Thần Tốc: +5%/cấp
+    if (overdriveTimer > 0.0f) s *= 1.14f; // Bùng Nổ Linh Hồn
     if (!inSurface && weatherKind == 3) s *= 0.96f; // Frost Mist
     if (player.frostSlowTimer > 0.0f) s *= 0.72f;
     if (surfaceUnlocked && hunger < 25.0f) s *= 0.90f;
@@ -275,6 +277,124 @@ inline void Game::UseRunicAnvil() {
     NovaVisual nv; nv.pos = runicAnvilPos; nv.maxRadius = 110.0f; nv.timer = 0.35f; nv.maxTimer = 0.35f; nv.color = RuneColor();
     novas.push_back(nv);
     ShowBanner(TextFormat(L("RUNIC ANVIL FORGED: %s (Lv.%d)!", "ĐÀI RÈN CỔ NGỮ: %s (Cấp %d)!"), RuneName(), runeRank), 3.4f);
+}
+
+inline const char* Game::FamiliarName() const {
+    switch (familiarKind) {
+        case 1: return L("Solar Phoenix", "Linh Điểu Phượng Hoàng");
+        case 2: return L("Frost Wyrm", "Băng Long Tinh Linh");
+        case 3: return L("Storm Falcon", "Lôi Ưng Thần Tốc");
+        case 4: return L("Void Wisp", "Hồn Ma Hư Không");
+        default: return L("None", "Chưa có");
+    }
+}
+
+inline Color Game::FamiliarColor() const {
+    switch (familiarKind) {
+        case 1: return ORANGE;
+        case 2: return SKYBLUE;
+        case 3: return { 120, 245, 170, 255 };
+        case 4: return { 205, 115, 255, 255 };
+        default: return GRAY;
+    }
+}
+
+inline void Game::GrantOrUpgradeFamiliar() {
+    if (familiarKind == 0) {
+        familiarKind = 1 + (rand() % 4);
+        familiarRank = 1;
+        familiarPos = player.pos;
+        familiarAtkTimer = 0.6f;
+        ShowBanner(TextFormat(L("SPIRIT FAMILIAR AWAKENED: %s (Lv.1)!", "THỨC TỈNH LINH THÚ: %s (Cấp 1)!"), FamiliarName()), 3.4f);
+    } else if (familiarRank < 3) {
+        familiarRank++;
+        ShowBanner(TextFormat(L("FAMILIAR ASCENDED: %s (Lv.%d)!", "LINH THÚ THĂNG CẤP: %s (Cấp %d)!"), FamiliarName(), familiarRank), 3.2f);
+    } else {
+        player.hp = std::min(player.maxHp, player.hp + 25.0f);
+        AddRage(25.0f);
+        SpawnPopup(player.pos, L("+25 HP & RAGE!", "+25 MÁU & NỘ!"), FamiliarColor());
+    }
+    PlaySound(snd.sndLevelUp);
+    Burst(familiarPos, FamiliarColor(), 26, 260.0f, 0.6f);
+}
+
+inline void Game::UpdateFamiliar(float dt) {
+    if (familiarKind <= 0 || inSurface) return;
+    familiarAngle += dt * 2.4f;
+    Vector2 targetPos = { player.pos.x + cosf(familiarAngle) * 44.0f, player.pos.y - 14.0f + sinf(familiarAngle) * 28.0f };
+    familiarPos = Vector2Lerp(familiarPos, targetPos, std::min(1.0f, dt * 9.0f));
+    familiarAtkTimer -= dt;
+    if (familiarAtkTimer > 0.0f) return;
+
+    float bestD = 380.0f;
+    Vector2 bestPos = { 0, 0 };
+    bool found = false;
+    for (const auto& e : enemies) {
+        if (e.hp <= 0) continue;
+        float d = Vector2Distance(familiarPos, e.pos);
+        if (d < bestD) { bestD = d; bestPos = e.pos; found = true; }
+    }
+    if (!found) { familiarAtkTimer = 0.2f; return; }
+
+    Vector2 dir = Vector2Normalize(Vector2Subtract(bestPos, familiarPos));
+    Projectile p;
+    p.pos = familiarPos;
+    p.fromPlayer = true;
+    p.life = 1.6f;
+    p.color = FamiliarColor();
+    if (familiarKind == 1) { // Solar Phoenix
+        p.kind = 4;
+        p.vel = Vector2Scale(dir, 460.0f);
+        p.damage = player.baseDmg * (0.42f + 0.12f * familiarRank);
+        p.radius = 7.5f;
+        p.applyBurn = true;
+        familiarAtkTimer = 1.55f;
+    } else if (familiarKind == 2) { // Frost Wyrm
+        p.kind = 2;
+        p.vel = Vector2Scale(dir, 440.0f);
+        p.damage = player.baseDmg * (0.38f + 0.11f * familiarRank);
+        p.radius = 7.0f;
+        p.applySlow = true;
+        p.pierce = 1;
+        familiarAtkTimer = 1.70f;
+    } else if (familiarKind == 3) { // Storm Falcon
+        p.kind = 5;
+        p.vel = Vector2Scale(dir, 460.0f);
+        p.damage = player.baseDmg * (0.36f + 0.10f * familiarRank);
+        p.radius = 6.5f;
+        familiarAtkTimer = 1.30f;
+    } else { // Void Wisp
+        p.kind = 5;
+        p.vel = Vector2Scale(dir, 440.0f);
+        p.damage = player.baseDmg * (0.40f + 0.10f * familiarRank);
+        p.radius = 7.0f;
+        familiarAtkTimer = 1.65f;
+        player.hp = std::min(player.maxHp, player.hp + 1.5f);
+        AddRage(2.0f);
+    }
+    projectiles.push_back(p);
+    Burst(familiarPos, p.color, 5, 110.0f, 0.25f);
+}
+
+inline void Game::QuickForgeWithEssence() {
+    if (bossEssence <= 0) {
+        ShowBanner(L("Need 1 Boss Essence ([B] Quick Forge)!", "Cần 1 Tinh Hoa Trùm để Rèn Nóng ([B])!"), 2.0f);
+        PlaySound(snd.sndHurt);
+        return;
+    }
+    int bestSlot = -1, minPlus = 99;
+    for (int i = 0; i < 4; ++i) {
+        if (hasEquip[i] && equipPlus[i] < 5 && equipPlus[i] < minPlus) {
+            minPlus = equipPlus[i];
+            bestSlot = i;
+        }
+    }
+    if (bestSlot < 0) {
+        ShowBanner(L("All equipped gear is already at +5 MAX!", "Toàn bộ trang bị đang mặc đã đạt +5 TỐI ĐA!"), 2.2f);
+        return;
+    }
+    bossEssence--;
+    ApplyEquipEnhanceStep(bestSlot);
 }
 
 inline void Game::TriggerElementalReaction(Enemy& e, int reactionKind, Vector2 pos) {
@@ -493,6 +613,12 @@ inline void Game::RestartRun() {
     activeRune = 0;
     runeRank = 0;
     runeBuffTimer = 0.0f;
+    familiarKind = 0;
+    familiarRank = 0;
+    familiarPos = player.pos;
+    familiarAngle = 0.0f;
+    familiarAtkTimer = 1.0f;
+    overdriveTimer = 0.0f;
     bloodlineTrait = hc % 4;
     if (bloodlineTrait == 0) { player.maxHp = roundf(player.maxHp * 1.08f); player.hp = player.maxHp; player.baseDmg = roundf(player.baseDmg * 1.05f); }
     else if (bloodlineTrait == 1) { player.critChance += 0.05f; }
@@ -983,7 +1109,7 @@ inline void Game::BuildFloor() {
         ResolvePillars(trialPos, 35.0f);
     }
 
-    // Rương: mỗi tầng 1 cái (2 cái ở tầng chia hết cho 3 hoặc kho báu), kho báu thêm rương trung tâm
+    // Rương: mỗi tầng 1 cái (2 cái ở tầng chia hết cho 3 hoặc kho báu), kho báu thêm rương trung tâm, tầng thường 2+ có Rương Nguyền Rủa
     chests.clear();
     {
         float cx = roomW / 2.0f - 80.0f, cy = roomH / 2.0f - 80.0f;
@@ -992,6 +1118,11 @@ inline void Game::BuildFloor() {
         chests.push_back(c1);
         if (chestCount >= 2) { Chest c2; c2.pos = { cx, -cy }; chests.push_back(c2); }
         if (floorMod == MOD_TREASURE) { Chest v; v.pos = { 0, 40 }; v.vault = true; chests.push_back(v); }
+        if (!isBoss && !shopFloor && floorMod != MOD_TREASURE && floor >= 2 && (floor % 2 == 1 || Rand01() < 0.45f)) {
+            Chest cc; cc.pos = { 0.0f, -85.0f }; cc.cursed = true;
+            ResolvePillars(cc.pos, 32.0f);
+            chests.push_back(cc);
+        }
     }
 
     // Bàn thờ máu: từ tầng 2, không phải tầng boss
@@ -1129,12 +1260,18 @@ inline Enemy Game::BuildEnemy(EnemyType type, Vector2 pos) {
         e.contactDmg = 8.0f * multDmg;
         e.radius = 17.0f;
     } else if (type == BOSS) {
-        e.bossKind = ((floor / 5) % 2 == 0) ? 1 : 0; // tầng 5, 15, 25: Void Sovereign; tầng 10, 20, 30: Molten Colossus
+        e.bossKind = std::max(0, ((floor / 5) - 1)) % 3; // Tầng 5: Void Sovereign (0), Tầng 10: Molten Colossus (1), Tầng 15: Frost Dragon Archon (2)
         if (e.bossKind == 1) {
             e.maxHp = 720.0f * multHp;
             e.speed = 106.0f;
             e.contactDmg = 28.0f * multDmg;
             e.radius = 48.0f;
+            e.summonTimer = 0.0f;
+        } else if (e.bossKind == 2) {
+            e.maxHp = 660.0f * multHp;
+            e.speed = 114.0f;
+            e.contactDmg = 26.0f * multDmg;
+            e.radius = 46.0f;
             e.summonTimer = 0.0f;
         } else {
             e.maxHp = 580.0f * multHp;
@@ -1223,6 +1360,7 @@ inline void Game::Update(float dt) {
     if (slowMoTimer > 0.0f) { slowMoTimer -= dt; dt *= 0.35f; }
     if (perfectDodgeTimer > 0.0f) perfectDodgeTimer -= dt;
     if (runeBuffTimer > 0.0f) runeBuffTimer -= dt;
+    if (overdriveTimer > 0.0f) overdriveTimer -= dt;
     if (lightningFlash > 0.0f) lightningFlash = std::max(0.0f, lightningFlash - dt * 2.8f);
     if (styleDecayTimer > 0.0f) {
         styleDecayTimer -= dt;
@@ -1666,6 +1804,9 @@ inline void Game::Update(float dt) {
     }
 
     // Basic Weapon Attack
+    if (IsKeyPressed(KEY_B) && !ctl.active) {
+        QuickForgeWithEssence();
+    }
     if (attackHeld && player.attackTimer <= 0 && !player.isDashing) {
         MeleeAttack(aimDir);
     }
@@ -1985,6 +2126,51 @@ inline void Game::Update(float dt) {
                     continue;
                 }
             }
+        } else if (e.type == BOSS && e.bossKind == 2) {
+            // Băng Long Đế Quân: Phun quạt Thương Băng & Bão Tuyết Tuyệt Đối
+            if (!e.enraged && e.hp <= e.maxHp * 0.5f) {
+                e.enraged = true;
+                e.speed *= 1.28f;
+                PlaySound(snd.sndFreeze);
+                Shake(0.4f, 8.0f);
+                ShowBanner(L("THE FROST DRAGON ARCHON ENRAGES!", "BĂNG LONG ĐẾ QUÂN CUỒNG NỘ!"));
+            }
+            e.attackTimer += dt;
+            float interval = e.enraged ? 1.55f : 2.15f;
+            if (e.attackTimer >= interval) {
+                e.attackTimer = 0.0f;
+                e.summonTimer += 1.0f;
+                PlaySound(snd.sndShoot);
+                float baseA = atan2f(dir.y, dir.x);
+                int fanCount = e.enraged ? 7 : 5;
+                float pSpd = 295.0f * ((!inSurface && weatherKind == 3) ? 0.88f : 1.0f);
+                for (int fi = 0; fi < fanCount; ++fi) {
+                    float a = baseA + (fi - (fanCount - 1) * 0.5f) * 0.16f;
+                    Projectile p;
+                    p.pos = Vector2Add(e.pos, { cosf(a) * 34.0f, sinf(a) * 34.0f });
+                    p.vel = { cosf(a) * pSpd, sinf(a) * pSpd };
+                    p.damage = e.contactDmg * 0.72f;
+                    p.fromPlayer = false;
+                    p.applySlow = true;
+                    p.life = 3.2f;
+                    p.radius = 8.0f;
+                    p.color = SKYBLUE;
+                    projectiles.push_back(p);
+                }
+                if (((int)e.summonTimer) % 2 == 0) {
+                    const float blizR = 165.0f;
+                    NovaVisual nv; nv.pos = e.pos; nv.maxRadius = blizR; nv.timer = 0.42f; nv.maxTimer = 0.42f; nv.color = SKYBLUE;
+                    novas.push_back(nv);
+                    Burst(e.pos, { 165, 235, 255, 255 }, 28, 300.0f, 0.6f);
+                    PlaySound(snd.sndFreeze);
+                    if (dist <= blizR) {
+                        DamagePlayer(e.contactDmg * 0.85f);
+                        player.frostSlowTimer = std::max(player.frostSlowTimer, 1.5f);
+                    }
+                }
+            } else {
+                e.pos = Vector2Add(e.pos, Vector2Scale(dir, e.speed * speedMod * dt));
+            }
         } else if (e.type == BOSS) {
             if (!e.enraged && e.hp <= e.maxHp * 0.5f) {
                 e.enraged = true;
@@ -2047,8 +2233,9 @@ inline void Game::Update(float dt) {
         }
     }
 
-    // ── Con cái theo cha rèn luyện ──
+    // ── Con cái theo cha rèn luyện & Linh Thú Hộ Vệ ──
     UpdatePartyChildren(dt);
+    UpdateFamiliar(dt);
 
     // ── Projectiles ──
     FlushSpawns();
@@ -2081,7 +2268,9 @@ inline void Game::Update(float dt) {
         if (!p.fromPlayer) {
             if (Vector2Distance(p.pos, player.pos) < p.radius + 18.0f) {
                 float bulletScale = (activeRune == 4) ? (1.0f - 0.08f * runeRank) : 1.0f;
-                DamagePlayer(p.damage * bulletScale);
+                if (DamagePlayer(p.damage * bulletScale) && p.applySlow) {
+                    player.frostSlowTimer = std::max(player.frostSlowTimer, 1.0f);
+                }
                 hit = true;
             }
             for (size_t ck = 0; !hit && ck < children.size(); ++ck) { // đạn quái trúng con
@@ -2606,6 +2795,7 @@ inline void Game::DamageEnemy(Enemy& e, float dmg, Vector2 kb, float kbForce, bo
     if (e.type == BOSS && e.bossKind == 1 && e.chargeState == 5) dmg *= 1.3f; // Colossus kiệt sức: nhận thêm sát thương
     if (e.stunTimer > 0.0f) dmg *= 1.20f; // Kẻ địch đang choáng nhận thêm 20% sát thương
     if (e.staggerBrokenTimer > 0.0f) dmg *= 1.35f; // Phá Giáp: nhận thêm +35% sát thương
+    if (overdriveTimer > 0.0f) dmg *= 1.18f; // Bùng Nổ Linh Hồn: +18% sát thương
     if (HasRelic(RELIC_BERSERK) && player.hp < player.maxHp * 0.4f) dmg *= 1.4f;
     dmg *= HungerDamageMult();
     dmg *= AgeDamageMult();
@@ -2792,12 +2982,26 @@ inline void Game::OnEnemyKilled(Enemy& e) {
         }
     }
 
-    // Combo gold payout every 5 kills
+    // Combo gold payout every 5 kills & Soul Overdrive every 15 kills
     if (comboCount % 5 == 0) {
         int cg = comboCount * 2;
         if (isNoble) cg = (int)roundf(cg * 1.25f);
         player.gold += cg;
         SpawnPopup(player.pos, "+GOLD COMBO!", GOLD);
+    }
+    if (comboCount > 0 && comboCount % 15 == 0) {
+        overdriveTimer = 4.5f;
+        NovaVisual nv; nv.pos = player.pos; nv.maxRadius = 145.0f; nv.timer = 0.35f; nv.maxTimer = 0.35f; nv.color = GOLD;
+        novas.push_back(nv);
+        Burst(player.pos, GOLD, 28, 300.0f, 0.6f);
+        for (auto& other : enemies) {
+            if (&other != &e && other.hp > 0 && Vector2Distance(player.pos, other.pos) < 145.0f) {
+                Vector2 push = Vector2Normalize(Vector2Subtract(other.pos, player.pos));
+                other.pos = Vector2Add(other.pos, Vector2Scale(push, 26.0f));
+            }
+        }
+        SpawnPopup({ player.pos.x, player.pos.y - 42.0f }, L("SOUL OVERDRIVE! +18% DMG", "BÙNG NỔ LINH HỒN! +18% ST"), GOLD);
+        PlaySound(snd.sndShield);
     }
 
     // Drops
@@ -2805,6 +3009,7 @@ inline void Game::OnEnemyKilled(Enemy& e) {
         loots.push_back({ 2, Vector2Add(e.pos, { 0, 18 }), 35, 20.0f });
         loots.push_back({ 1, Vector2Add(e.pos, { 18, 0 }), 8, 20.0f });
         ShowBanner("WARDEN BRUTE DEFEATED!");
+        GrantOrUpgradeFamiliar();
     }
     if (e.type == BOSS) {
         hitStop = 0.03f;
@@ -2814,6 +3019,7 @@ inline void Game::OnEnemyKilled(Enemy& e) {
         bossEssence += ess;
         if (bountyActive && bountyKind == 2) bountyProgress++;
         SpawnPopup({ e.pos.x, e.pos.y - 36.0f }, TextFormat(L("+%d BOSS ESSENCE", "+%d TINH HOA TRÙM"), ess), GOLD);
+        GrantOrUpgradeFamiliar();
     }
     loots.push_back({ 0, e.pos, (e.type == BOSS ? 150 : (e.isWarden ? 90 : (e.isElite ? 35 : (e.isMinion ? 5 : 15)))), 20.0f });
     {

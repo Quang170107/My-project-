@@ -161,6 +161,12 @@ public:
     int activeRune = 0;         // 0: None, 1: Thunderclap, 2: Frostfire, 3: Bloodthirst, 4: Aegis
     int runeRank = 0;           // Cấp Cổ Ngữ (1..3)
     float runeBuffTimer = 0.0f; // Thời gian hiệu lực buff Cuồng Tốc của Cổ Ngữ Huyết Vũ
+    int familiarKind = 0;       // 0: None, 1: Solar Phoenix, 2: Frost Wyrm, 3: Storm Falcon, 4: Void Wisp
+    int familiarRank = 0;       // Cấp Linh Thú (1..3)
+    Vector2 familiarPos = { 0.0f, 0.0f };
+    float familiarAngle = 0.0f;
+    float familiarAtkTimer = 1.2f;
+    float overdriveTimer = 0.0f; // > 0: Bùng Nổ Linh Hồn (+18% ST, +14% Tốc chạy, Đôi Cánh Ánh Sáng)
     Vector2 aimDirDraw = { 1, 0 };
     RenderTexture2D lightmap = { 0 };
     std::vector<Vector2> torches;
@@ -327,7 +333,7 @@ public:
         const SubclassDef* sc = ActiveSubclass();
         return (sc ? sc->vCooldown : 9.5f) * SkillCdrMult();
     }
-    float EffectiveArmor() const { return player.armor + (player.holyBuffTimer > 0.0f ? (player.subClass == 1 ? 6.0f : 4.0f) : 0.0f) + (activeRune == 4 ? 1.8f * runeRank : 0.0f); }
+    float EffectiveArmor() const { return player.armor + (player.holyBuffTimer > 0.0f ? (player.subClass == 1 ? 6.0f : 4.0f) : 0.0f) + (activeRune == 4 ? 1.8f * runeRank : 0.0f) + (familiarKind == 2 ? 1.5f * familiarRank : 0.0f); }
     float EffectiveAttackRate() const;
     float EffectiveMoveSpeed() const;
     void AddRage(float amt);
@@ -580,6 +586,13 @@ public:
     Color RuneColor() const;
     int RunicAnvilCost() const { return 35 + floor * 12; }
     void UseRunicAnvil();
+    const char* FamiliarName() const;
+    Color FamiliarColor() const;
+    void GrantOrUpgradeFamiliar();
+    void UpdateFamiliar(float dt);
+    void DrawFamiliarSprite();
+    void ApplyEquipEnhanceStep(int slot);
+    void QuickForgeWithEssence();
     bool HasDuoTempestFrost() const { return HasRelic(RELIC_LIGHTNING) && HasRelic(RELIC_FROST); }
     bool HasDuoPlaguefire() const { return HasRelic(RELIC_TOXIC) && HasRelic(RELIC_COMBUSTION); }
     bool HasDuoImmortalBastion() const { return HasRelic(RELIC_AEGIS) && HasRelic(RELIC_CHALICE); }
