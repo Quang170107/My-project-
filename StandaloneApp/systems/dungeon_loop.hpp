@@ -314,7 +314,8 @@ inline void Game::Init() {
     touchMode = true;
 #endif
     lightmap = LoadRenderTexture(1280, 720);
-    screenRT = LoadRenderTexture(1280, 720);
+    SetTextureFilter(lightmap.texture, TEXTURE_FILTER_BILINEAR);
+    screenRT = LoadRenderTexture(1280 * kRenderScale, 720 * kRenderScale);
     SetTextureFilter(screenRT.texture, TEXTURE_FILTER_BILINEAR);
     LoadSettings();
     RefreshSaveSlots();

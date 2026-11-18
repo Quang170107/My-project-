@@ -382,7 +382,7 @@ inline void Game::Present() {
     float dx = (sw - dw) * 0.5f, dy = (sh - dh) * 0.5f;
     BeginDrawing();
     ClearBackground(BLACK);
-    DrawTexturePro(screenRT.texture, { 0, 0, 1280.0f, -720.0f }, { dx, dy, dw, dh }, { 0, 0 }, 0.0f, WHITE);
+    DrawTexturePro(screenRT.texture, { 0, 0, (float)screenRT.texture.width, -(float)screenRT.texture.height }, { dx, dy, dw, dh }, { 0, 0 }, 0.0f, WHITE);
     EndDrawing();
     SetMouseOffset(-(int)dx, -(int)dy);
     SetMouseScale(1.0f / scale, 1.0f / scale);

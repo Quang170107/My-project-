@@ -11,9 +11,11 @@
 #include <random>
 #include <ctime>
 
-// ── Phông chữ Unicode đậm sắc nét đa kích thước hỗ trợ đầy đủ Tiếng Việt ──
-static const int kFontBuckets[7] = { 15, 18, 21, 24, 28, 34, 46 };
-static Font gUiFonts[7] = { { 0 } };
+// ── Phông chữ Unicode đậm sắc nét 2x High-DPI đa kích thước hỗ trợ đầy đủ Tiếng Việt ──
+static constexpr int kRenderScale = 2;
+static constexpr int kFontBucketCount = 17;
+static const int kFontBuckets[kFontBucketCount] = { 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 26, 28, 30, 34, 46, 72 };
+static Font gUiFonts[kFontBucketCount] = { { 0 } };
 static bool gFontLoaded = false;
 static bool gDrawingOutlinePass = false;
 
@@ -65,18 +67,18 @@ static void InitGameFont() {
         if (FileExists(path)) { chosen = path; break; }
     }
     if (!chosen) return;
-    for (int i = 0; i < 7; ++i) {
-        Font f = LoadFontEx(chosen, kFontBuckets[i], cps.data(), (int)cps.size());
+    for (int i = 0; i < kFontBucketCount; ++i) {
+        Font f = LoadFontEx(chosen, kFontBuckets[i] * kRenderScale, cps.data(), (int)cps.size());
         if (f.texture.id > 0 && f.baseSize > 0) {
             gUiFonts[i] = f;
-            SetTextureFilter(gUiFonts[i].texture, TEXTURE_FILTER_POINT);
+            SetTextureFilter(gUiFonts[i].texture, TEXTURE_FILTER_BILINEAR);
         }
     }
     gFontLoaded = (gUiFonts[0].texture.id > 0 && gUiFonts[0].baseSize > 0);
 }
 
 static void CloseGameFont() {
-    for (int i = 0; i < 7; ++i) {
+    for (int i = 0; i < kFontBucketCount; ++i) {
         if (gUiFonts[i].texture.id > 0 && gUiFonts[i].baseSize > 0) {
             UnloadFont(gUiFonts[i]);
             gUiFonts[i] = { 0 };
@@ -86,20 +88,21 @@ static void CloseGameFont() {
 }
 
 static int EffectiveFontSize(int fontSize) {
-    if (fontSize <= 11) return fontSize + 3;
-    if (fontSize <= 15) return fontSize + 2;
+    if (fontSize <= 11) return 14;
+    if (fontSize <= 13) return fontSize + 2;
     if (fontSize <= 20) return fontSize + 1;
     return fontSize;
 }
 
-static const Font& PickGameFont(int effSize) {
+static const Font& PickGameFont(int effSize, int& outLogicalSize) {
     int best = 0;
     int bestDiff = 9999;
-    for (int i = 0; i < 7; ++i) {
+    for (int i = 0; i < kFontBucketCount; ++i) {
         if (gUiFonts[i].baseSize <= 0) continue;
-        int d = abs(gUiFonts[i].baseSize - effSize);
+        int d = abs(kFontBuckets[i] - effSize);
         if (d < bestDiff) { bestDiff = d; best = i; }
     }
+    outLogicalSize = kFontBuckets[best];
     return gUiFonts[best];
 }
 
@@ -107,14 +110,14 @@ static void GameDrawText(const char* text, int posX, int posY, int fontSize, Col
     if (!text) return;
     int eff = EffectiveFontSize(fontSize);
     if (gFontLoaded) {
-        const Font& f = PickGameFont(eff);
-        const float sp = (eff >= 28) ? 0.8f : 0.4f;
+        int drawSz = eff;
+        const Font& f = PickGameFont(eff, drawSz);
+        const float sp = (drawSz >= 26) ? 1.2f : 0.8f;
         if (!gDrawingOutlinePass && ((int)color.r + (int)color.g + (int)color.b) > 75 && color.a > 60) {
-            Color sh = { 6, 8, 16, (unsigned char)std::min(235, (int)color.a) };
-            DrawTextEx(f, text, { (float)(posX + 1), (float)(posY + 1) }, (float)eff, sp, sh);
-            DrawTextEx(f, text, { (float)posX, (float)(posY + 1) }, (float)eff, sp, sh);
+            Color sh = { 4, 6, 14, (unsigned char)std::min(245, (int)color.a) };
+            DrawTextEx(f, text, { (float)posX + 1.0f, (float)posY + 1.0f }, (float)drawSz, sp, sh);
         }
-        DrawTextEx(f, text, { (float)posX, (float)posY }, (float)eff, sp, color);
+        DrawTextEx(f, text, { (float)posX, (float)posY }, (float)drawSz, sp, color);
     } else {
         ::DrawText(text, posX, posY, fontSize, color);
     }
@@ -124,9 +127,10 @@ static int GameMeasureText(const char* text, int fontSize) {
     if (!text) return 0;
     int eff = EffectiveFontSize(fontSize);
     if (gFontLoaded) {
-        const Font& f = PickGameFont(eff);
-        const float sp = (eff >= 28) ? 0.8f : 0.4f;
-        return (int)ceilf(MeasureTextEx(f, text, (float)eff, sp).x);
+        int drawSz = eff;
+        const Font& f = PickGameFont(eff, drawSz);
+        const float sp = (drawSz >= 26) ? 1.2f : 0.8f;
+        return (int)ceilf(MeasureTextEx(f, text, (float)drawSz, sp).x);
     }
     return ::MeasureText(text, fontSize);
 }

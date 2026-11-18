@@ -1045,16 +1045,16 @@ inline void Game::DrawItemDrops() {
 }
 
 inline void Game::DrawSurfacePrompt(Vector2 p, const char* title, const char* sub, Color accent, bool near) {
-    int tw = MeasureText(title, 14);
-    int sw = (sub && sub[0]) ? MeasureText(sub, 12) : 0;
-    int bw = std::max(tw, sw) + 26;
-    int bh = (sw > 0) ? 42 : 24;
+    int tw = MeasureText(title, 15);
+    int sw = (sub && sub[0]) ? MeasureText(sub, 13) : 0;
+    int bw = std::max(tw, sw) + 28;
+    int bh = (sw > 0) ? 46 : 26;
     int bx = (int)p.x - bw / 2;
     int by = (int)p.y;
-    DrawRectangle(bx, by, bw, bh, near ? Color{ 14, 20, 34, 245 } : Color{ 10, 14, 26, 224 });
-    DrawRectangleLines(bx, by, bw, bh, near ? GOLD : Fade(accent, 0.78f));
-    DrawText(title, (int)p.x - tw / 2, by + 5, 14, near ? GOLD : accent);
-    if (sw > 0) DrawText(sub, (int)p.x - sw / 2, by + 23, 12, near ? WHITE : Color{ 218, 228, 246, 255 });
+    DrawRectangle(bx, by, bw, bh, near ? Color{ 8, 12, 22, 252 } : Color{ 8, 12, 22, 248 });
+    DrawRectangleLinesEx({ (float)bx, (float)by, (float)bw, (float)bh }, 1.6f, near ? GOLD : Fade(accent, 0.88f));
+    DrawText(title, (int)p.x - tw / 2, by + 5, 15, near ? GOLD : accent);
+    if (sw > 0) DrawText(sub, (int)p.x - sw / 2, by + 24, 13, near ? WHITE : Color{ 225, 234, 250, 255 });
 }
 
 inline void Game::DrawDetailedNpcModel(Vector2 pos, int npcKind, Color primaryCol, Color secondaryCol, Color hairCol, bool crown, float bobPhase) {

@@ -302,6 +302,8 @@ inline void Game::RenderLightmap() {
         } else if (surfaceRoom == 3) {
             AddLight({ -235.0f, -235.0f }, 260.0f, { 255, 175, 110, 255 }, 0.52f);
             AddLight({  275.0f, -235.0f }, 220.0f, { 255, 215, 95, 255 }, 0.52f);
+            AddLight({    0.0f, -235.0f }, 210.0f, { 255, 225, 175, 255 }, 0.46f);
+            for (int i = 0; i < 4; ++i) AddLight(SpouseCandPos(i), 175.0f, { 255, 215, 165, 255 }, 0.48f);
         } else if (surfaceRoom == 4) {
             AddLight({ 0.0f, -295.0f }, 300.0f, { 255, 220, 105, 255 }, 0.62f);
             AddLight({ -235.0f, -95.0f }, 200.0f, { 255, 215, 85, 255 }, 0.48f);
@@ -353,7 +355,7 @@ inline void Game::RenderLightmap() {
 inline void Game::ApplyLighting() {
     if (lightmap.id == 0) return;
     BeginBlendMode(BLEND_MULTIPLIED);
-    DrawTextureRec(lightmap.texture, { 0, 0, (float)lightmap.texture.width, -(float)lightmap.texture.height }, { 0, 0 }, WHITE);
+    DrawTexturePro(lightmap.texture, { 0, 0, (float)lightmap.texture.width, -(float)lightmap.texture.height }, { 0, 0, 1280.0f, 720.0f }, { 0, 0 }, 0.0f, WHITE);
     EndBlendMode();
 }
 
@@ -870,7 +872,10 @@ inline void Game::Draw() {
     BiomeColors biome = Biome();
     ClearBackground(biome.bg);
 
-    BeginMode2D(camera);
+    Camera2D worldCam = camera;
+    worldCam.offset = Vector2Scale(camera.offset, (float)kRenderScale);
+    worldCam.zoom = camera.zoom * (float)kRenderScale;
+    BeginMode2D(worldCam);
 
     // 1. Tường gạch, sàn đa sắc vùng hành lang/viền/trung tâm, bóng viền, huy hiệu, cảnh quan biome, đuốc, cột (Dùng chung cả Hầm Ngục & Mặt Đất)
     int halfW = (int)roomW / 2;
@@ -1384,10 +1389,6 @@ inline void Game::Draw() {
     DrawPartyChildren(); // con cái theo cha rèn luyện
     DrawEllipse((int)player.pos.x, (int)player.pos.y + 16, 20, 8, { 0, 0, 0, 100 }); // Shadow
     DrawPlayerSprite();
-    if (CurrentTitleTier() >= 1 || inSurface) {
-        const char* ltTxt = CurrentLevelTitle();
-        OutlinedText(ltTxt, (int)player.pos.x - MeasureText(ltTxt, 11) / 2, (int)player.pos.y - 38, 11, CurrentLevelTitleColor(), { 12, 14, 22, 240 });
-    }
 
     if (!inSurface) DrawItemDrops();
 
@@ -1398,14 +1399,29 @@ inline void Game::Draw() {
         DrawCircleV(pt.pos, pt.size * (0.3f + 0.7f * k), Fade(pt.color, k * k));
     }
 
-    // Damage Popups
-    for (const auto& p : popups) {
-        DrawText(p.text.c_str(), (int)p.pos.x - 10, (int)p.pos.y, 18, p.color);
-    }
-
     EndMode2D();
 
-    if (settings.lighting) ApplyLighting();
+    Camera2D uiCam = { 0 };
+    uiCam.zoom = (float)kRenderScale;
+
+    if (settings.lighting) {
+        BeginMode2D(uiCam);
+        ApplyLighting();
+        EndMode2D();
+    }
+
+    // Chữ danh hiệu trên đầu & Damage Popups vẽ sau ApplyLighting để không bị tối mờ
+    BeginMode2D(worldCam);
+    if (CurrentTitleTier() >= 1 || inSurface) {
+        const char* ltTxt = CurrentLevelTitle();
+        OutlinedText(ltTxt, (int)player.pos.x - MeasureText(ltTxt, 12) / 2, (int)player.pos.y - 40, 12, CurrentLevelTitleColor(), { 8, 10, 18, 250 });
+    }
+    for (const auto& p : popups) {
+        OutlinedText(p.text.c_str(), (int)p.pos.x - 10, (int)p.pos.y, 18, p.color, { 8, 10, 18, 245 });
+    }
+    EndMode2D();
+
+    BeginMode2D(uiCam);
 
     // Subtle Volumetric God-Rays + Atmospheric Biome / Blossom Particles
     {
@@ -1895,6 +1911,7 @@ inline void Game::Draw() {
         DrawText(f.c_str(), 1280 - 12 - MeasureText(f.c_str(), 18), 720 - 26, 18, { 120, 255, 140, 255 });
     }
 
+    EndMode2D();
     EndTextureMode();
     Present();
 }

@@ -645,8 +645,9 @@ inline void Game::DrawSaveLoadScreen() {
 
 inline void Game::OutlinedText(const char* txt, int x, int y, int size, Color col, Color outline) {
     gDrawingOutlinePass = true;
-    for (int ox = -2; ox <= 2; ox += 2)
-        for (int oy = -2; oy <= 2; oy += 2)
+    int d = (size >= 24) ? 2 : 1;
+    for (int ox = -d; ox <= d; ox += d)
+        for (int oy = -d; oy <= d; oy += d)
             if (ox != 0 || oy != 0) DrawText(txt, x + ox, y + oy, size, outline);
     gDrawingOutlinePass = false;
     DrawText(txt, x, y, size, col);
