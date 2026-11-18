@@ -332,7 +332,6 @@ inline void Game::TriggerElementalReaction(Enemy& e, int reactionKind, Vector2 p
     if ((e.type == BOSS || e.isElite || e.isWarden) && e.staggerBrokenTimer <= 0.0f) {
         e.stagger = std::min(e.maxStagger, e.stagger + 14.0f);
     }
-    hitStop = std::max(hitStop, 0.024f);
 }
 
 inline void Game::TriggerPerfectDodge() {
@@ -1163,6 +1162,9 @@ inline Enemy Game::BuildEnemy(EnemyType type, Vector2 pos) {
 }
 
 inline void Game::SpawnPopup(Vector2 pos, const std::string& txt, Color col) {
+    if (popups.size() >= 60) {
+        popups.erase(popups.begin(), popups.begin() + (popups.size() - 59));
+    }
     DamagePopup p;
     p.pos = pos;
     p.text = txt;
@@ -1212,8 +1214,12 @@ inline void Game::Update(float dt) {
         if (rumbleTimer <= 0) RumbleRaw(0.0f, 0.0f);
     }
 
-    // Hit-stop: khựng khung hình rất ngắn khi chí mạng
-    if (hitStop > 0) { hitStop -= dt; return; }
+    // Hit-stop: chỉ dùng khoảnh khắc kết liễu Trùm, không làm khựng vòng lặp chiến đấu thường
+    if (hitStop > 0.0f) {
+        hitStop = std::min(hitStop, 0.04f) - dt;
+        UpdateEffects(dt);
+        return;
+    }
     if (slowMoTimer > 0.0f) { slowMoTimer -= dt; dt *= 0.35f; }
     if (perfectDodgeTimer > 0.0f) perfectDodgeTimer -= dt;
     if (runeBuffTimer > 0.0f) runeBuffTimer -= dt;
@@ -2608,7 +2614,6 @@ inline void Game::DamageEnemy(Enemy& e, float dmg, Vector2 kb, float kbForce, bo
     SpawnPopup(e.pos, (isCrit ? "!" : "") + std::to_string((int)dmg), isCrit ? YELLOW : WHITE);
     e.hitFlash = 0.09f;
     Burst(e.pos, isCrit ? Color{ 255, 217, 51, 255 } : WHITE, isCrit ? 9 : 4, isCrit ? 230.0f : 160.0f, isCrit ? 0.4f : 0.28f);
-    if (isCrit) hitStop = 0.035f;
     AddStyle(isCrit ? 7.0f : 3.5f);
     if (allowRage) AddRage((isCrit ? 4.0f : 2.5f) + (comboCount >= 10 ? 1.5f : 0.0f));
 
@@ -2800,11 +2805,10 @@ inline void Game::OnEnemyKilled(Enemy& e) {
         loots.push_back({ 2, Vector2Add(e.pos, { 0, 18 }), 35, 20.0f });
         loots.push_back({ 1, Vector2Add(e.pos, { 18, 0 }), 8, 20.0f });
         ShowBanner("WARDEN BRUTE DEFEATED!");
-        hitStop = 0.08f;
     }
     if (e.type == BOSS) {
-        hitStop = 0.10f;
-        slowMoTimer = 0.42f;
+        hitStop = 0.03f;
+        slowMoTimer = 0.25f;
         bossesKilled++;
         int ess = (floor >= 15 ? 2 : 1);
         bossEssence += ess;

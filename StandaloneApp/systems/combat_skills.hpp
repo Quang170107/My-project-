@@ -1100,7 +1100,6 @@ inline void Game::CastUltimate(Vector2 aimDir) {
     PlaySound(snd.sndSpecial);
     PlaySound(snd.sndLevelUp);
     Shake(0.45f, 9.0f);
-    hitStop = 0.06f;
     float critMul = CritMult();
 
     if (player.heroClass == CLASS_KNIGHT) {
