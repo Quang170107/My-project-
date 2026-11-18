@@ -1452,6 +1452,39 @@ inline void Game::UpdateActiveSkills(float dt) {
                 groundEffects.erase(groundEffects.begin() + i);
                 continue;
             }
+        } else if (ge.kind == 6) { // Sét Thiên Lôi từ Thời Tiết Bão Từ Ma Pháp
+            if (ge.timer <= 0.0f) {
+                lightningFlash = std::max(lightningFlash, 0.55f);
+                PlaySound(snd.sndSpecial);
+                Shake(0.22f, 5.5f);
+                NovaVisual nv;
+                nv.pos = ge.pos;
+                nv.maxRadius = ge.radius * 1.15f;
+                nv.timer = 0.28f;
+                nv.maxTimer = 0.28f;
+                nv.color = ge.color;
+                novas.push_back(nv);
+                Burst(ge.pos, { 140, 235, 255, 255 }, 24, 300.0f, 0.45f);
+                for (auto& e : enemies) {
+                    if (e.hp <= 0) continue;
+                    if (Vector2Distance(ge.pos, e.pos) <= ge.radius + e.radius * 0.45f) {
+                        bool isCrit = (Rand01() < player.critChance);
+                        float dmg = ge.damage * (isCrit ? critMul : 1.0f);
+                        Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, ge.pos));
+                        if ((e.type == BOSS || e.isElite || e.isWarden) && e.staggerBrokenTimer <= 0.0f) {
+                            e.stagger = std::min(e.maxStagger, e.stagger + 35.0f);
+                        }
+                        DamageEnemy(e, dmg, kb, 170.0f, isCrit, false);
+                        if (e.hp > 0) e.stunTimer = std::max(e.stunTimer, 0.8f);
+                    }
+                }
+                if (Vector2Distance(ge.pos, player.pos) <= ge.radius * 0.82f && !player.isDashing) {
+                    DamagePlayer(13.0f);
+                }
+                TriggerBarrelsInRadius(ge.pos, ge.radius, ge.damage);
+                groundEffects.erase(groundEffects.begin() + i);
+                continue;
+            }
         }
 
         if (ge.timer <= 0.0f) {

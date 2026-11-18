@@ -318,6 +318,9 @@ inline void Game::RenderLightmap() {
         if (h.kind == 3) AddLight(h.pos, h.radius * 2.2f, { 90, 225, 255, 255 }, 0.45f);
         else if (h.kind == 2 && h.timer > h.cycle * 0.48f) AddLight(h.pos, h.radius * 2.0f, { 255, 110, 30, 255 }, 0.55f);
     }
+    for (const auto& ge : groundEffects) {
+        if (ge.kind == 6) AddLight(ge.pos, ge.radius * 2.4f, { 130, 235, 255, 255 }, 0.75f);
+    }
     for (const auto& b : barrels) {
         if (b.destroyed) continue;
         Color bc = (b.kind == 0) ? ORANGE : (b.kind == 1 ? SKYBLUE : GOLD);
@@ -327,6 +330,7 @@ inline void Game::RenderLightmap() {
     if (hasCaptiveEvent && !inSurface) AddLight(captivePos, 210.0f, kSpouses[std::max(0, std::min(3, captiveSpouseIdx))].dressCol, captiveRescued ? 0.35f : 0.65f);
     if (hasShrine && !shrineUsed) AddLight({ shrinePos.x, shrinePos.y - 40.0f }, 190.0f, { 255, 50, 80, 255 }, 0.55f + 0.1f * sinf(shrinePulse));
     if (hasBloodPact && !bloodPactUsed) AddLight({ bloodPactPos.x, bloodPactPos.y - 28.0f }, 175.0f, { 215, 35, 70, 255 }, 0.50f + 0.12f * sinf((float)GetTime() * 4.0f));
+    if (hasRunicAnvil && !runicAnvilUsed) AddLight(runicAnvilPos, 210.0f, { 110, 225, 255, 255 }, 0.55f + 0.10f * sinf((float)GetTime() * 3.5f));
     for (const auto& pr : projectiles) AddLight(pr.pos, pr.kind == 4 ? 130.0f : 80.0f, pr.color, pr.kind == 4 ? 0.85f : 0.7f);
     for (const auto& ge : groundEffects) AddLight(ge.pos, ge.radius * 1.15f + 40.0f, ge.color, 0.55f);
     for (const auto& nv : novas) {
@@ -1108,6 +1112,40 @@ inline void Game::Draw() {
         }
     }
 
+    // Đài Rèn Cổ Ngữ 2.5D (Ancient Runic Anvil)
+    if (hasRunicAnvil) {
+        float ax = runicAnvilPos.x, ay = runicAnvilPos.y;
+        float tm = (float)GetTime();
+        Color rCol = runicAnvilUsed ? Color{ 82, 92, 112, 255 } : Color{ 110, 225, 255, 255 };
+        DrawEllipse((int)ax, (int)ay + 22, 34, 12, { 0, 0, 0, 115 });
+        DrawPoly({ ax, ay + 4.0f }, 8, 30.0f, 22.5f, runicAnvilUsed ? Color{ 48, 52, 64, 255 } : Color{ 44, 54, 78, 255 });
+        DrawPolyLinesEx({ ax, ay + 4.0f }, 8, 30.0f, 22.5f, 2.0f, rCol);
+        if (!runicAnvilUsed) {
+            BeginBlendMode(BLEND_ADDITIVE);
+            CircleGrad(ax, ay - 6.0f, 44.0f, Fade(rCol, 0.28f + 0.10f * sinf(tm * 4.0f)), Fade(rCol, 0.0f));
+            EndBlendMode();
+            DrawPolyLinesEx({ ax, ay + 4.0f }, 6, 38.0f, tm * 35.0f, 1.8f, Fade(GOLD, 0.68f));
+        }
+        // Đe rèn huyền thiết 2.5D
+        QuadOut({ ax - 15.0f, ay + 4.0f }, { ax + 15.0f, ay + 4.0f }, { ax + 19.0f, ay + 15.0f }, { ax - 19.0f, ay + 15.0f },
+                runicAnvilUsed ? Color{ 62, 66, 76, 255 } : Color{ 78, 88, 112, 255 }, { 18, 16, 26, 255 }, 1.6f);
+        QuadOut({ ax - 18.0f, ay - 8.0f }, { ax + 22.0f, ay - 8.0f }, { ax + 12.0f, ay + 5.0f }, { ax - 12.0f, ay + 5.0f },
+                runicAnvilUsed ? Color{ 78, 82, 92, 255 } : Color{ 118, 134, 166, 255 }, { 18, 16, 26, 255 }, 1.6f);
+        DrawLineEx({ ax - 16.0f, ay - 7.0f }, { ax + 20.0f, ay - 7.0f }, 2.0f, Fade(WHITE, runicAnvilUsed ? 0.12f : 0.45f));
+        if (!runicAnvilUsed) {
+            float bob = sinf(tm * 3.5f) * 3.5f;
+            BoxRot({ ax, ay - 24.0f + bob }, 16.0f, 9.0f, -15.0f, { 115, 225, 255, 255 }, WHITE, 1.4f);
+            DrawLineEx({ ax - 3.0f, ay - 22.0f + bob }, { ax + 9.0f, ay - 10.0f + bob }, 3.0f, { 145, 96, 52, 255 });
+            if (Vector2Distance(player.pos, runicAnvilPos) < 110.0f) {
+                const char* aLbl = TextFormat(L("[F] FORGE RUNE (%dG)", "[F] RÈN CỔ NGỮ (%dV)"), RunicAnvilCost());
+                OutlinedText(aLbl, (int)ax - MeasureText(aLbl, 15) / 2, (int)ay + 30, 15, { 125, 235, 255, 255 }, { 12, 16, 28, 255 });
+            } else {
+                const char* sLbl = L("RUNIC ANVIL", "ĐÀI CỔ NGỮ");
+                DrawText(sLbl, (int)ax - MeasureText(sLbl, 13) / 2, (int)ay + 30, 13, { 125, 225, 255, 255 });
+            }
+        }
+    }
+
     // Sự kiện ngẫu nhiên trong Hầm Ngục: Lồng Giam Cứu Người Đẹp (mở khóa Cưới Vợ)
     if (hasCaptiveEvent) {
         float tm = (float)GetTime();
@@ -1204,6 +1242,25 @@ inline void Game::Draw() {
             Vector2 skyPos = { ge.pos.x - rem * 45.0f, ge.pos.y - rem * 210.0f };
             DrawLineEx(skyPos, { skyPos.x - 14.0f, skyPos.y - 42.0f }, 5.5f, ge.color);
             DrawLineEx(skyPos, { skyPos.x - 10.0f, skyPos.y - 30.0f }, 2.5f, WHITE);
+        } else if (ge.kind == 6) { // Vòng cảnh báo & Cột Sét Thiên Lôi
+            float rem = Clamp(ge.timer / std::max(0.01f, ge.maxTimer), 0.0f, 1.0f);
+            DrawCircleV(ge.pos, ge.radius, Fade(ge.color, 0.10f + 0.12f * (1.0f - rem)));
+            DrawPolyLinesEx(ge.pos, 8, ge.radius, tm * 70.0f, 2.0f, Fade(ge.color, 0.80f));
+            DrawPolyLinesEx(ge.pos, 8, ge.radius * std::max(0.15f, rem), -tm * 90.0f, 1.8f, WHITE);
+            if (ge.timer < 0.24f) {
+                BeginBlendMode(BLEND_ADDITIVE);
+                Vector2 top = { ge.pos.x + sinf(tm * 40.0f) * 14.0f, ge.pos.y - 320.0f };
+                Vector2 mid1 = { ge.pos.x - 18.0f, ge.pos.y - 210.0f };
+                Vector2 mid2 = { ge.pos.x + 16.0f, ge.pos.y - 105.0f };
+                DrawLineEx(top, mid1, 14.0f, Fade(ge.color, 0.45f));
+                DrawLineEx(mid1, mid2, 14.0f, Fade(ge.color, 0.45f));
+                DrawLineEx(mid2, ge.pos, 14.0f, Fade(ge.color, 0.45f));
+                DrawLineEx(top, mid1, 4.5f, WHITE);
+                DrawLineEx(mid1, mid2, 4.5f, WHITE);
+                DrawLineEx(mid2, ge.pos, 4.5f, WHITE);
+                CircleGrad(ge.pos.x, ge.pos.y, ge.radius * 1.1f, Fade(WHITE, 0.55f), Fade(ge.color, 0.0f));
+                EndBlendMode();
+            }
         }
     }
 
@@ -1261,22 +1318,32 @@ inline void Game::Draw() {
             DrawRing(centre, 36.0f, 68.0f, sl.angle - 75.0f, sl.angle + 75.0f, 24, Fade({ 255, 195, 85, 255 }, 0.85f * k));
             DrawRing(centre, 28.0f, 40.0f, sl.angle - 55.0f, sl.angle + 55.0f, 18, Fade(WHITE, 0.8f * k));
         } else if (sl.kind == WP_DAGGER) {
-            DrawRing(centre, 34.0f, 44.0f, sl.angle - 42.0f, sl.angle + 42.0f, 18, Fade(sl.color, 0.85f * k));
+            DrawRing(centre, 30.0f, 44.0f, sl.angle - 44.0f, sl.angle + 44.0f, 18, Fade(sl.color, 0.85f * k));
+            DrawRing(centre, 39.0f, 44.0f, sl.angle - 32.0f, sl.angle + 32.0f, 14, Fade(WHITE, 0.85f * k));
         } else if (sl.kind == WP_BOW || sl.kind == WP_STAFF) {
             Vector2 dirv = { cosf(rad), sinf(rad) };
-            DrawCircleV(Vector2Add(centre, Vector2Scale(dirv, 24.0f)), 14.0f * k, Fade(sl.color, 0.55f * k));
+            Vector2 sp = Vector2Add(centre, Vector2Scale(dirv, 24.0f));
+            DrawCircleV(sp, 14.0f * k, Fade(sl.color, 0.55f * k));
+            DrawCircleV(sp, 6.0f * k, Fade(WHITE, 0.75f * k));
         } else if (sl.kind == 10) { // Shield Bash
             DrawRing(centre, 48.0f, 95.0f, sl.angle - 70.0f, sl.angle + 70.0f, 24, Fade(GOLD, 0.85f * k));
+            DrawRing(centre, 84.0f, 95.0f, sl.angle - 55.0f, sl.angle + 55.0f, 20, Fade(WHITE, 0.80f * k));
         } else if (sl.kind == 11) { // Shadow Step Cross Slash
             DrawRing(sl.pos, 45.0f, 118.0f, sl.angle - 95.0f, sl.angle + 95.0f, 26, Fade({ 255, 75, 145, 255 }, 0.85f * k));
             DrawRing(sl.pos, 60.0f, 95.0f, sl.angle + 85.0f, sl.angle + 275.0f, 26, Fade({ 180, 75, 255, 255 }, 0.75f * k));
+            DrawRing(sl.pos, 108.0f, 118.0f, sl.angle - 70.0f, sl.angle + 70.0f, 20, Fade(WHITE, 0.78f * k));
         } else if (sl.kind == 12) { // Blade Storm / Phantom Blades
             DrawRing(sl.pos, 110.0f, 178.0f, sl.angle, sl.angle + 135.0f, 22, Fade(sl.color, 0.75f * k));
             DrawRing(sl.pos, 110.0f, 178.0f, sl.angle + 180.0f, sl.angle + 315.0f, 22, Fade(WHITE, 0.65f * k));
         } else {
-            DrawRing(centre, 36.0f, 52.0f, sl.angle - 60.0f, sl.angle + 60.0f, 24, Fade(sl.color, 0.85f * k));
-            DrawRing(centre, 30.0f, 38.0f, sl.angle - 45.0f, sl.angle + 45.0f, 20, Fade({ 120, 220, 255, 255 }, 0.7f * k));
+            DrawRing(centre, 36.0f, 54.0f, sl.angle - 62.0f, sl.angle + 62.0f, 24, Fade(sl.color, 0.85f * k));
+            DrawRing(centre, 47.0f, 54.0f, sl.angle - 48.0f, sl.angle + 48.0f, 20, Fade(WHITE, 0.85f * k));
+            DrawRing(centre, 28.0f, 36.0f, sl.angle - 45.0f, sl.angle + 45.0f, 20, Fade({ 120, 220, 255, 255 }, 0.7f * k));
         }
+        // Tia sáng mũi kiếm theo cung chém
+        float tipA = (sl.angle + (1.0f - k) * 45.0f) * DEG2RAD;
+        Vector2 tipP = { centre.x + cosf(tipA) * 52.0f, centre.y + sinf(tipA) * 52.0f };
+        DrawCircleV(tipP, 3.2f * k, Fade(WHITE, 0.85f * k));
     }
     for (const auto& n : novas) {
         float a = n.timer / n.maxTimer;
@@ -1298,12 +1365,19 @@ inline void Game::Draw() {
             } else if (e.isElite || e.isWarden) {
                 DrawPolyLinesEx({ e.pos.x, e.pos.y + 6.0f }, 6, e.radius + 6.0f, etm * 40.0f, 1.6f, Fade(GOLD, 0.52f));
             }
+            if (e.staggerBrokenTimer > 0.0f) {
+                float pulse = 0.55f + 0.45f * sinf(etm * 16.0f);
+                for (int si = 0; si < 3; ++si) {
+                    float a0 = etm * 85.0f + si * 120.0f;
+                    DrawRing(e.pos, e.radius + 6.0f, e.radius + 9.0f, a0, a0 + 68.0f, 8, Fade(GOLD, pulse));
+                }
+            }
             // Shadow
             DrawEllipse((int)e.pos.x, (int)e.pos.y + e.radius * 0.8f, e.radius, e.radius * 0.4f, { 0, 0, 0, 90 });
 
             DrawEnemyBody(e);
 
-            // Beveled HP Bar + Status Dots + Elite Affix Tag
+            // Beveled HP Bar + Stagger Bar + Status Dots + Elite Affix Tag
             int bw = (int)(e.radius * 2.3f);
             int bx = (int)(e.pos.x - bw / 2), by = (int)(e.pos.y - e.radius - 14);
             float pct = std::max(0.0f, e.hp / std::max(1.0f, e.maxHp));
@@ -1314,10 +1388,20 @@ inline void Game::Draw() {
                 DrawRectangle(bx, by, fw, 5, e.isElite ? ORANGE : Color{ 230, 52, 68, 255 });
                 DrawRectangle(bx, by, fw, 2, Fade(WHITE, 0.28f));
             }
+            if (e.isElite || e.isWarden) {
+                float spct = Clamp(e.stagger / std::max(1.0f, e.maxStagger), 0.0f, 1.0f);
+                DrawRectangle(bx - 1, by + 6, bw + 2, 4, { 10, 12, 20, 230 });
+                Color stCol = (e.staggerBrokenTimer > 0.0f) ? ((int)(etm * 10.0f) % 2 == 0 ? Color{ 110, 240, 255, 255 } : GOLD) : Color{ 245, 205, 70, 255 };
+                if (spct > 0.0f) DrawRectangle(bx, by + 7, (int)(bw * spct), 2, stCol);
+            }
             int stX = bx + bw + 4;
             if (e.burnTimer > 0.0f) { DrawCircle(stX, by + 2, 2.5f, ORANGE); stX += 6; }
             if (e.poisonTimer > 0.0f) { DrawCircle(stX, by + 2, 2.5f, LIME); stX += 6; }
             if (e.chillTimer > 0.0f || e.slowTimer > 0.0f) { DrawCircle(stX, by + 2, 2.5f, SKYBLUE); }
+            if (e.staggerBrokenTimer > 0.0f && (e.isElite || e.isWarden)) {
+                const char* brk = L("BROKEN!", "PHÁ GIÁP!");
+                DrawText(brk, (int)e.pos.x - MeasureText(brk, 10) / 2, by - 23, 10, GOLD);
+            }
             if (e.isElite && e.eliteAffix >= 1 && e.eliteAffix <= 4) {
                 static const char* affNames[5] = { "", "VAMPIRIC", "BLINK", "MOLTEN", "FROSTWARD" };
                 static const Color affCols[5]  = { WHITE, { 255, 80, 110, 255 }, { 195, 115, 255, 255 }, ORANGE, SKYBLUE };
@@ -1386,6 +1470,19 @@ inline void Game::Draw() {
         float tm = (float)GetTime();
         DrawPolyLinesEx(player.pos, 6, 30.0f + sinf(tm * 12.0f) * 2.0f, tm * 120.0f, 2.2f, Fade(ORANGE, 0.78f));
     }
+    if (activeRune > 0) {
+        float tm = (float)GetTime();
+        Color rCol = RuneColor();
+        DrawPolyLinesEx(player.pos, 8, 22.0f, tm * 55.0f, 1.5f, Fade(rCol, 0.58f));
+        for (int gi = 0; gi < std::max(1, std::min(3, runeRank)); ++gi) {
+            float a = tm * 3.2f + gi * (2.0f * PI / std::max(1, runeRank));
+            Vector2 gp = { player.pos.x + cosf(a) * 29.0f, player.pos.y + sinf(a) * 22.0f };
+            BeginBlendMode(BLEND_ADDITIVE);
+            CircleGrad(gp.x, gp.y, 12.0f, Fade(rCol, 0.45f), Fade(rCol, 0.0f));
+            EndBlendMode();
+            Diamond(gp, 4.2f, 5.8f, rCol, WHITE);
+        }
+    }
     DrawPartyChildren(); // con cái theo cha rèn luyện
     DrawEllipse((int)player.pos.x, (int)player.pos.y + 16, 20, 8, { 0, 0, 0, 100 }); // Shadow
     DrawPlayerSprite();
@@ -1444,6 +1541,46 @@ inline void Game::Draw() {
             } else {
                 Color dCol = Fade(biome.mote, 0.35f + 0.15f * sinf(atm * 2.5f + seed));
                 DrawCircleV({ ax, ay }, 2.2f + (i % 2), dCol);
+            }
+        }
+        // Hiệu ứng Thời Tiết Động Đa Lớp & Chớp Sét Thiên Lôi
+        if (!inSurface && weatherKind > 0) {
+            if (weatherKind == 1) { // Nhật Thực Huyết Nguyệt
+                DrawRectangle(0, 0, 1280, 720, Fade({ 140, 18, 40, 255 }, 0.08f));
+                DrawCircle(1045, 72, 24.0f, Fade({ 255, 70, 95, 255 }, 0.25f));
+                DrawCircle(1045, 72, 16.0f, { 24, 10, 18, 225 });
+                DrawCircleLines(1045, 72, 18.0f, Fade({ 255, 110, 130, 255 }, 0.72f));
+                for (int i = 0; i < 24; ++i) {
+                    float px = fmodf(i * 173.0f + atm * 22.0f + sinf(atm + i) * 16.0f, 1300.0f) - 10.0f;
+                    float py = fmodf(i * 97.0f + atm * 28.0f, 730.0f) - 5.0f;
+                    Diamond({ px, py }, 2.4f, 3.0f, Fade({ 255, 85, 115, 255 }, 0.55f), Fade(WHITE, 0.25f));
+                }
+            } else if (weatherKind == 2) { // Bão Từ Ma Pháp
+                for (int i = 0; i < 34; ++i) {
+                    float rx = fmodf(i * 139.0f + atm * 145.0f, 1320.0f) - 20.0f;
+                    float ry = fmodf(i * 89.0f + atm * 390.0f, 740.0f) - 10.0f;
+                    DrawLineEx({ rx, ry }, { rx + 8.0f, ry + 22.0f }, 1.6f, Fade({ 115, 225, 255, 255 }, 0.34f));
+                }
+                if (lightningFlash > 0.0f) {
+                    BeginBlendMode(BLEND_ADDITIVE);
+                    DrawRectangle(0, 0, 1280, 720, Fade({ 160, 235, 255, 255 }, lightningFlash * 0.38f));
+                    EndBlendMode();
+                }
+            } else if (weatherKind == 3) { // Sương Băng Cực Hàn
+                DrawRectangleGradientV(0, 560, 1280, 160, Fade({ 155, 225, 255, 255 }, 0.0f), Fade({ 155, 225, 255, 255 }, 0.14f));
+                for (int i = 0; i < 28; ++i) {
+                    float sx = fmodf(i * 167.0f + sinf(atm * 1.4f + i) * 32.0f + atm * 20.0f, 1300.0f) - 10.0f;
+                    float sy = fmodf(i * 109.0f + atm * (32.0f + (i % 3) * 10.0f), 730.0f) - 5.0f;
+                    DrawPolyLinesEx({ sx, sy }, 6, 3.8f + (i % 2), atm * 40.0f + i * 20.0f, 1.2f, Fade(WHITE, 0.50f));
+                }
+            } else if (weatherKind == 4) { // Mưa Tro Dung Nham
+                DrawRectangleGradientV(0, 560, 1280, 160, Fade({ 255, 110, 30, 255 }, 0.0f), Fade({ 255, 110, 30, 255 }, 0.14f));
+                for (int i = 0; i < 30; ++i) {
+                    float ex = fmodf(i * 151.0f + sinf(atm * 2.1f + i) * 28.0f + atm * 14.0f, 1300.0f) - 10.0f;
+                    float ey = 730.0f - fmodf(i * 93.0f + atm * (46.0f + (i % 4) * 12.0f), 740.0f);
+                    Color ec = (i % 2 == 0) ? GOLD : ORANGE;
+                    DrawCircleV({ ex, ey }, 2.2f + (i % 2) * 0.8f, Fade(ec, 0.65f));
+                }
             }
         }
     }
@@ -1557,6 +1694,8 @@ inline void Game::Draw() {
         DrawText(floorStr.c_str(), 1280 / 2 - MeasureText(floorStr.c_str(), 28) / 2, 10, 28, RAYWHITE);
         std::string subD = std::string(L(biome.nameEn, biome.nameVi)) + "  |  " + timeSub;
         DrawText(subD.c_str(), 1280 / 2 - MeasureText(subD.c_str(), 13) / 2, 42, 13, biome.accentCol);
+        std::string wSub = std::string(WeatherName()) + "  -  " + WeatherDesc();
+        DrawText(wSub.c_str(), 1280 / 2 - MeasureText(wSub.c_str(), 12) / 2, 58, 12, WeatherColor());
     }
 
     if (comboCount > 1 && !inSurface) {
@@ -1587,6 +1726,11 @@ inline void Game::Draw() {
         }
         if (bossEssence > 0) {
             DrawText(TextFormat(L("Boss Essence: %d", "Tinh Hoa Trùm: %d"), bossEssence), 1280 - 240, hyRight, 13, { 235, 165, 255, 255 });
+            hyRight += 17;
+        }
+        if (activeRune > 0) {
+            const char* rBuf = (activeRune == 3 && runeBuffTimer > 0.0f) ? L(" [SURGE]", " [CUỒNG TỐC]") : "";
+            DrawText(TextFormat("%s (Lv.%d)%s", RuneName(), runeRank, rBuf), 1280 - 240, hyRight, 13, RuneColor());
             hyRight += 17;
         }
         if (bountyActive) {
@@ -1622,30 +1766,49 @@ inline void Game::Draw() {
 
     if (touchMode && state == PLAYING) DrawTouchControls();
 
-    // Thanh máu boss
+    // Thanh máu Boss 2.5D + Thanh Phá Giáp (Stagger / Posture Break Gauge)
     bool bossBarActive = false;
     for (const auto& e : enemies) {
         if (e.type == BOSS && e.hp > 0) {
             bossBarActive = true;
-            int bw = 460, bx = 1280 / 2 - bw / 2, by = 66;
-            float pct = std::max(0.0f, e.hp / e.maxHp);
-            DrawRectangle(bx - 3, by - 3, bw + 6, 22, { 10, 12, 20, 230 });
-            DrawRectangle(bx, by, (int)(bw * pct), 16, (e.bossKind == 1) ? (e.enraged ? Color{ 255, 90, 30, 255 } : Color{ 255, 150, 40, 255 }) : (e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 190, 60, 200, 255 }));
-            DrawRectangleLines(bx - 3, by - 3, bw + 6, 22, GOLD);
+            int bw = 468, bx = 1280 / 2 - bw / 2, by = 78;
+            float pct = std::max(0.0f, e.hp / std::max(1.0f, e.maxHp));
+            float lag = Clamp(bossHpLag, pct, 1.0f);
+            Color bCol = (e.bossKind == 1) ? (e.enraged ? Color{ 255, 90, 30, 255 } : Color{ 255, 150, 40, 255 }) : (e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 190, 60, 200, 255 });
+            DrawRectangle(bx - 4, by - 3, bw + 8, 32, { 10, 12, 22, 235 });
+            DrawRectangle(bx, by, (int)(bw * lag), 17, { 245, 225, 225, 210 });
+            DrawRectangle(bx, by, (int)(bw * pct), 17, bCol);
+            DrawRectangle(bx, by, (int)(bw * pct), 6, Fade(WHITE, 0.22f));
+            DrawLine(bx + bw / 2, by, bx + bw / 2, by + 17, Fade(BLACK, 0.55f));
+            DrawRectangleLinesEx({ (float)bx - 4, (float)by - 3, (float)bw + 8, 23.0f }, 1.8f, GOLD);
+            Diamond({ (float)bx - 4, (float)by + 8.5f }, 4.5f, 4.5f, GOLD, WHITE);
+            Diamond({ (float)bx + bw + 4, (float)by + 8.5f }, 4.5f, 4.5f, GOLD, WHITE);
             const char* nm = (e.bossKind == 1)
                 ? (e.enraged ? L("THE MOLTEN COLOSSUS - ENRAGED", "KHỔNG LỒ DUNG NHAM - CUỒNG NỘ") : L("THE MOLTEN COLOSSUS", "KHỔNG LỒ DUNG NHAM"))
                 : (e.enraged ? L("THE VOID SOVEREIGN - ENRAGED", "CHÚA TỂ HƯ KHÔNG - CUỒNG NỘ") : L("THE VOID SOVEREIGN", "CHÚA TỂ HƯ KHÔNG"));
             DrawText(nm, 1280 / 2 - MeasureText(nm, 14) / 2, by + 1, 14, WHITE);
+
+            // Thanh Phá Giáp Boss
+            float spct = Clamp(e.stagger / std::max(1.0f, e.maxStagger), 0.0f, 1.0f);
+            bool broken = (e.staggerBrokenTimer > 0.0f);
+            Color stCol = broken ? ((int)(GetTime() * 10.0f) % 2 == 0 ? Color{ 110, 240, 255, 255 } : GOLD) : Color{ 245, 200, 65, 255 };
+            DrawRectangle(bx, by + 20, bw, 7, { 22, 26, 38, 240 });
+            if (spct > 0.0f) DrawRectangle(bx, by + 20, (int)(bw * spct), 7, stCol);
+            DrawRectangleLines(bx, by + 20, bw, 7, broken ? SKYBLUE : Color{ 110, 96, 56, 220 });
+            if (broken) {
+                const char* bTxt = L("ARMOR BROKEN! +35% DMG", "ĐÃ PHÁ GIÁP! +35% SÁT THƯƠNG");
+                OutlinedText(bTxt, 1280 / 2 - MeasureText(bTxt, 12) / 2, by + 30, 12, GOLD, { 12, 14, 24, 255 });
+            }
             break;
         }
     }
     if (trialActive) {
         const char* tt = L("TRIAL AMBUSH ACTIVE!", "ĐANG TRONG PHỤC KÍCH THỬ THÁCH!");
-        DrawText(tt, 1280 / 2 - MeasureText(tt, 17) / 2, bossBarActive ? 92 : 66, 17, GOLD);
+        DrawText(tt, 1280 / 2 - MeasureText(tt, 17) / 2, bossBarActive ? 122 : 78, 17, GOLD);
     }
     if (royalQuestActive && !isNoble) {
         std::string rqTxt = TextFormat(L("KING'S COMMISSION: %d/35 Monsters  |  %d/1 Boss", "ỦY THÁC CỦA VUA: %d/35 Quái  |  %d/1 Trùm"), royalQuestKills, royalQuestBosses);
-        int rqY = inSurface ? 64 : (bossBarActive ? (trialActive ? 114 : 92) : (trialActive ? 88 : 66));
+        int rqY = inSurface ? 64 : (bossBarActive ? (trialActive ? 144 : 122) : (trialActive ? 100 : 78));
         DrawText(rqTxt.c_str(), 1280 / 2 - MeasureText(rqTxt.c_str(), 14) / 2, rqY, 14, ORANGE);
     }
 

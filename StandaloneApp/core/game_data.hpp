@@ -438,6 +438,9 @@ struct Enemy {
     bool isGoldenGoblin = false; // Yêu Tinh Vàng chạy trốn rơi kho báu
     float reactionCooldown = 0.0f; // Hồi chiêu phản ứng nguyên tố trên mục tiêu
     float escapeTimer = 18.0f; // Thời gian trước khi Yêu Tinh Vàng biến mất
+    float stagger = 0.0f;           // Điểm Phá Giáp tích lũy (0..100) cho Elite / Warden / Boss
+    float maxStagger = 100.0f;
+    float staggerBrokenTimer = 0.0f; // > 0: Đang bị Phá Giáp (+35% sát thương nhận vào)
 };
 
 struct Projectile {
@@ -464,7 +467,7 @@ struct Projectile {
 };
 
 struct GroundEffect {
-    int kind = 0; // 0: Bẫy nổ Ranger, 1: Thánh vực Knight, 2: Hố đen Mage, 3: Vùng Mưa Tên Ranger, 4: Thiên thạch rơi, 5: Mũi tên Phượng Hoàng rơi
+    int kind = 0; // 0: Bẫy nổ Ranger, 1: Thánh vực Knight, 2: Hố đen Mage, 3: Vùng Mưa Tên Ranger, 4: Thiên thạch rơi, 5: Mũi tên Phượng Hoàng rơi, 6: Sét Thiên Lôi giáng xuống
     Vector2 pos;
     float radius = 100.0f;
     float timer = 1.0f;

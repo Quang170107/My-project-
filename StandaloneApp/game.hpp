@@ -151,6 +151,16 @@ public:
     int bountyRewardGold = 200;
     int bloodlineTrait = 0;     // 0: Dragonheart, 1: Shadowstep, 2: Arcane Blood, 3: Sovereign
     int bestCombo = 0;
+    int weatherKind = 0;        // 0: Clear, 1: Crimson Eclipse, 2: Arcane Ion Storm, 3: Frost Mist, 4: Ember Ashrain
+    float weatherTimer = 6.0f;  // Đếm ngược sự kiện thời tiết (vd: sét thiên lôi trong Bão Từ)
+    float lightningFlash = 0.0f; // Độ sáng chớp màn hình khi sét thiên lôi giáng xuống
+    float bossHpLag = 1.0f;     // Hiệu ứng tụt máu trễ trên thanh máu Boss
+    bool hasRunicAnvil = false; // Đài Rèn Cổ Ngữ trong tầng hầm ngục
+    bool runicAnvilUsed = false;
+    Vector2 runicAnvilPos = { 0.0f, 0.0f };
+    int activeRune = 0;         // 0: None, 1: Thunderclap, 2: Frostfire, 3: Bloodthirst, 4: Aegis
+    int runeRank = 0;           // Cấp Cổ Ngữ (1..3)
+    float runeBuffTimer = 0.0f; // Thời gian hiệu lực buff Cuồng Tốc của Cổ Ngữ Huyết Vũ
     Vector2 aimDirDraw = { 1, 0 };
     RenderTexture2D lightmap = { 0 };
     std::vector<Vector2> torches;
@@ -317,7 +327,7 @@ public:
         const SubclassDef* sc = ActiveSubclass();
         return (sc ? sc->vCooldown : 9.5f) * SkillCdrMult();
     }
-    float EffectiveArmor() const { return player.armor + (player.holyBuffTimer > 0.0f ? (player.subClass == 1 ? 6.0f : 4.0f) : 0.0f); }
+    float EffectiveArmor() const { return player.armor + (player.holyBuffTimer > 0.0f ? (player.subClass == 1 ? 6.0f : 4.0f) : 0.0f) + (activeRune == 4 ? 1.8f * runeRank : 0.0f); }
     float EffectiveAttackRate() const;
     float EffectiveMoveSpeed() const;
     void AddRage(float amt);
@@ -563,6 +573,13 @@ public:
     void AcceptOrClaimBounty();
     const char* BloodlineTraitName() const;
     const char* BloodlineTraitDesc() const;
+    const char* WeatherName() const;
+    const char* WeatherDesc() const;
+    Color WeatherColor() const;
+    const char* RuneName() const;
+    Color RuneColor() const;
+    int RunicAnvilCost() const { return 35 + floor * 12; }
+    void UseRunicAnvil();
     bool HasDuoTempestFrost() const { return HasRelic(RELIC_LIGHTNING) && HasRelic(RELIC_FROST); }
     bool HasDuoPlaguefire() const { return HasRelic(RELIC_TOXIC) && HasRelic(RELIC_COMBUSTION); }
     bool HasDuoImmortalBastion() const { return HasRelic(RELIC_AEGIS) && HasRelic(RELIC_CHALICE); }

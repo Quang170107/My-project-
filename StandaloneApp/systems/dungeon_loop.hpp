@@ -117,6 +117,7 @@ inline float Game::SkillCdrMult() const {
     float mult = std::max(0.45f, 1.0f - 0.12f * player.cdrUpgrades);
     if (player.heroClass == CLASS_MAGE) mult *= (player.subClass == 2 ? 0.78f : 0.85f);
     if (bloodlineTrait == 2) mult *= 0.90f; // Arcane Blood
+    if (!inSurface && weatherKind == 2) mult *= 0.88f; // Arcane Ion Storm: -12% hồi chiêu
     return mult;
 }
 
@@ -134,6 +135,7 @@ inline float Game::EffectiveAttackRate() const {
     }
     if (comboCount >= 10) r *= 1.20f; // Frenzy Overdrive
     if (styleRank > 0) r *= (1.0f + 0.020f * styleRank);
+    if (runeBuffTimer > 0.0f && activeRune == 3) r *= (1.0f + 0.12f + 0.05f * runeRank);
     for (const auto& h : hazards) {
         if (h.kind == 3 && Vector2Distance(player.pos, h.pos) < h.radius) { r *= 1.25f; break; }
     }
@@ -149,6 +151,8 @@ inline float Game::EffectiveMoveSpeed() const {
         s *= 1.22f;
     }
     if (comboCount >= 10) s *= 1.18f; // Frenzy Overdrive
+    if (runeBuffTimer > 0.0f && activeRune == 3) s *= 1.15f;
+    if (!inSurface && weatherKind == 3) s *= 0.96f; // Frost Mist
     if (player.frostSlowTimer > 0.0f) s *= 0.72f;
     if (surfaceUnlocked && hunger < 25.0f) s *= 0.90f;
     if (bloodlineTrait == 1) s *= 1.06f; // Shadowstep
@@ -198,13 +202,88 @@ inline const char* Game::BloodlineTraitDesc() const {
     }
 }
 
+inline const char* Game::WeatherName() const {
+    switch (weatherKind) {
+        case 1: return L("CRIMSON ECLIPSE", "NHẬT THỰC HUYẾT NGUYỆT");
+        case 2: return L("ARCANE ION STORM", "BÃO TỪ MA PHÁP");
+        case 3: return L("FROST MIST", "SƯƠNG BĂNG CỰC HÀN");
+        case 4: return L("EMBER ASHRAIN", "MƯA TRO DUNG NHAM");
+        default: return L("CLEAR SKIES", "KHÍ HẬU QUANG ĐÃNG");
+    }
+}
+
+inline const char* Game::WeatherDesc() const {
+    switch (weatherKind) {
+        case 1: return L("+8% Crit, +18% Gold, Foes +6% SPD", "+8% Chí mạng, +18% Vàng, Quái +6% Tốc");
+        case 2: return L("-12% Skill CD, Sky Lightning Strikes", "-12% Hồi chiêu, Sét Thiên Lôi giáng");
+        case 3: return L("Foe Shots -12% SPD, Freeze +30% Dur", "Đạn quái -12% tốc, Băng +30% thời gian");
+        case 4: return L("+20% Burn/Reaction DMG, +20% Rage", "+20% ST Đốt/Phản ứng, +20% Tích Nộ");
+        default: return L("Balanced Dungeon Atmosphere", "Không khí hầm ngục ổn định");
+    }
+}
+
+inline Color Game::WeatherColor() const {
+    switch (weatherKind) {
+        case 1: return { 255, 95, 115, 255 };
+        case 2: return { 115, 225, 255, 255 };
+        case 3: return { 165, 235, 255, 255 };
+        case 4: return { 255, 165, 75, 255 };
+        default: return { 195, 210, 235, 255 };
+    }
+}
+
+inline const char* Game::RuneName() const {
+    switch (activeRune) {
+        case 1: return L("Thunderclap Rune", "Cổ Ngữ Lôi Đình");
+        case 2: return L("Frostfire Rune", "Cổ Ngữ Băng Hỏa");
+        case 3: return L("Bloodthirst Rune", "Cổ Ngữ Huyết Vũ");
+        case 4: return L("Aegis Rune", "Cổ Ngữ Kim Cang");
+        default: return L("None", "Chưa có");
+    }
+}
+
+inline Color Game::RuneColor() const {
+    switch (activeRune) {
+        case 1: return { 110, 225, 255, 255 };
+        case 2: return { 255, 145, 95, 255 };
+        case 3: return { 255, 85, 120, 255 };
+        case 4: return { 255, 215, 95, 255 };
+        default: return GRAY;
+    }
+}
+
+inline void Game::UseRunicAnvil() {
+    if (!hasRunicAnvil || runicAnvilUsed) return;
+    int cost = RunicAnvilCost();
+    if (player.gold < cost) {
+        ShowBanner(TextFormat(L("Need %d Gold to forge Ancient Rune!", "Cần %d Vàng để khắc Cổ Ngữ!"), cost), 2.0f);
+        PlaySound(snd.sndHurt);
+        return;
+    }
+    player.gold -= cost;
+    runicAnvilUsed = true;
+    if (activeRune == 0 || runeRank >= 3) {
+        activeRune = 1 + (rand() % 4);
+        runeRank = std::min(3, std::max(1, runeRank + 1));
+    } else {
+        runeRank = std::min(3, runeRank + 1);
+    }
+    AddStyle(35.0f);
+    PlaySound(snd.sndLevelUp);
+    Shake(0.24f, 6.0f);
+    Burst(runicAnvilPos, RuneColor(), 32, 290.0f, 0.75f);
+    NovaVisual nv; nv.pos = runicAnvilPos; nv.maxRadius = 110.0f; nv.timer = 0.35f; nv.maxTimer = 0.35f; nv.color = RuneColor();
+    novas.push_back(nv);
+    ShowBanner(TextFormat(L("RUNIC ANVIL FORGED: %s (Lv.%d)!", "ĐÀI RÈN CỔ NGỮ: %s (Cấp %d)!"), RuneName(), runeRank), 3.4f);
+}
+
 inline void Game::TriggerElementalReaction(Enemy& e, int reactionKind, Vector2 pos) {
     if (e.hp <= 0 || e.reactionCooldown > 0.0f) return;
     e.reactionCooldown = 0.65f;
     elementalReactionsCount++;
     if (bountyActive && bountyKind == 1) bountyProgress++;
     AddStyle(24.0f);
-    float reactMult = (bloodlineTrait == 2 ? 1.15f : 1.0f) * (HasDuoTempestFrost() ? 1.15f : 1.0f);
+    float reactMult = (bloodlineTrait == 2 ? 1.15f : 1.0f) * (HasDuoTempestFrost() ? 1.15f : 1.0f) * ((!inSurface && weatherKind == 4) ? 1.20f : 1.0f);
     if (reactionKind == 0) { // MELT / TAN CHAY
         float bd = player.baseDmg * 1.45f * reactMult;
         e.hp -= bd;
@@ -250,6 +329,9 @@ inline void Game::TriggerElementalReaction(Enemy& e, int reactionKind, Vector2 p
         Burst(pos, { 150, 235, 255, 255 }, 16, 250.0f, 0.45f);
         SpawnPopup({ pos.x, pos.y - 26.0f }, TextFormat(L("SHATTER! %d", "PHÁ BĂNG! %d"), (int)bd), { 155, 240, 255, 255 });
     }
+    if ((e.type == BOSS || e.isElite || e.isWarden) && e.staggerBrokenTimer <= 0.0f) {
+        e.stagger = std::min(e.maxStagger, e.stagger + 14.0f);
+    }
     hitStop = std::max(hitStop, 0.024f);
 }
 
@@ -263,11 +345,39 @@ inline void Game::TriggerPerfectDodge() {
     player.skill2Timer = std::max(0.0f, player.skill2Timer - 1.2f);
     player.skill3Timer = std::max(0.0f, player.skill3Timer - 1.2f);
     player.skill4Timer = std::max(0.0f, player.skill4Timer - 1.2f);
+
+    // Phản Đạn Ánh Sáng (Bullet Parry Deflect): phản tối đa 2 viên đạn quái gần nhất thành tên ánh sáng truy đuổi
+    int deflected = 0;
+    for (auto& pr : projectiles) {
+        if (deflected >= 2) break;
+        if (!pr.fromPlayer && Vector2Distance(player.pos, pr.pos) < 92.0f) {
+            Vector2 targetPos = Vector2Subtract(pr.pos, pr.vel);
+            float bestD = 1e9f;
+            for (const auto& en : enemies) {
+                if (en.hp <= 0) continue;
+                float ed = Vector2Distance(pr.pos, en.pos);
+                if (ed < bestD) { bestD = ed; targetPos = en.pos; }
+            }
+            Vector2 rDir = Vector2Normalize(Vector2Subtract(targetPos, pr.pos));
+            if (Vector2Length(rDir) < 0.01f) rDir = { 1.0f, 0.0f };
+            pr.fromPlayer = true;
+            pr.kind = 5;
+            pr.vel = Vector2Scale(rDir, 460.0f);
+            pr.damage = player.baseDmg * 1.65f;
+            pr.color = GOLD;
+            pr.life = 2.4f;
+            pr.radius = 8.5f;
+            pr.hasPreCrit = true;
+            pr.preCrit = true;
+            Burst(pr.pos, GOLD, 8, 170.0f, 0.35f);
+            deflected++;
+        }
+    }
     ghosts.push_back({ player.pos, player.facingLeft, 0.45f, 0.45f });
-    NovaVisual nv; nv.pos = player.pos; nv.maxRadius = 78.0f; nv.timer = 0.28f; nv.maxTimer = 0.28f; nv.color = GOLD;
+    NovaVisual nv; nv.pos = player.pos; nv.maxRadius = deflected > 0 ? 96.0f : 78.0f; nv.timer = 0.28f; nv.maxTimer = 0.28f; nv.color = GOLD;
     novas.push_back(nv);
     Burst(player.pos, GOLD, 16, 240.0f, 0.45f);
-    SpawnPopup({ player.pos.x, player.pos.y - 34.0f }, L("PERFECT DODGE!", "NÉ HOÀN HẢO!"), GOLD);
+    SpawnPopup({ player.pos.x, player.pos.y - 34.0f }, deflected > 0 ? L("PARRY DEFLECT!", "PHẢN ĐẠN!") : L("PERFECT DODGE!", "NÉ HOÀN HẢO!"), GOLD);
     PlaySound(snd.sndDash);
 }
 
@@ -295,6 +405,7 @@ inline void Game::AcceptBloodPact() {
 
 inline void Game::AddRage(float amt) {
     if (amt <= 0.0f || player.rage >= player.maxRage) return;
+    if (!inSurface && weatherKind == 4) amt *= 1.20f; // Mưa Tro Dung Nham: +20% tốc độ tích Nộ
     float prev = player.rage;
     player.rage = std::min(player.maxRage, player.rage + amt);
     if (prev < player.maxRage && player.rage >= player.maxRage) {
@@ -374,6 +485,15 @@ inline void Game::RestartRun() {
     for (int i = 0; i < 4; ++i) equipPlus[i] = 0;
     bountyActive = false;
     bountyProgress = 0;
+    weatherKind = 0;
+    weatherTimer = 6.0f;
+    lightningFlash = 0.0f;
+    bossHpLag = 1.0f;
+    hasRunicAnvil = false;
+    runicAnvilUsed = false;
+    activeRune = 0;
+    runeRank = 0;
+    runeBuffTimer = 0.0f;
     bloodlineTrait = hc % 4;
     if (bloodlineTrait == 0) { player.maxHp = roundf(player.maxHp * 1.08f); player.hp = player.maxHp; player.baseDmg = roundf(player.baseDmg * 1.05f); }
     else if (bloodlineTrait == 1) { player.critChance += 0.05f; }
@@ -911,6 +1031,18 @@ inline void Game::BuildFloor() {
         ResolvePillars(bloodPactPos, 40.0f);
     }
 
+    // Thời tiết chiến thuật & Đài Rèn Cổ Ngữ (Ancient Runic Anvil)
+    weatherKind = (floor == 1) ? 0 : (Rand01() < 0.25f ? 0 : (1 + (floor + rand()) % 4));
+    weatherTimer = 5.5f;
+    lightningFlash = 0.0f;
+    bossHpLag = 1.0f;
+    hasRunicAnvil = (!isBoss && !shopFloor && floorMod != MOD_TREASURE && floor >= 2 && (floor % 2 == 0 || Rand01() < 0.45f));
+    runicAnvilUsed = false;
+    if (hasRunicAnvil) {
+        runicAnvilPos = { (Rand01() < 0.5f ? -215.0f : 215.0f), 145.0f };
+        ResolvePillars(runicAnvilPos, 40.0f);
+    }
+
     // Yêu Tinh Vàng (Treasure Goblin) ở tầng 2+ (30% cơ hội)
     if (!isBoss && !shopFloor && floor >= 2 && Rand01() < 0.30f) {
         Enemy gob = BuildEnemy(CHASER, GetRandomSpawnPos());
@@ -1084,6 +1216,8 @@ inline void Game::Update(float dt) {
     if (hitStop > 0) { hitStop -= dt; return; }
     if (slowMoTimer > 0.0f) { slowMoTimer -= dt; dt *= 0.35f; }
     if (perfectDodgeTimer > 0.0f) perfectDodgeTimer -= dt;
+    if (runeBuffTimer > 0.0f) runeBuffTimer -= dt;
+    if (lightningFlash > 0.0f) lightningFlash = std::max(0.0f, lightningFlash - dt * 2.8f);
     if (styleDecayTimer > 0.0f) {
         styleDecayTimer -= dt;
     } else if (styleRank > 0 || stylePoints > 0.0f) {
@@ -1561,6 +1695,12 @@ inline void Game::Update(float dt) {
         if (e.hitFlash > 0) e.hitFlash -= dt;
         if (e.stunTimer > 0) e.stunTimer -= dt;
         if (e.reactionCooldown > 0.0f) e.reactionCooldown -= dt;
+        if (e.staggerBrokenTimer > 0.0f) {
+            e.staggerBrokenTimer -= dt;
+            if (e.staggerBrokenTimer <= 0.0f) e.stagger = 0.0f;
+        } else if (e.stagger > 0.0f) {
+            e.stagger = std::max(0.0f, e.stagger - 4.0f * dt);
+        }
 
         // Golden Goblin: chạy trốn kèm tia sáng vàng, biến mất nếu hết giờ
         if (e.isGoldenGoblin) {
@@ -1603,6 +1743,7 @@ inline void Game::Update(float dt) {
         } else {
             e.slowFactor = 1.0f;
         }
+        if (!inSurface && weatherKind == 1) speedMod *= 1.06f; // Nhật Thực Huyết Nguyệt: Quái +6% tốc độ
         // Ember Edge: đốt
         if (e.burnTimer > 0) {
             e.burnTimer -= dt;
@@ -1661,7 +1802,7 @@ inline void Game::Update(float dt) {
                 PlaySound(snd.sndShoot);
                 Projectile p;
                 p.pos = Vector2Add(e.pos, Vector2Scale(dir, 20.0f));
-                p.vel = Vector2Scale(dir, 305.0f);
+                p.vel = Vector2Scale(dir, 305.0f * ((!inSurface && weatherKind == 3) ? 0.88f : 1.0f));
                 p.damage = e.contactDmg * 0.9f;
                 p.fromPlayer = false;
                 p.life = 3.0f;
@@ -1729,7 +1870,8 @@ inline void Game::Update(float dt) {
                         float a = i * (2.0f * PI / n);
                         Projectile p;
                         p.pos = e.pos;
-                        p.vel = { cosf(a) * 230.0f, sinf(a) * 230.0f };
+                        float pSpd = 230.0f * ((!inSurface && weatherKind == 3) ? 0.88f : 1.0f);
+                        p.vel = { cosf(a) * pSpd, sinf(a) * pSpd };
                         p.damage = e.contactDmg * 0.6f;
                         p.fromPlayer = false;
                         p.life = 3.0f;
@@ -1859,7 +2001,7 @@ inline void Game::Update(float dt) {
                     Vector2 bDir = { cosf(a), sinf(a) };
                     Projectile p;
                     p.pos = Vector2Add(e.pos, Vector2Scale(bDir, 35.0f));
-                    p.vel = Vector2Scale(bDir, 265.0f);
+                    p.vel = Vector2Scale(bDir, 265.0f * ((!inSurface && weatherKind == 3) ? 0.88f : 1.0f));
                     p.damage = e.contactDmg * 0.72f;
                     p.fromPlayer = false;
                     p.life = 3.5f;
@@ -1932,7 +2074,8 @@ inline void Game::Update(float dt) {
         bool outOrExpired = false;
         if (!p.fromPlayer) {
             if (Vector2Distance(p.pos, player.pos) < p.radius + 18.0f) {
-                DamagePlayer(p.damage);
+                float bulletScale = (activeRune == 4) ? (1.0f - 0.08f * runeRank) : 1.0f;
+                DamagePlayer(p.damage * bulletScale);
                 hit = true;
             }
             for (size_t ck = 0; !hit && ck < children.size(); ++ck) { // đạn quái trúng con
@@ -2064,7 +2207,7 @@ inline void Game::Update(float dt) {
                 }
             } else if (l.type == 1) { // Gold
                 int gVal = HasRelic(RELIC_MIDAS) ? (int)roundf(l.value * 1.5f) : l.value;
-                float gMult = (isNoble ? 1.25f : 1.0f) * (1.0f + 0.06f * styleRank) * (bloodlineTrait == 3 ? 1.15f : 1.0f);
+                float gMult = (isNoble ? 1.25f : 1.0f) * (1.0f + 0.06f * styleRank) * (bloodlineTrait == 3 ? 1.15f : 1.0f) * ((!inSurface && weatherKind == 1) ? 1.18f : 1.0f);
                 gVal = (int)roundf(gVal * gMult);
                 player.gold += gVal;
                 Burst(l.pos, GOLD, 4, 120.0f, 0.35f);
@@ -2246,6 +2389,52 @@ inline void Game::Update(float dt) {
         }
     }
 
+    // Đài Rèn Cổ Ngữ (Ancient Runic Anvil)
+    if (hasRunicAnvil && !runicAnvilUsed) {
+        float ad = Vector2Distance(player.pos, runicAnvilPos);
+        if (ad < 90.0f && (IsKeyPressed(KEY_F) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_UP))) {
+            UseRunicAnvil();
+        }
+    }
+
+    // Sét Thiên Lôi định kỳ khi thời tiết Bão Từ Ma Pháp
+    if (!inSurface && weatherKind == 2 && aliveCount > 0) {
+        weatherTimer -= dt;
+        if (weatherTimer <= 0.0f) {
+            weatherTimer = 6.5f + Rand01() * 2.5f;
+            Vector2 strikePos = player.pos;
+            std::vector<Vector2> livePos;
+            for (const auto& en : enemies) if (en.hp > 0) livePos.push_back(en.pos);
+            if (!livePos.empty() && Rand01() < 0.78f) strikePos = livePos[rand() % livePos.size()];
+            strikePos.x = Clamp(strikePos.x, -(roomW / 2.0f - 75.0f), roomW / 2.0f - 75.0f);
+            strikePos.y = Clamp(strikePos.y, -(roomH / 2.0f - 75.0f), roomH / 2.0f - 75.0f);
+            GroundEffect bolt;
+            bolt.kind = 6;
+            bolt.pos = strikePos;
+            bolt.radius = 68.0f;
+            bolt.maxTimer = 0.85f;
+            bolt.timer = 0.85f;
+            bolt.damage = 38.0f + floor * 9.0f;
+            bolt.color = { 115, 230, 255, 255 };
+            groundEffects.push_back(bolt);
+        }
+    }
+
+    // Theo dõi độ trễ thanh máu Boss
+    {
+        bool foundBoss = false;
+        for (const auto& en : enemies) {
+            if (en.type == BOSS && en.hp > 0) {
+                foundBoss = true;
+                float pct = Clamp(en.hp / std::max(1.0f, en.maxHp), 0.0f, 1.0f);
+                if (bossHpLag > pct) bossHpLag = std::max(pct, bossHpLag - dt * 0.45f);
+                else bossHpLag = pct;
+                break;
+            }
+        }
+        if (!foundBoss) bossHpLag = 1.0f;
+    }
+
     bool anyAlive = (aliveCount > 0) || !pendingSpawns.empty() || !wave2Spawns.empty();
     if (!anyAlive && !portalOpen) {
         portalOpen = true;
@@ -2399,6 +2588,10 @@ inline void Game::TriggerProjectileSplash(Vector2 pos, float baseSplashDmg, floa
 }
 
 inline void Game::DamageEnemy(Enemy& e, float dmg, Vector2 kb, float kbForce, bool isCrit, bool allowRage) {
+    if (!isCrit && !inSurface && weatherKind == 1 && !e.isGoldenGoblin && Rand01() < 0.08f) {
+        isCrit = true;
+        dmg *= 1.5f;
+    }
     if (nextHitCrit && !e.isGoldenGoblin) {
         nextHitCrit = false;
         if (!isCrit) { isCrit = true; dmg *= 1.65f; }
@@ -2406,6 +2599,7 @@ inline void Game::DamageEnemy(Enemy& e, float dmg, Vector2 kb, float kbForce, bo
     if (e.type == CHARGER && e.chargeState == 3) dmg *= 1.5f; // choáng sau cú lao: dễ trúng đòn
     if (e.type == BOSS && e.bossKind == 1 && e.chargeState == 5) dmg *= 1.3f; // Colossus kiệt sức: nhận thêm sát thương
     if (e.stunTimer > 0.0f) dmg *= 1.20f; // Kẻ địch đang choáng nhận thêm 20% sát thương
+    if (e.staggerBrokenTimer > 0.0f) dmg *= 1.35f; // Phá Giáp: nhận thêm +35% sát thương
     if (HasRelic(RELIC_BERSERK) && player.hp < player.maxHp * 0.4f) dmg *= 1.4f;
     dmg *= HungerDamageMult();
     dmg *= AgeDamageMult();
@@ -2425,14 +2619,15 @@ inline void Game::DamageEnemy(Enemy& e, float dmg, Vector2 kb, float kbForce, bo
     }
 
     // Ember Edge / Frost Touch & Elemental Reactions
-    float dotMult = HasDuoPlaguefire() ? 1.25f : 1.0f;
+    float dotMult = (HasDuoPlaguefire() ? 1.25f : 1.0f) * ((!inSurface && weatherKind == 4) ? 1.20f : 1.0f);
+    float chillMult = (!inSurface && weatherKind == 3) ? 1.30f : 1.0f;
     if (player.igniteLevel > 0) {
         e.burnTimer = 3.0f;
         e.burnDps = std::max(e.burnDps, player.baseDmg * 0.5f * player.igniteLevel * dotMult);
         if (e.chillTimer > 0.0f || e.slowTimer > 0.0f) TriggerElementalReaction(e, 0, e.pos);
     }
     if (player.frostLevel > 0) {
-        e.slowTimer = 2.0f + (HasDuoTempestFrost() ? 1.0f : 0.0f);
+        e.slowTimer = (2.0f + (HasDuoTempestFrost() ? 1.0f : 0.0f)) * chillMult;
         e.slowFactor = std::max(0.4f, 1.0f - 0.15f * player.frostLevel);
         if (e.burnTimer > 0.0f) TriggerElementalReaction(e, 0, e.pos);
         else if (isCrit) TriggerElementalReaction(e, 3, e.pos);
@@ -2440,7 +2635,7 @@ inline void Game::DamageEnemy(Enemy& e, float dmg, Vector2 kb, float kbForce, bo
 
     // Relics on hit
     if (HasRelic(RELIC_FROST) && isCrit) {
-        e.chillTimer = 2.5f + (HasDuoTempestFrost() ? 1.0f : 0.0f);
+        e.chillTimer = (2.5f + (HasDuoTempestFrost() ? 1.0f : 0.0f)) * chillMult;
         PlaySound(snd.sndFreeze);
         if (e.burnTimer > 0.0f) TriggerElementalReaction(e, 0, e.pos);
         else TriggerElementalReaction(e, 3, e.pos);
@@ -2460,6 +2655,46 @@ inline void Game::DamageEnemy(Enemy& e, float dmg, Vector2 kb, float kbForce, bo
                 if (other.hp <= 0) OnEnemyKilled(other);
                 break;
             }
+        }
+    }
+
+    // Hiệu ứng Cổ Ngữ (Ancient Runes)
+    if (activeRune == 1 && Rand01() < (0.25f + 0.05f * runeRank)) { // Cổ Ngữ Lôi Đình
+        float chainDmg = player.baseDmg * (0.35f + 0.12f * runeRank);
+        int maxHits = (runeRank >= 3) ? 2 : 1, hits = 0;
+        for (auto& other : enemies) {
+            if (&other != &e && other.hp > 0 && Vector2Distance(e.pos, other.pos) < 165.0f) {
+                other.hp -= chainDmg;
+                Burst(other.pos, { 110, 225, 255, 255 }, 8, 180.0f, 0.35f);
+                SpawnPopup(other.pos, TextFormat("ZAP %d", (int)chainDmg), { 115, 225, 255, 255 });
+                if (other.hp <= 0) OnEnemyKilled(other);
+                if (++hits >= maxHits) break;
+            }
+        }
+    } else if (activeRune == 2 && isCrit && e.hp > 0) { // Cổ Ngữ Băng Hỏa
+        e.burnTimer = std::max(e.burnTimer, 1.8f);
+        e.burnDps = std::max(e.burnDps, player.baseDmg * 0.35f * runeRank * dotMult);
+        if (e.chillTimer > 0.0f || e.slowTimer > 0.0f) {
+            TriggerElementalReaction(e, 0, e.pos);
+        } else if (runeRank >= 2) {
+            e.slowTimer = std::max(e.slowTimer, 1.5f * chillMult);
+            e.slowFactor = std::min(e.slowFactor, 0.72f);
+        }
+    }
+
+    // Cơ Chế Phá Giáp (Stagger / Posture Break) cho Tinh Anh, Warden & Trùm
+    if (e.hp > 0 && (e.type == BOSS || e.isElite || e.isWarden) && e.staggerBrokenTimer <= 0.0f) {
+        e.stagger += (e.type == BOSS ? 5.5f : 12.5f) * (isCrit ? 1.55f : 1.0f);
+        if (e.stagger >= e.maxStagger) {
+            e.stagger = e.maxStagger;
+            e.staggerBrokenTimer = 4.5f;
+            e.stunTimer = std::max(e.stunTimer, e.type == BOSS ? 1.35f : 1.80f);
+            NovaVisual nv; nv.pos = e.pos; nv.maxRadius = e.radius * 2.4f; nv.timer = 0.35f; nv.maxTimer = 0.35f; nv.color = GOLD;
+            novas.push_back(nv);
+            Burst(e.pos, GOLD, 24, 280.0f, 0.55f);
+            Shake(0.22f, 5.5f);
+            AddStyle(28.0f);
+            SpawnPopup({ e.pos.x, e.pos.y - e.radius - 20.0f }, L("ARMOR BROKEN! +35% DMG", "PHÁ GIÁP! +35% ST"), GOLD);
         }
     }
 
@@ -2491,6 +2726,13 @@ inline void Game::OnEnemyKilled(Enemy& e) {
     PlaySound(snd.sndDeath);
     AddStyle(e.type == BOSS ? 45.0f : (e.isElite || e.isWarden ? 20.0f : 11.0f));
     AddRage(e.type == BOSS ? 35.0f : (e.isElite || e.isWarden ? 15.0f : 6.0f));
+    if (activeRune == 3) { // Cổ Ngữ Huyết Vũ: hạ quái tăng Cuồng Tốc + hồi máu
+        runeBuffTimer = std::max(runeBuffTimer, 2.5f + 0.4f * runeRank);
+        if (player.hp < player.maxHp) {
+            float rh = 1.5f * runeRank;
+            player.hp = std::min(player.maxHp, player.hp + rh);
+        }
+    }
     if (e.isElite && bountyActive && bountyKind == 0) bountyProgress++;
     if (e.isGoldenGoblin) {
         int gobGold = 120 + floor * 12;
