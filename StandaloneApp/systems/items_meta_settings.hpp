@@ -70,7 +70,7 @@ inline void Game::UpdateChests(float dt) {
             Shake(0.1f, 3.0f);
             loots.push_back({ 1, { c.pos.x - 22.0f, c.pos.y + 6.0f }, 15, 20.0f });
             loots.push_back({ 1, { c.pos.x + 22.0f, c.pos.y + 6.0f }, 15, 20.0f });
-            loots.push_back({ 2, { c.pos.x, c.pos.y - 28.0f }, 40, 20.0f });
+            loots.push_back({ 2, { c.pos.x, c.pos.y - 28.0f }, 26, 20.0f });
             loots.push_back({ 0, { c.pos.x, c.pos.y + 26.0f }, 50, 20.0f });
             SpawnPopup({ c.pos.x, c.pos.y - 30.0f }, "+GOLD", YELLOW);
             if (c.vault) { // kho báu: chắc chắn có trang bị hiếm trở lên (và một relic nếu còn)

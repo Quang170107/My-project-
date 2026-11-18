@@ -677,26 +677,31 @@ static EquipItem GenerateItem(int floor, int forcedWeaponType = -1, float lsScal
     EquipItem it;
     it.slot = rand() % 4;
     float roll = Rand01();
-    it.rarity = roll < 0.03f ? 3 : (roll < 0.13f ? 2 : (roll < 0.40f ? 1 : 0));
-    float rm = it.rarity == 3 ? 3.2f : (it.rarity == 2 ? 2.2f : (it.rarity == 1 ? 1.5f : 1.0f));
-    float m = rm * (1.0f + (std::max(1, floor) - 1) * 0.12f);
+    int fClamped = std::max(1, floor);
+    // Giới hạn phẩm chất theo tầng: Tầng 1-2 tối đa Rare (1); Tầng 3-5 tối đa Epic (2); Tầng 6+ mở khóa Legendary (3)
+    float legChance  = (fClamped >= 6) ? std::min(0.06f, 0.015f + (fClamped - 6) * 0.003f) : 0.0f;
+    float epicChance = (fClamped >= 3) ? std::min(0.16f, 0.05f + (fClamped - 3) * 0.008f) : 0.0f;
+    float rareChance = std::min(0.36f, 0.18f + (fClamped - 1) * 0.012f);
+    it.rarity = (roll < legChance) ? 3 : (roll < legChance + epicChance ? 2 : (roll < legChance + epicChance + rareChance ? 1 : 0));
+    float rm = it.rarity == 3 ? 2.15f : (it.rarity == 2 ? 1.60f : (it.rarity == 1 ? 1.25f : 1.0f));
+    float m = rm * (1.0f + (fClamped - 1) * 0.085f);
     switch (it.slot) {
         case SLOT_WEAPON:
-            it.damage = roundf(6.0f * m);
-            it.attackRate = std::min(2.0f, R1(0.2f * m));
-            it.crit = std::min(0.2f, roundf(0.02f * m * 100.0f) / 100.0f);
+            it.damage = roundf(3.5f * m);
+            it.attackRate = std::min(0.90f, R1(0.10f * m));
+            it.crit = std::min(0.14f, roundf(0.015f * m * 100.0f) / 100.0f);
             break;
         case SLOT_ARMOR:
-            it.armor = R1(1.2f * m);
-            it.maxHp = roundf(10.0f * m);
+            it.armor = R1(0.85f * m);
+            it.maxHp = roundf(7.5f * m);
             break;
         case SLOT_BOOTS:
-            it.moveSpeed = std::min(2.5f, R1(0.3f * m));
-            it.maxHp = roundf(6.0f * m);
+            it.moveSpeed = std::min(1.8f, R1(0.22f * m));
+            it.maxHp = roundf(4.5f * m);
             break;
         default:
-            it.lifesteal = std::min(0.15f * lsScale, roundf(0.02f * m * lsScale * 1000.0f) / 1000.0f);
-            it.attackRate = std::min(2.0f, R1(0.25f * m));
+            it.lifesteal = std::min(0.10f * lsScale, roundf(0.014f * m * lsScale * 1000.0f) / 1000.0f);
+            it.attackRate = std::min(0.75f, R1(0.12f * m));
             break;
     }
     if (it.slot == SLOT_WEAPON) {

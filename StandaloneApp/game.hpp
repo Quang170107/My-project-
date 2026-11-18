@@ -534,13 +534,24 @@ public:
 
     void DrawPlayerSprite();
 
-    // Độ khó theo tầng: tăng đều, rồi dốc hơn từ tầng 9 để theo kịp sức mạnh của người chơi (cân bằng bằng bot mô phỏng)
-    float DiffHp() const { return settings.difficulty == 0 ? 0.90f : (settings.difficulty == 2 ? 1.20f : 1.0f); }
-    float DiffDmg() const { return settings.difficulty == 0 ? 0.75f : (settings.difficulty == 2 ? 1.20f : 1.0f); }
+    // Độ khó theo tầng: scaling bậc hai để tránh người chơi out-power quái ở tầng sau và phân tách rõ Dễ/Thường/Khó
+    float DiffHp() const { return settings.difficulty == 0 ? 0.85f : (settings.difficulty == 2 ? 2.15f : 1.35f); }
+    float DiffDmg() const { return settings.difficulty == 0 ? 0.75f : (settings.difficulty == 2 ? 1.85f : 1.25f); }
     float DiffSouls() const { return settings.difficulty == 0 ? 0.75f : (settings.difficulty == 2 ? 1.5f : 1.0f); }
-    float HpMult() const { return (1.0f + (floor - 1) * 0.15f + std::max(0, floor - 8) * 0.14f) * DiffHp() * (1.0f + curseStacks * 0.08f); }
-    float DmgMult() const { return (1.0f + (floor - 1) * 0.10f + std::max(0, floor - 8) * 0.11f) * DiffDmg() * (1.0f + curseStacks * 0.08f); }
-    float EliteChance() const { return std::min(0.45f, 0.20f + std::max(0, floor - 8) * 0.015f); }
+    float HpMult() const {
+        float f = (float)(floor - 1);
+        float curve = 1.0f + f * 0.34f + f * f * 0.026f + std::max(0, floor - 8) * 0.28f;
+        return curve * DiffHp() * (1.0f + curseStacks * 0.12f);
+    }
+    float DmgMult() const {
+        float f = (float)(floor - 1);
+        float curve = 1.0f + f * 0.18f + f * f * 0.008f + std::max(0, floor - 8) * 0.18f;
+        return curve * DiffDmg() * (1.0f + curseStacks * 0.12f);
+    }
+    float EliteChance() const {
+        float base = (settings.difficulty == 2) ? 0.30f : (settings.difficulty == 1 ? 0.20f : 0.14f);
+        return std::min(0.65f, base + (floor - 1) * 0.016f);
+    }
 
     void AddStyle(float pts);
     const char* StyleRankLabel() const;

@@ -133,7 +133,7 @@ inline float Game::EffectiveAttackRate() const {
         else if (player.heroClass == CLASS_KNIGHT || player.heroClass == CLASS_MAGE) r *= 1.30f;
     }
     if (comboCount >= 10) r *= 1.20f; // Frenzy Overdrive
-    if (styleRank > 0) r *= (1.0f + 0.035f * styleRank);
+    if (styleRank > 0) r *= (1.0f + 0.020f * styleRank);
     for (const auto& h : hazards) {
         if (h.kind == 3 && Vector2Distance(player.pos, h.pos) < h.radius) { r *= 1.25f; break; }
     }
@@ -933,10 +933,10 @@ inline void Game::SpawnWarden(Vector2 pos) {
     Enemy& w = enemies.back();
     w.isWarden = true;
     w.isElite = false;
-    w.maxHp = 150.0f * (HpMult());
+    w.maxHp = 210.0f * (HpMult());
     w.hp = w.maxHp;
-    w.speed = 85.0f;
-    w.contactDmg = 16.0f * (DmgMult());
+    w.speed = 88.0f;
+    w.contactDmg = 19.0f * (DmgMult());
     w.radius = 36.0f;
 }
 
@@ -961,67 +961,69 @@ inline Enemy Game::BuildEnemy(EnemyType type, Vector2 pos) {
     float multDmg = DmgMult();
 
     if (type == CHASER) {
-        e.maxHp = 35.0f * multHp;
-        e.speed = 175.0f;
-        e.contactDmg = 12.0f * multDmg;
+        e.maxHp = 44.0f * multHp;
+        e.speed = 178.0f;
+        e.contactDmg = 13.0f * multDmg;
         e.radius = 18.0f;
     } else if (type == RANGER) {
-        e.maxHp = 28.0f * multHp;
-        e.speed = 150.0f;
-        e.contactDmg = 8.0f * multDmg;
+        e.maxHp = 36.0f * multHp;
+        e.speed = 152.0f;
+        e.contactDmg = 10.0f * multDmg;
         e.radius = 18.0f;
     } else if (type == BRUTE) {
-        e.maxHp = 85.0f * multHp;
-        e.speed = 95.0f;
-        e.contactDmg = 16.0f * multDmg;
+        e.maxHp = 110.0f * multHp;
+        e.speed = 98.0f;
+        e.contactDmg = 19.0f * multDmg;
         e.radius = 26.0f;
     } else if (type == CHARGER) {
-        e.maxHp = 48.0f * multHp;
-        e.speed = 120.0f;
-        e.contactDmg = 12.0f * multDmg;
+        e.maxHp = 62.0f * multHp;
+        e.speed = 124.0f;
+        e.contactDmg = 15.0f * multDmg;
         e.radius = 21.0f;
         e.chargeCooldown = 0.8f + 1.4f * Rand01();
     } else if (type == SPLITTER) {
-        e.maxHp = 60.0f * multHp;
-        e.speed = 125.0f;
-        e.contactDmg = 14.0f * multDmg;
+        e.maxHp = 75.0f * multHp;
+        e.speed = 128.0f;
+        e.contactDmg = 15.0f * multDmg;
         e.radius = 26.0f;
     } else if (type == SUMMONER) {
-        e.maxHp = 42.0f * multHp;
-        e.speed = 105.0f;
-        e.contactDmg = 8.0f * multDmg;
+        e.maxHp = 54.0f * multHp;
+        e.speed = 108.0f;
+        e.contactDmg = 10.0f * multDmg;
         e.radius = 20.0f;
         e.summonTimer = 2.5f + 2.0f * Rand01();
     } else if (type == BOMBER) {
-        e.maxHp = 22.0f * multHp;
-        e.speed = 190.0f;
-        e.contactDmg = 6.0f * multDmg;
+        e.maxHp = 30.0f * multHp;
+        e.speed = 194.0f;
+        e.contactDmg = 8.0f * multDmg;
         e.radius = 17.0f;
     } else if (type == BOSS) {
         e.bossKind = ((floor / 5) % 2 == 0) ? 1 : 0; // tầng 5, 15, 25: Void Sovereign; tầng 10, 20, 30: Molten Colossus
         if (e.bossKind == 1) {
-            e.maxHp = 360.0f * multHp;
-            e.speed = 95.0f;
-            e.contactDmg = 24.0f * multDmg;
+            e.maxHp = 720.0f * multHp;
+            e.speed = 106.0f;
+            e.contactDmg = 28.0f * multDmg;
             e.radius = 48.0f;
             e.summonTimer = 0.0f;
         } else {
-            e.maxHp = 260.0f * multHp;
-            e.speed = 115.0f;
-            e.contactDmg = 20.0f * multDmg;
+            e.maxHp = 580.0f * multHp;
+            e.speed = 124.0f;
+            e.contactDmg = 24.0f * multDmg;
             e.radius = 42.0f;
         }
     }
+    float spdScale = 1.0f + std::min(0.22f, (floor - 1) * 0.007f) + (settings.difficulty == 2 ? 0.08f : 0.0f);
+    e.speed *= spdScale;
     e.hp = e.maxHp;
 
-    // Elite variant chance on floor 3+
-    if (type != BOSS && floor >= 3 && ((float)rand() / RAND_MAX < eliteChance)) {
+    // Elite variant chance on floor 2+ (hoặc tầng 1 ở độ khó Khó)
+    if (type != BOSS && (floor >= 2 || settings.difficulty == 2) && ((float)rand() / RAND_MAX < eliteChance)) {
         e.isElite = true;
         e.eliteAffix = 1 + (rand() % 4);
         e.affixTimer = 2.0f + Rand01() * 2.0f;
-        e.maxHp *= (e.eliteAffix == 4 ? 1.8f * 1.15f : 1.8f);
+        e.maxHp *= (e.eliteAffix == 4 ? 2.1f * 1.15f : 2.1f);
         e.hp = e.maxHp;
-        e.contactDmg *= 1.3f;
+        e.contactDmg *= 1.35f;
         e.radius *= 1.2f;
     }
 
@@ -1654,12 +1656,12 @@ inline void Game::Update(float dt) {
             else moveDir = { -dir.y, dir.x };
             e.pos = Vector2Add(e.pos, Vector2Scale(moveDir, e.speed * speedMod * dt));
 
-            if (e.attackTimer >= 2.2f) {
+            if (e.attackTimer >= 1.85f) {
                 e.attackTimer = 0;
                 PlaySound(snd.sndShoot);
                 Projectile p;
                 p.pos = Vector2Add(e.pos, Vector2Scale(dir, 20.0f));
-                p.vel = Vector2Scale(dir, 280.0f);
+                p.vel = Vector2Scale(dir, 305.0f);
                 p.damage = e.contactDmg * 0.9f;
                 p.fromPlayer = false;
                 p.life = 3.0f;
@@ -1845,7 +1847,7 @@ inline void Game::Update(float dt) {
             }
 
             e.attackTimer += dt;
-            float interval = e.enraged ? 2.0f : 3.0f;
+            float interval = e.enraged ? 1.65f : 2.35f;
             if (e.attackTimer >= interval) {
                 e.attackTimer = 0;
                 PlaySound(snd.sndShoot);
@@ -1857,8 +1859,8 @@ inline void Game::Update(float dt) {
                     Vector2 bDir = { cosf(a), sinf(a) };
                     Projectile p;
                     p.pos = Vector2Add(e.pos, Vector2Scale(bDir, 35.0f));
-                    p.vel = Vector2Scale(bDir, 220.0f);
-                    p.damage = 16.0f;
+                    p.vel = Vector2Scale(bDir, 265.0f);
+                    p.damage = e.contactDmg * 0.72f;
                     p.fromPlayer = false;
                     p.life = 3.5f;
                     p.radius = 8.0f;
@@ -2569,14 +2571,14 @@ inline void Game::OnEnemyKilled(Enemy& e) {
     }
     loots.push_back({ 0, e.pos, (e.type == BOSS ? 150 : (e.isWarden ? 90 : (e.isElite ? 35 : (e.isMinion ? 5 : 15)))), 20.0f });
     {
-        float dropChance = (e.type == BOSS || e.isWarden) ? 1.0f : (e.isElite ? 0.30f : 0.12f) + 0.02f * meta[5];
+        float dropChance = (e.type == BOSS || e.isWarden) ? 1.0f : (e.isElite ? 0.20f : 0.055f) + 0.015f * meta[5];
         if (!e.isMinion && Rand01() < dropChance) SpawnItemDrop(e.pos);
     }
     if ((float)rand() / RAND_MAX < 0.6f || e.isElite) {
         loots.push_back({ 1, Vector2Add(e.pos, { 10, 0 }), rand() % 4 + 1, 20.0f });
     }
-    if ((float)rand() / RAND_MAX < 0.2f || (HasRelic(RELIC_CHALICE) && (float)rand() / RAND_MAX < 0.3f)) {
-        loots.push_back({ 2, Vector2Add(e.pos, { -10, 0 }), 35, 20.0f });
+    if ((float)rand() / RAND_MAX < 0.09f || (HasRelic(RELIC_CHALICE) && (float)rand() / RAND_MAX < 0.18f)) {
+        loots.push_back({ 2, Vector2Add(e.pos, { -10, 0 }), 25, 20.0f });
     }
 
     // Relic: Combustion explosion
@@ -2653,7 +2655,7 @@ inline bool Game::DamagePlayer(float dmg) {
     }
 
     float effArmor = EffectiveArmor() + (HasDuoImmortalBastion() ? 3.0f : 0.0f);
-    float effDmg = dmg * 100.0f / (100.0f + effArmor * 10.0f);
+    float effDmg = dmg * 100.0f / (100.0f + effArmor * 7.5f);
     if (player.heroClass == CLASS_KNIGHT) effDmg *= (player.subClass == 1 ? 0.80f : 0.85f);
     if (player.heroClass == CLASS_ASSASSIN && player.ultActiveTimer > 0.0f) effDmg *= 0.50f;
     effDmg *= AgeDamageTakenMult();
@@ -2663,7 +2665,7 @@ inline bool Game::DamagePlayer(float dmg) {
     if (styleRank > 0) { styleRank--; stylePoints = 35.0f; }
     else stylePoints = 0.0f;
     damagePulse = std::min(1.0f, 0.45f + effDmg / 60.0f);
-    player.invulnTimer = 0.45f;
+    player.invulnTimer = 0.36f;
     PlaySound(snd.sndHurt);
     Shake(0.18f, 5.0f);
     SpawnPopup(player.pos, std::to_string((int)effDmg), RED);
@@ -2799,14 +2801,14 @@ inline void Game::ChooseSubclass(int branch) {
     subclassChoosing = false;
     const SubclassDef& sc = kSubclasses[hc][b - 1];
 
-    player.maxHp += sc.bonusHp;
-    player.hp = std::min(player.maxHp, player.hp + player.maxHp * 0.35f + sc.bonusHp);
-    player.baseDmg += sc.bonusDmg;
-    player.armor += sc.bonusArmor;
-    player.speed += sc.bonusSpeed;
-    player.attackRate += sc.bonusAtkRate;
-    player.critChance = std::min(0.6f, player.critChance + sc.bonusCrit);
-    player.lifesteal = std::min(LifestealCap() + 0.05f * LifestealScale(), player.lifesteal + sc.bonusLifesteal * LifestealScale());
+    player.maxHp += roundf(sc.bonusHp * 0.65f);
+    player.hp = std::min(player.maxHp, player.hp + player.maxHp * 0.20f + roundf(sc.bonusHp * 0.65f));
+    player.baseDmg += roundf(sc.bonusDmg * 0.50f);
+    player.armor += sc.bonusArmor * 0.65f;
+    player.speed += sc.bonusSpeed * 0.75f;
+    player.attackRate += sc.bonusAtkRate * 0.50f;
+    player.critChance = std::min(0.6f, player.critChance + sc.bonusCrit * 0.65f);
+    player.lifesteal = std::min(LifestealCap() + 0.04f * LifestealScale(), player.lifesteal + sc.bonusLifesteal * 0.55f * LifestealScale());
     player.specialCooldown = Skill1MaxCd();
     player.skill2Cooldown = Skill2MaxCd();
     player.skill3Cooldown = Skill3MaxCd();
@@ -2822,8 +2824,8 @@ inline void Game::ChooseSubclass(int branch) {
     if (hasEquip[SLOT_WEAPON]) {
         equipped[SLOT_WEAPON].weaponType = cw;
         equipped[SLOT_WEAPON].name = std::string(equipped[SLOT_WEAPON].RarityName()) + " " + sc.weaponTitle;
-        equipped[SLOT_WEAPON].damage += 4.0f;
-        player.baseDmg += 4.0f;
+        equipped[SLOT_WEAPON].damage += 2.0f;
+        player.baseDmg += 2.0f;
     } else {
         EquipItem w = MakeStarterWeapon(cw);
         w.name = sc.weaponTitle;
@@ -2852,14 +2854,14 @@ inline void Game::ChooseUpgrade(UpgradeType up) {
 }
 
 inline void Game::ApplyUpgrade(UpgradeType up) {
-    if (up == UP_HP) { player.maxHp += 25; player.hp += 25; }
-    else if (up == UP_DMG) { player.baseDmg += 8; }
-    else if (up == UP_SPEED) { player.speed += 30; }
-    else if (up == UP_ATTACK_RATE) { player.attackRate += 0.8f; }
+    if (up == UP_HP) { player.maxHp += 20; player.hp += 20; }
+    else if (up == UP_DMG) { player.baseDmg += 5; }
+    else if (up == UP_SPEED) { player.speed += 22; }
+    else if (up == UP_ATTACK_RATE) { player.attackRate += 0.35f; }
     else if (up == UP_DASH) { player.dashCooldown = std::max(0.4f, player.dashCooldown - 0.2f); }
     else if (up == UP_LIFESTEAL) { player.lifesteal = std::min(LifestealCap(), player.lifesteal + LifestealStep()); }
-    else if (up == UP_ARMOR) { player.armor += 2.0f; }
-    else if (up == UP_CRIT) { player.critChance = std::min(0.6f, player.critChance + 0.08f); }
+    else if (up == UP_ARMOR) { player.armor += 1.5f; }
+    else if (up == UP_CRIT) { player.critChance = std::min(0.6f, player.critChance + 0.06f); }
     else if (up == UP_NOVA) {
         player.cdrUpgrades = std::min(5, player.cdrUpgrades + 1);
         player.specialCooldown = Skill1MaxCd();
