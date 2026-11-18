@@ -10,6 +10,31 @@ inline void Game::DrawEnemyBody(const Enemy& e) {
     const float face = (look.x < -0.10f) ? -1.0f : (look.x > 0.10f ? 1.0f : (e.facingLeft ? -1.0f : 1.0f));
     const Color ink = { 18, 16, 26, 255 };
 
+    if (e.isKingBoss || e.isNationalGeneral) {
+        int cls = std::max(0, std::min(kNumClasses - 1, e.isKingBoss ? e.kingClass : (int)CLASS_TEMPLAR));
+        Color rCol = e.isKingBoss ? GOLD : nations[std::max(1, std::min(4, e.generalNation))].color;
+        BeginBlendMode(BLEND_ADDITIVE);
+        CircleGrad(c.x, c.y, 64.0f, Fade(e.enraged ? RED : rCol, 0.35f), Fade(rCol, 0.0f));
+        EndBlendMode();
+        DrawPolyLinesEx(c, 8, 44.0f, t * 28.0f, 2.2f, Fade(rCol, 0.72f));
+        rlPushMatrix();
+        rlTranslatef(c.x, c.y, 0.0f);
+        rlScalef(1.42f, 1.42f, 1.0f);
+        DrawHeroModel({ 0.0f, 0.0f }, cls, ClassWeaponType(cls), look, face < 0.0f, e.bounceTimer, true,
+                      sinf(t * 4.5f) * 0.35f, e.hitFlash > 0.0f, true, e.enraged ? 1.0f : 0.0f, 0.0f, e.enraged ? 2 : 1, 0.0f);
+        rlPopMatrix();
+        if (e.isKingBoss) {
+            float cy = c.y - 45.0f + sinf(t * 3.5f) * 2.0f;
+            Tri({ c.x - 13.0f, cy + 5.0f }, { c.x - 15.0f, cy - 10.0f }, { c.x - 5.0f, cy + 5.0f }, GOLD);
+            Tri({ c.x - 6.0f,  cy + 5.0f }, { c.x,         cy - 14.0f }, { c.x + 6.0f, cy + 5.0f }, GOLD);
+            Tri({ c.x + 5.0f,  cy + 5.0f }, { c.x + 15.0f, cy - 10.0f }, { c.x + 13.0f, cy + 5.0f }, GOLD);
+            DrawRectangle((int)c.x - 14, (int)cy + 3, 28, 6, { 215, 165, 35, 255 });
+            DrawRectangleLines((int)c.x - 14, (int)cy + 3, 28, 6, ink);
+            Diamond({ c.x, cy + 1.0f }, 3.5f, 4.0f, RED, WHITE);
+        }
+        return;
+    }
+
     Color base = { 90, 210, 90, 255 };
     if (e.type == SPLITTER) base = { 70, 190, 205, 255 };
     else if (e.type == SUMMONER) base = { 96, 60, 168, 255 };
@@ -678,7 +703,7 @@ inline void Game::DrawHeroModel(Vector2 p, int heroClass, int wt, Vector2 aimDir
 
     // Additive class aura behind hero
     BeginBlendMode(BLEND_ADDITIVE);
-    CircleGrad(body.x, body.y - 2.0f, 28.0f, Fade(kClasses[std::max(0, std::min(3, heroClass))].color, 0.22f), Fade(WHITE, 0.0f));
+    CircleGrad(body.x, body.y - 2.0f, 28.0f, Fade(kClasses[std::max(0, std::min(kNumClasses - 1, heroClass))].color, 0.22f), Fade(WHITE, 0.0f));
     EndBlendMode();
 
     if (holyBuffTimer > 0.0f) {
@@ -804,7 +829,7 @@ inline void Game::DrawHeroModel(Vector2 p, int heroClass, int wt, Vector2 aimDir
             float a3 = t * 3.2f + i * PI;
             Diamond({ body.x + cosf(a3) * 23.0f, body.y - 4.0f + sinf(a3) * 8.0f }, 3.4f, 4.4f, { 110, 235, 255, 255 }, ink);
         }
-    } else {
+    } else if (heroClass == CLASS_RANGER) {
         // EMERALD RANGER: áo choàng lá rừng viền vàng, ống tên lông chim, giáp da & băng tay thợ săn, mũ trùm gắn ngọc lục bảo
         Color cloak = { 42, 134, 78, 255 };
         QuadOut({ body.x + back * 4.0f, body.y - 8.5f }, { body.x + back * 6.0f, body.y + 8.0f },
@@ -835,11 +860,35 @@ inline void Game::DrawHeroModel(Vector2 p, int heroClass, int wt, Vector2 aimDir
         BoxRot({ head.x + face * 3.0f, head.y + 0.5f }, 11.0f, 5.0f, 0.0f, { 18, 28, 22, 255 }, ink, 1.0f);
         Diamond({ head.x + face * 6.0f, head.y + 0.5f }, 2.4f, 2.0f, { 255, 225, 95, 255 }, ink);
         Diamond({ head.x + face * 0.5f, head.y + 0.5f }, 2.4f, 2.0f, { 255, 225, 95, 255 }, ink);
+    } else {
+        // ROYAL LANCEMASTER: áo choàng đỏ hoàng gia lót vàng, giáp bạc bạch kim chạm rồng, cầu vai đại bàng, mũ mào lông hoàng gia
+        Color cloak = { 172, 34, 52, 255 };
+        QuadOut({ body.x + back * 4.0f, body.y - 9.0f }, { body.x + back * 6.0f, body.y + 9.0f },
+                { body.x + back * (32.0f + sway), body.y + 19.0f + sway * 0.35f }, { body.x + back * (28.0f + sway), body.y - 4.0f }, cloak, ink, 1.5f);
+        DrawLineEx({ body.x + back * (28.0f + sway), body.y - 4.0f }, { body.x + back * (32.0f + sway), body.y + 19.0f + sway * 0.35f }, 2.4f, GOLD);
+        BoxRot({ p.x - 6.0f, p.y + 15.0f + step * 0.55f }, 7.5f, 8.5f, -step * 2.2f, { 165, 174, 198, 255 }, ink);
+        BoxRot({ p.x + 6.0f, p.y + 15.0f - step * 0.55f }, 7.5f, 8.5f,  step * 2.2f, { 165, 174, 198, 255 }, ink);
+        // Giáp ngực bạch kim viền vàng + biểu tượng Long Văn
+        QuadOut({ body.x - 13.5f, body.y - 8.5f }, { body.x + 13.5f, body.y - 8.5f },
+                { body.x + 10.0f, body.y + 10.0f }, { body.x - 10.0f, body.y + 10.0f }, { 232, 236, 246, 255 }, ink, 1.8f);
+        Diamond({ body.x, body.y - 1.0f }, 4.2f, 5.2f, { 255, 195, 55, 255 }, ink);
+        BoxRot({ body.x, body.y + 7.5f }, 20.5f, 4.5f, 0.0f, { 165, 34, 48, 255 }, ink, 1.2f);
+        BoxRot({ body.x, body.y + 7.5f }, 6.0f, 5.5f, 0.0f, GOLD, ink, 1.0f);
+        // Cầu vai rồng vàng
+        BoxRot({ body.x - 14.0f, body.y - 6.0f }, 9.5f, 8.5f, -20.0f, GOLD, ink, 1.4f);
+        BoxRot({ body.x + 14.0f, body.y - 6.0f }, 9.5f, 8.5f,  20.0f, GOLD, ink, 1.4f);
+        // Mũ chiến kỵ binh hoàng gia + mào lông trắng vàng + mắt xanh sáng
+        QuadOut({ head.x - 10.0f, head.y - 8.5f }, { head.x + 10.0f, head.y - 8.5f },
+                { head.x + 9.0f, head.y + 6.5f }, { head.x - 9.0f, head.y + 6.5f }, { 234, 238, 248, 255 }, ink, 1.7f);
+        Tri({ head.x, head.y - 9.0f }, { head.x + back * (28.0f + sway * 0.4f), head.y - 17.0f + sway * 0.25f }, { head.x + back * 7.0f, head.y - 2.0f }, GOLD);
+        Tri({ head.x + back * 3.0f, head.y - 7.0f }, { head.x + back * (22.0f + sway * 0.3f), head.y - 10.0f + sway * 0.2f }, { head.x + back * 8.0f, head.y }, { 245, 70, 90, 255 });
+        BoxRot({ head.x + face * 3.0f, head.y + 0.5f }, 12.0f, 4.2f, 0.0f, { 22, 22, 38, 255 }, ink, 1.0f);
+        DrawRectangle((int)(head.x + face * 5.0f - 4), (int)(head.y - 0.5f), 8, 2, { 255, 220, 95, 255 });
     }
 
     // Vũ khí theo hướng ngắm (Class quyết định model; Kiếm Sư dùng Gậy nhưng hiển thị model Kiếm Phép!)
     int visWt = VisualWeaponType(heroClass, subClass, wt);
-    bool enchanted = (subClass > 0 && ((heroClass == CLASS_MAGE && subClass == 1) || (heroClass == CLASS_RANGER && subClass == 2)));
+    bool enchanted = (subClass > 0 && ((heroClass == CLASS_MAGE && subClass == 1) || (heroClass == CLASS_RANGER && subClass == 2) || heroClass == CLASS_TEMPLAR));
     float a = atan2f(aimDir.y, aimDir.x);
     float sa = a + atkSweep;
     Vector2 dir = { cosf(sa), sinf(sa) };
@@ -847,7 +896,7 @@ inline void Game::DrawHeroModel(Vector2 p, int heroClass, int wt, Vector2 aimDir
     DrawWeaponModel(hand, dir, visWt, t, enchanted);
 
     if (subClass == 1 || subClass == 2) {
-        const SubclassDef& sc = kSubclasses[std::max(0, std::min(3, heroClass))][subClass - 1];
+        const SubclassDef& sc = kSubclasses[std::max(0, std::min(kNumClasses - 1, heroClass))][subClass - 1];
         DrawPolyLinesEx({ body.x, body.y + 12.0f }, 6, 20.0f, t * 40.0f, 1.5f, Fade(sc.color, 0.55f));
         if (heroClass == CLASS_KNIGHT && subClass == 2) { // Berserker horned helm & blood aura
             Tri({ head.x - 9.0f, head.y - 6.0f }, { head.x - 16.0f, head.y - 16.0f }, { head.x - 4.0f, head.y - 8.5f }, { 235, 65, 65, 255 });
@@ -873,6 +922,10 @@ inline void Game::DrawHeroModel(Vector2 p, int heroClass, int wt, Vector2 aimDir
         } else if (heroClass == CLASS_RANGER && subClass == 2) { // Valkyrie winged crown
             Tri({ head.x - 9.0f, head.y - 7.0f }, { head.x - 19.0f, head.y - 15.0f }, { head.x - 8.0f, head.y - 1.0f }, { 255, 220, 100, 255 });
             Tri({ head.x + 9.0f, head.y - 7.0f }, { head.x + 19.0f, head.y - 15.0f }, { head.x + 8.0f, head.y - 1.0f }, { 255, 220, 100, 255 });
+        } else if (heroClass == CLASS_TEMPLAR) { // Royal Lancemaster subclass aura & dragon horns
+            Color hCol = (subClass == 1) ? GOLD : Color{ 245, 75, 95, 255 };
+            Tri({ head.x - 9.0f, head.y - 6.0f }, { head.x - 17.0f, head.y - 17.0f }, { head.x - 4.0f, head.y - 8.5f }, hCol);
+            Tri({ head.x + 9.0f, head.y - 6.0f }, { head.x + 17.0f, head.y - 17.0f }, { head.x + 4.0f, head.y - 8.5f }, hCol);
         }
     }
 
@@ -921,6 +974,14 @@ inline void Game::DrawPlayerSprite() {
         EndBlendMode();
     }
     DrawHeroModel(player.pos, player.heroClass, wt, aimDirDraw, player.facingLeft, player.walkTimer, moving, off, player.isInvuln, player.shieldActive, player.holyBuffTimer, player.ultActiveTimer, player.subClass, player.swordOrbitTimer);
+    if (isKing || peerageRank >= 7) {
+        float cy = player.pos.y - 29.0f + sinf(tm * 3.5f) * 1.5f;
+        Tri({ player.pos.x - 9.0f, cy + 3.0f }, { player.pos.x - 10.0f, cy - 6.0f }, { player.pos.x - 3.0f, cy + 3.0f }, GOLD);
+        Tri({ player.pos.x - 4.0f, cy + 3.0f }, { player.pos.x,        cy - 9.0f }, { player.pos.x + 4.0f, cy + 3.0f }, GOLD);
+        Tri({ player.pos.x + 3.0f, cy + 3.0f }, { player.pos.x + 10.0f, cy - 6.0f }, { player.pos.x + 9.0f, cy + 3.0f }, GOLD);
+        DrawRectangle((int)player.pos.x - 9, (int)cy + 2, 18, 4, { 215, 165, 35, 255 });
+        Diamond({ player.pos.x, cy + 1.0f }, 2.4f, 2.8f, isKing ? RED : SKYBLUE, WHITE);
+    }
     if (hasEquip[SLOT_WEAPON] && equipPlus[SLOT_WEAPON] > 0) {
         int cnt = std::min(5, equipPlus[SLOT_WEAPON]);
         for (int i = 0; i < cnt; ++i) {

@@ -391,7 +391,7 @@ inline void Game::DrawSkillIcon(int heroClass, int slotKind, Vector2 c, float s,
             DrawCircleLines((int)c.x, (int)c.y, s * 0.38f, SKYBLUE);
             DrawCircleV({ c.x - s * 0.08f, c.y - s * 0.08f }, s * 0.10f, WHITE);
         }
-    } else {
+    } else if (heroClass == CLASS_RANGER) {
         if (slotKind == 0) { // Passive: Eagle Mark
             DrawRing(c, s * 0.26f, s * 0.34f, 0.0f, 360.0f, 16, col);
             DrawCircleV(c, s * 0.12f, GOLD);
@@ -415,19 +415,42 @@ inline void Game::DrawSkillIcon(int heroClass, int slotKind, Vector2 c, float s,
                 DrawLineEx({ c.x + i * s * 0.18f - s * 0.12f, c.y - s * 0.34f }, { c.x + i * s * 0.18f + s * 0.12f, c.y + s * 0.34f }, 2.5f, { 255, 165, 55, 255 });
             }
         }
+    } else { // CLASS_TEMPLAR (Royal Lancemaster)
+        if (slotKind == 0) { // Passive: Imperial Dragon Emblem
+            DrawPoly(c, 6, s * 0.34f, 0.0f, Fade(col, 0.25f));
+            DrawPolyLinesEx(c, 6, s * 0.34f, 0.0f, 2.0f, GOLD);
+            Diamond(c, s * 0.16f, s * 0.24f, GOLD, WHITE);
+        } else if (slotKind == 1) { // Q: Dragon Piercer Lance
+            DrawLineEx({ c.x - s * 0.38f, c.y + s * 0.30f }, { c.x + s * 0.32f, c.y - s * 0.26f }, 3.8f, col);
+            Tri({ c.x + s * 0.42f, c.y - s * 0.34f }, { c.x + s * 0.14f, c.y - s * 0.28f }, { c.x + s * 0.28f, c.y - s * 0.04f }, WHITE);
+        } else if (slotKind == 2) { // E: Royal Banner
+            DrawLineEx({ c.x - s * 0.14f, c.y - s * 0.38f }, { c.x - s * 0.14f, c.y + s * 0.38f }, 3.2f, GOLD);
+            Quad({ c.x - s * 0.12f, c.y - s * 0.36f }, { c.x + s * 0.32f, c.y - s * 0.22f }, { c.x + s * 0.26f, c.y + s * 0.04f }, { c.x - s * 0.12f, c.y + s * 0.08f }, { 225, 55, 75, 255 });
+        } else if (slotKind == 4) { // C: Javelins / 8-Way Sweep
+            DrawCircleLines((int)c.x, (int)c.y, s * 0.34f, col);
+            for (int i = -1; i <= 1; ++i) DrawLineEx({ c.x - s * 0.26f, c.y + i * s * 0.14f }, { c.x + s * 0.30f, c.y + i * s * 0.14f }, 2.6f, GOLD);
+        } else if (slotKind == 5) { // V: Cross of Judgment / Starfall
+            DrawLineEx({ c.x, c.y - s * 0.36f }, { c.x, c.y + s * 0.36f }, 4.0f, GOLD);
+            DrawLineEx({ c.x - s * 0.28f, c.y - s * 0.08f }, { c.x + s * 0.28f, c.y - s * 0.08f }, 3.5f, WHITE);
+        } else { // R: Sovereign's Phalanx
+            for (int i = -1; i <= 1; ++i) {
+                DrawLineEx({ c.x + i * s * 0.20f, c.y - s * 0.36f }, { c.x + i * s * 0.20f, c.y + s * 0.34f }, 3.0f, i == 0 ? WHITE : GOLD);
+            }
+            DrawRing(c, s * 0.26f, s * 0.34f, 0.0f, 360.0f, 16, Fade({ 255, 85, 95, 255 }, 0.8f));
+        }
     }
 }
 
 inline void Game::UpdateClassSelect() {
-    if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_RIGHT)) classSel = (classSel + 1) % 4;
-    if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_LEFT)) classSel = (classSel + 3) % 4;
-    for (int i = 0; i < 4; ++i) if (IsKeyPressed(KEY_ONE + i)) classSel = i;
+    if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_RIGHT)) classSel = (classSel + 1) % kNumClasses;
+    if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A) || PadPressed(GAMEPAD_BUTTON_LEFT_FACE_LEFT)) classSel = (classSel + kNumClasses - 1) % kNumClasses;
+    for (int i = 0; i < kNumClasses; ++i) if (IsKeyPressed(KEY_ONE + i)) classSel = i;
     if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_BACKSPACE) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) { state = TITLE; return; }
 
     Vector2 m = GetMousePosition();
     bool startClick = false;
-    const int cardW = 285, gap = 16, x0 = (1280 - (cardW * 4 + gap * 3)) / 2, cy = 84, cardH = 532;
-    for (int i = 0; i < 4; ++i) {
+    const int cardW = 232, gap = 12, x0 = (1280 - (cardW * kNumClasses + gap * (kNumClasses - 1))) / 2, cy = 84, cardH = 536;
+    for (int i = 0; i < kNumClasses; ++i) {
         Rectangle r = { (float)(x0 + i * (cardW + gap)), (float)cy, (float)cardW, (float)cardH };
         if (CheckCollisionPointRec(m, r)) {
             if (GetMouseDelta().x != 0 || GetMouseDelta().y != 0) classSel = i;
@@ -454,13 +477,13 @@ inline void Game::UpdateClassSelect() {
 inline void Game::DrawClassSelectScreen() {
     float t = (float)GetTime();
     DrawRectangleGradientV(0, 0, 1280, 720, Fade({ 8, 10, 18, 255 }, 0.92f), Fade({ 12, 16, 28, 255 }, 0.88f));
-    const char* hdr = L("CHOOSE YOUR HERO", "CHỌN NHÂN VẬT");
+    const char* hdr = L("CHOOSE YOUR HERO (5 CLASSES)", "CHỌN NHÂN VẬT (5 HỆ TƯỚNG)");
     OutlinedText(hdr, 1280 / 2 - MeasureText(hdr, 42) / 2, 22, 42, GOLD, { 80, 40, 10, 255 });
 
-    const int cardW = 285, gap = 16, x0 = (1280 - (cardW * 4 + gap * 3)) / 2, cy = 84, cardH = 532;
+    const int cardW = 232, gap = 12, x0 = (1280 - (cardW * kNumClasses + gap * (kNumClasses - 1))) / 2, cy = 84, cardH = 536;
     static const char* wpNamesEn[8] = { "Sword", "Dagger", "Axe", "Spear", "Hammer", "Scythe", "Bow", "Staff" };
     static const char* wpNamesVi[8] = { "Kiếm", "Dao Găm", "Rìu", "Thương", "Búa", "Lưỡi Hái", "Cung", "Quyền Trượng" };
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < kNumClasses; ++i) {
         const ClassDef& cd = kClasses[i];
         const ClassTextVi& vi = kClassesVi[i];
         const char* cname = settings.language == 1 ? vi.name : cd.name;
@@ -469,31 +492,31 @@ inline void Game::DrawClassSelectScreen() {
         bool sel = (classSel == i);
         Rectangle r = { (float)cx, (float)cy, (float)cardW, (float)cardH };
         DrawRectangleRec(r, sel ? Color{ 26, 34, 56, 252 } : Color{ 16, 20, 34, 240 });
-        DrawRectangle(cx, cy, cardW, 44, Fade(cd.color, sel ? 0.35f : 0.16f));
+        DrawRectangle(cx, cy, cardW, 42, Fade(cd.color, sel ? 0.35f : 0.16f));
         DrawRectangleLinesEx(r, sel ? 3.0f : 1.5f, sel ? GOLD : Fade(cd.color, 0.55f));
 
-        DrawText(TextFormat("[%d]", i + 1), cx + 10, cy + 12, 16, GOLD);
-        DrawText(cname, cx + 40, cy + 8, 20, sel ? WHITE : cd.color);
-        DrawText(crole, cx + 40, cy + 28, 12, { 185, 198, 225, 255 });
+        DrawText(TextFormat("[%d]", i + 1), cx + 8, cy + 12, 14, GOLD);
+        DrawText(cname, cx + 34, cy + 7, 16, sel ? WHITE : cd.color);
+        DrawText(crole, cx + 34, cy + 25, 11, { 185, 198, 225, 255 });
 
         // Xem trước nhân vật sống động
-        Vector2 prevPos = { cx + cardW / 2.0f, (float)cy + 102.0f };
-        DrawCircleV(prevPos, 38.0f, Fade(cd.color, sel ? 0.18f : 0.08f));
+        Vector2 prevPos = { cx + cardW / 2.0f, (float)cy + 90.0f };
+        DrawCircleV(prevPos, 34.0f, Fade(cd.color, sel ? 0.18f : 0.08f));
         float aimA = sel ? sinf(t * 1.8f) * 0.45f : 0.25f;
         DrawHeroModel(prevPos, i, cd.startWeapon, { cosf(aimA), sinf(aimA) }, false, t * (sel ? 6.0f : 0.0f), sel, sel ? sinf(t * 5.0f) * 0.3f : 0.35f, false, false, 0.0f, 0.0f);
 
         // Chỉ số cơ bản + nhánh Chuyển Chức Lv.5
-        int stY = cy + 146;
-        DrawRectangle(cx + 10, stY, cardW - 20, 68, { 12, 15, 26, 220 });
-        DrawText(TextFormat(L("HP: %d   DMG: %d   ARM: %.1f", "Máu: %d  ST: %d  Giáp: %.1f"), (int)cd.baseHp, (int)cd.baseDmg, cd.baseArmor), cx + 18, stY + 6, 13, RAYWHITE);
-        DrawText(TextFormat(L("SPD: %d   ATK: %.1f/s   CRIT: %d%%", "Chạy: %d  Đánh: %.1f/s  CM: %d%%"), (int)cd.baseSpeed, cd.baseAtkRate, (int)roundf(cd.baseCrit * 100)), cx + 18, stY + 21, 13, SKYBLUE);
-        DrawText(TextFormat(L("Weapon: %s", "Vũ Khí: %s"), settings.language == 1 ? wpNamesVi[cd.startWeapon] : wpNamesEn[cd.startWeapon]), cx + 18, stY + 36, 13, GOLD);
+        int stY = cy + 132;
+        DrawRectangle(cx + 8, stY, cardW - 16, 62, { 12, 15, 26, 220 });
+        DrawText(TextFormat(L("HP:%d  DMG:%d  ARM:%.1f", "Máu:%d  ST:%d  Giáp:%.1f"), (int)cd.baseHp, (int)cd.baseDmg, cd.baseArmor), cx + 14, stY + 5, 11, RAYWHITE);
+        DrawText(TextFormat(L("SPD:%d  ATK:%.1f/s  CR:%d%%", "Chạy:%d  Đánh:%.1f/s  CM:%d%%"), (int)cd.baseSpeed, cd.baseAtkRate, (int)roundf(cd.baseCrit * 100)), cx + 14, stY + 19, 11, SKYBLUE);
+        DrawText(TextFormat(L("Weapon: %s", "Vũ Khí: %s"), settings.language == 1 ? wpNamesVi[cd.startWeapon] : wpNamesEn[cd.startWeapon]), cx + 14, stY + 33, 11, GOLD);
         std::string brTxt = std::string(L("Lv.5: ", "Cấp 5: ")) + SubDisplayName(i, 1) + " / " + SubDisplayName(i, 2);
-        if (MeasureText(brTxt.c_str(), 11) > cardW - 28) brTxt = std::string(L("Lv.5: ", "Cấp 5: ")) + SubDisplayName(i, 1) + " | ...";
-        DrawText(brTxt.c_str(), cx + 18, stY + 51, 11, cd.accent);
+        if (MeasureText(brTxt.c_str(), 10) > cardW - 22) brTxt = std::string(L("Lv.5: ", "Cấp 5: ")) + SubDisplayName(i, 1) + "..";
+        DrawText(brTxt.c_str(), cx + 14, stY + 47, 10, cd.accent);
 
         // 4 kỹ năng: 1 Passive, 2 thường (Q, E), 1 Nộ (R)
-        int sy = stY + 74;
+        int sy = stY + 68;
         const char* tags[4] = { L("PASSIVE", "NỘI TẠI"), L("SKILL [Q]", "CHIÊU [Q]"), L("SKILL [E]", "CHIÊU [E]"), L("ULTIMATE [R]", "TUYỆT KỸ [R]") };
         const char* sn[4] = {
             settings.language == 1 ? vi.passiveName : cd.passiveName,
@@ -509,13 +532,13 @@ inline void Game::DrawClassSelectScreen() {
         };
         Color sCol[4] = { cd.color, SKYBLUE, { 110, 235, 175, 255 }, ORANGE };
         for (int k = 0; k < 4; ++k) {
-            int boxY = sy + k * 76;
-            DrawRectangle(cx + 10, boxY, cardW - 20, 70, { 12, 16, 28, 220 });
-            DrawRectangleLines(cx + 10, boxY, cardW - 20, 70, Fade(sCol[k], 0.45f));
-            DrawSkillIcon(i, k, { (float)cx + 28, (float)boxY + 20 }, 24.0f, sCol[k]);
-            DrawText(tags[k], cx + 48, boxY + 4, 11, sCol[k]);
-            DrawText(sn[k], cx + 48, boxY + 17, 14, WHITE);
-            DrawWrappedText(sd[k], cx + 16, boxY + 34, cardW - 32, 11, 13, { 188, 200, 224, 255 });
+            int boxY = sy + k * 82;
+            DrawRectangle(cx + 8, boxY, cardW - 16, 76, { 12, 16, 28, 220 });
+            DrawRectangleLines(cx + 8, boxY, cardW - 16, 76, Fade(sCol[k], 0.45f));
+            DrawSkillIcon(i, k, { (float)cx + 24, (float)boxY + 18 }, 22.0f, sCol[k]);
+            DrawText(tags[k], cx + 42, boxY + 4, 10, sCol[k]);
+            DrawText(sn[k], cx + 42, boxY + 16, 12, WHITE);
+            DrawWrappedText(sd[k], cx + 14, boxY + 32, cardW - 26, 10, 12, { 188, 200, 224, 255 });
         }
     }
 
@@ -524,7 +547,7 @@ inline void Game::DrawClassSelectScreen() {
     DrawRectangleLinesEx(startBtn, 2.0f, GOLD);
     std::string bTxt = std::string(L("PLAY AS ", "CHỌN ")) + ClassDisplayName(classSel) + " [ENTER]";
     DrawText(bTxt.c_str(), 1280 / 2 - MeasureText(bTxt.c_str(), 18) / 2, 648, 18, WHITE);
-    const char* foot = L("1-4 / A-D / Click: select hero     Enter / Double-Click: start     Esc: back", "1-4 / A-D / Nhấp: chọn tướng     Enter / Nhấp đúp: bắt đầu     Esc: quay lại");
+    const char* foot = L("1-5 / A-D / Click: select hero     Enter / Double-Click: start     Esc: back", "1-5 / A-D / Nhấp: chọn tướng     Enter / Nhấp đúp: bắt đầu     Esc: quay lại");
     DrawText(foot, 1280 / 2 - MeasureText(foot, 15) / 2, 692, 15, { 150, 165, 200, 255 });
 }
 
@@ -541,7 +564,7 @@ inline void Game::DrawSaveLoadScreen() {
         int cx = x0 + i * (cardW + gap);
         bool sel = (saveSlotSel == i);
         Rectangle r = { (float)cx, (float)cy, (float)cardW, (float)cardH };
-        int hc = std::max(0, std::min(3, info.heroClass));
+        int hc = std::max(0, std::min(kNumClasses - 1, info.heroClass));
         const ClassDef& cd = kClasses[hc];
         const SubclassDef* sc = (info.subClass == 1 || info.subClass == 2) ? &kSubclasses[hc][info.subClass - 1] : nullptr;
         const char* slotClsName = sc ? SubDisplayName(hc, info.subClass) : ClassDisplayName(hc);
@@ -668,7 +691,7 @@ inline void Game::DrawHelpPanel() {
         { "C / Z  |  V / X", "Subclass Skills 3 & 4 (unlocked at Lv.5)" },
         { "R / Middle Click", "Ultimate Rage Skill (at 100 Rage)" },
         { "1 / 2 / 3", "Pick an upgrade on level-up" },
-        { "I / Y / H", "Equipment & Skills / Family Tree / Eat Ration" },
+        { "I / Y / Tab", "Gear & Skills / Family Tree / World Map & Kingdom" },
         { "F / G", "Trade / Surface Landmarks / Ascend at Floor 10+" },
         { "Gamepad", "Sticks, RT/A atk, B dash, X Skill 1, Y Skill 2, LB Ult" },
         { "O / F2 / F11", "Settings / Windowed Fullscreen" },
@@ -685,7 +708,7 @@ inline void Game::DrawHelpPanel() {
         { "C / Z  |  V / X", "Kỹ năng Nhánh Phụ 3 & 4 (mở ở Cấp 5)" },
         { "R / Chuột Giữa", "Tuyệt Kỹ Nộ Khí (khi đủ 100 Nộ)" },
         { "1 / 2 / 3", "Chọn nâng cấp hoặc nhánh thức tỉnh" },
-        { "I / Y / H", "Trang bị & Kỹ năng / Cây Gia Phả / Ăn Lương Khô" },
+        { "I / Y / Tab", "Trang bị & Kỹ năng / Cây Gia Phả / Bản Đồ Thế Giới" },
         { "F / G", "Thương Nhân / Công Trình / Lên Mặt Đất (Tầng 10+)" },
         { "Tay Cầm", "Cần gạt, RT/A đánh, B lướt, X/Y chiêu, LB Tuyệt Kỹ" },
         { "O / F2 / F11", "Cài Đặt / Toàn Màn Hình Không Viền" },
@@ -712,13 +735,13 @@ inline void Game::DrawTitleScreen() {
     int ty = 100 + (int)(sinf(t * 1.6f) * 5.0f);
     DrawText(title, 1280 / 2 - tw / 2 + 4, ty + 5, 72, Fade(BLACK, 0.8f));
     OutlinedText(title, 1280 / 2 - tw / 2, ty, 72, GOLD, { 120, 60, 10, 255 });
-    const char* sub = L("4 Classes  -  8 Weapons  -  Rage Ultimates", "4 Hệ Tướng  -  8 Vũ Khí  -  Tuyệt Kỹ Nộ Khí");
+    const char* sub = L("5 Classes  -  10 Subclasses  -  Fiefdom & World War", "5 Hệ Tướng  -  10 Nhánh  -  Lãnh Địa & Chiến Tranh Quốc Gia");
     DrawText(sub, 1280 / 2 - MeasureText(sub, 22) / 2, ty + 88, 22, { 170, 190, 230, 255 });
 
     std::string rec = std::string(L("Best Record: Floor ", "Kỷ Lục Cao Nhất: Tầng ")) + std::to_string(bestFloor);
     DrawText(rec.c_str(), 1280 / 2 - MeasureText(rec.c_str(), 22) / 2, 292, 22, SKYBLUE);
 
-    int selCls = std::max(0, std::min(3, selectedClass));
+    int selCls = std::max(0, std::min(kNumClasses - 1, selectedClass));
     const ClassDef& cd = kClasses[selCls];
     std::string heroTxt = std::string(L("Hero: ", "Tướng Đang Chọn: ")) + ClassDisplayName(selCls);
     DrawText(heroTxt.c_str(), 1280 / 2 - MeasureText(heroTxt.c_str(), 20) / 2, 324, 20, cd.color);

@@ -4,7 +4,8 @@
 enum EnemyType { CHASER, RANGER, BRUTE, BOSS, BOMBER, CHARGER, SPLITTER, SUMMONER };
 enum RelicType { RELIC_LIGHTNING, RELIC_TOXIC, RELIC_FROST, RELIC_AEGIS, RELIC_CHALICE, RELIC_COMBUSTION, RELIC_PHOENIX, RELIC_MIDAS, RELIC_BERSERK, RELIC_THORNS };
 enum UpgradeType { UP_HP, UP_DMG, UP_SPEED, UP_ATTACK_RATE, UP_DASH, UP_LIFESTEAL, UP_ARMOR, UP_CRIT, UP_NOVA, UP_IGNITE, UP_FROST };
-enum HeroClass { CLASS_KNIGHT = 0, CLASS_ASSASSIN = 1, CLASS_MAGE = 2, CLASS_RANGER = 3 };
+enum HeroClass { CLASS_KNIGHT = 0, CLASS_ASSASSIN = 1, CLASS_MAGE = 2, CLASS_RANGER = 3, CLASS_TEMPLAR = 4 };
+static constexpr int kNumClasses = 5;
 enum WeaponType { WP_SWORD = 0, WP_DAGGER = 1, WP_AXE = 2, WP_SPEAR = 3, WP_HAMMER = 4, WP_SCYTHE = 5, WP_BOW = 6, WP_STAFF = 7 };
 
 struct ClassDef {
@@ -31,7 +32,7 @@ struct ClassDef {
     const char* rDesc;
 };
 
-static const ClassDef kClasses[4] = {
+static const ClassDef kClasses[kNumClasses] = {
     {
         "Vanguard Knight", "Armored Bruiser", { 70, 145, 245, 255 }, { 255, 210, 80, 255 }, WP_SWORD,
         120.0f, 275.0f, 26.0f, 2.5f, 2.0f, 0.05f, 5.5f, 7.0f,
@@ -63,6 +64,14 @@ static const ClassDef kClasses[4] = {
         "Multishot Volley", "Fire a 7-arrow fan (1.0x DMG each) with knockback",
         "Explosive Vault", "Drop an explosive trap (2.4x AoE + slow) & vault back",
         "Phoenix Rain", "3.6s storm of 16 fiery arrows (1.15x + Burn) & +35% ATK SPD"
+    },
+    {
+        "Royal Lancemaster", "Imperial Halberdier", { 245, 185, 55, 255 }, { 255, 95, 115, 255 }, WP_SPEAR,
+        112.0f, 290.0f, 27.0f, 2.65f, 1.8f, 0.10f, 5.0f, 6.8f,
+        "Imperial Mandate", "Every 3rd thrust fires a piercing Golden Dragon Wave (1.45x) & heals 5 HP",
+        "Dragon Piercer", "Dash-thrust 115px (2.25x DMG + Stagger) & launch 3 golden lance beams",
+        "Royal Banner", "1.95x Banner Slam (Stun 1.2s) + 3.5s Command Aura (+4 ARM, +30% ATK SPD, Shield)",
+        "Sovereign's Phalanx", "3.8x Imperial Impact + 4.0s storm of Golden Halberds (1.35x AoE) & Overdrive"
     }
 };
 
@@ -99,7 +108,7 @@ struct SubclassDef {
     const char* rDesc;
 };
 
-static const SubclassDef kSubclasses[4][2] = {
+static const SubclassDef kSubclasses[kNumClasses][2] = {
     { // KNIGHT (Class weapon: Sword WP_SWORD)
         {
             CLASS_KNIGHT, 1, "Holy Paladin", "Thanh Ky Si - Thanh Kiem & Khien",
@@ -195,6 +204,30 @@ static const SubclassDef kSubclasses[4][2] = {
             "Eye of Hurricane", "200px shockwave (2.2x + Stun 1.1s), 8 storm arrows & +20 Rage",
             "Gungnir Skyfall", "Rain Lightning Arrows for 3.8s (1.35x AoE) + +35% ATK SPD"
         }
+    },
+    { // TEMPLAR / ROYAL LANCEMASTER (Class weapon: Spear WP_SPEAR)
+        {
+            CLASS_TEMPLAR, 1, "Grand Inquisitor", "Dai Phan Quan - Thanh Thuong Phan Quyet",
+            { 255, 215, 85, 255 }, { 115, 235, 255, 255 }, WP_SPEAR, "Sunpiercer Halberd",
+            34.0f, 8.0f, 2.8f, 15.0f, 0.35f, 0.08f, 0.06f, 7.2f, 9.2f,
+            "Inquisitor's Verdict", "Every 2nd thrust fires a burning Sun-Lance Wave & heals 6 HP",
+            "Solar Impale", "Dash-impale 130px (2.55x DMG + Stun 1.4s) & fire 3 Sun-Lance Waves",
+            "Sanctified Standard", "2.2x Holy Banner Nova + 4.5s Barrier (+6 ARM, +35% ATK SPD, Shield)",
+            "Javelins of Light", "Hurl 5 piercing Golden Javelins (2.15x DMG, Stun 1.1s, Burn) & heal 10% HP",
+            "Cross of Judgment", "2.65x Golden Cross blast (Burn + +45 Stagger) & +20 Rage",
+            "Heavensfall Phalanx", "4.3x Solar Halberd Impact + 4.5s rain of Golden Spears & Sanctuary"
+        },
+        {
+            CLASS_TEMPLAR, 2, "Dragonlord Monarch", "Long De Ba Vuong - Phuong Thien Long Kich",
+            { 245, 75, 95, 255 }, { 255, 210, 75, 255 }, WP_SPEAR, "Dragonfang Halberd",
+            28.0f, 11.0f, 1.8f, 25.0f, 0.50f, 0.10f, 0.08f, 7.0f, 9.0f,
+            "Dragonblood Sovereignty", "Every attack fires a Dragon Crescent Wave (+15% Crit DMG) & +3 Rage",
+            "Wyrmfang Charge", "Dragon leap 135px (2.65x AoE + Burn), pull foes & heal 10% Max HP",
+            "Emperor's Roar", "2.3x Dragon Shockwave (Stun 1.5s) + 4s Haste/Shield & +25 Rage",
+            "Eight-Direction Sweep", "2.4x 360-deg Halberd cleave firing 8 piercing Dragon Waves outward",
+            "Imperial Starfall", "Summon 6 Dragon Pillars (2.3x AoE + Burn) & reset Dash cooldown",
+            "Dynasty Annihilation", "4.5x Dragon Cataclysm + 4.2s Crimson-Gold Vortex & Overdrive"
+        }
     }
 };
 
@@ -216,7 +249,7 @@ struct ClassTextVi {
     const char* rDesc;
 };
 
-static const ClassTextVi kClassesVi[4] = {
+static const ClassTextVi kClassesVi[kNumClasses] = {
     {
         "Kỵ Sĩ Tiên Phong", "Đấu Sĩ Giáp Nặng", "Kiếm Sắt",
         "Khiên Bất Khuất", "Giảm 15% sát thương; bị đánh +8 Nộ & nổ xung kích; đòn thứ 5 hồi 4 HP",
@@ -248,10 +281,18 @@ static const ClassTextVi kClassesVi[4] = {
         "Bẫy Nổ & Nhào Lộn", "Đặt bẫy nổ (2.4x AoE + Làm chậm) & lộn ngược lùi về",
         "", "", "", "",
         "Mưa Tên Phượng Hoàng", "3.6s bão 16 mũi tên lửa (1.15x + Thiêu đốt) & +35% Tốc Đánh"
+    },
+    {
+        "Long Kỵ Thương Vương", "Thánh Thương Hoàng Gia", "Thánh Thương",
+        "Thánh Chỉ Hoàng Gia", "Đòn đâm thứ 3 phóng Long Thương Khí xuyên thấu (1.45x ST) & hồi 5 HP",
+        "Long Thương Xung Kích", "Lướt đâm 115px (2.25x ST + Phá Giáp) & phóng 3 luồng thương hoàng kim",
+        "Hoàng Kỳ Chiêu Quân", "Cắm Hoàng Kỳ nổ 1.95x (Choáng 1.2s) + 3.5s Giáp Thánh (+4 Giáp, +30% Tốc)",
+        "", "", "", "",
+        "Thiên Quân Vạn Mã", "3.8x Đại Thương Giáng Thế + 4.0s mưa Thánh Kích (1.35x AoE) & Bùng Nổ"
     }
 };
 
-static const ClassTextVi kSubclassesVi[4][2] = {
+static const ClassTextVi kSubclassesVi[kNumClasses][2] = {
     { // KNIGHT
         {
             "Thánh Kỵ Sĩ Paladin", "Thánh Kỵ Sĩ - Kiếm & Khiên Thần", "Thánh Kiếm Nhật Quang",
@@ -330,6 +371,26 @@ static const ClassTextVi kSubclassesVi[4][2] = {
             "Lao Sấm Valkyrie", "Phóng 3 ngọn Lao Sét xuyên 4 mục tiêu (2.1x AoE) + Khiên Sấm",
             "Tâm Bão Lôi Đình", "Sóng sét 200px (2.2x ST + Choáng 1.1s), 8 tên sét & +20 Nộ",
             "Lôi Tiễn Gungnir", "3.8s Mưa Tên Sét từ bầu trời (1.35x AoE) & +35% Tốc Đánh"
+        }
+    },
+    { // ROYAL LANCEMASTER
+        {
+            "Đại Phán Quan", "Đại Phán Quan - Thánh Thương Phán Quyết", "Thần Kích Nhật Quang",
+            "Phán Quyết Ánh Sáng", "Đòn đâm thứ 2 phóng Thánh Thương Khí thiêu đốt & hồi 6 HP",
+            "Nhật Quang Xung Kích", "Lướt đâm 130px (2.55x ST + Choáng 1.4s) & phóng 3 luồng thương lửa",
+            "Thánh Kỳ Bảo Hộ", "Nổ 2.2x ST + Giáp Thánh 4.5s (+6 Giáp, +35% Tốc Đánh, Khiên)",
+            "Mưa Lao Ánh Sáng", "Ném 5 Lao Thần xuyên thấu (2.15x ST, Choáng 1.1s, Đốt) & hồi 10% Máu",
+            "Thập Tự Phán Quyết", "2.65x Vụ nổ Thập Tự Hoàng Kim (Đốt + +45 Phá Giáp) & +20 Nộ",
+            "Thiên Phạt Đại Trận", "4.3x Thần Kích Giáng Thế + 4.5s mưa Thánh Thương & Thánh Vực"
+        },
+        {
+            "Long Đế Bá Vương", "Long Đế Bá Vương - Phương Thiên Long Kích", "Phương Thiên Long Kích",
+            "Long Huyết Đế Vương", "Mỗi đòn đâm phóng Long Trăng Khí (+15% Chí Mạng) & +3 Nộ",
+            "Bá Long Xung Trận", "Nhảy 135px nổ Long Viêm 2.65x AoE, hút quái & hồi 10% Máu Tối Đa",
+            "Long Khiếu Chấn Thiên", "2.3x Sóng Long Uy (Choáng 1.5s) + 4s Tăng Tốc/Khiên & +25 Nộ",
+            "Bát Phương Quét Ngang", "Quét kích 360° (2.4x ST) phóng 8 luồng Long Khí xuyên thấu",
+            "Tinh Tú Giáng Trần", "Triệu 6 Cột Lửa Long Viêm (2.3x AoE + Đốt) & hồi ngay Dash",
+            "Hoàng Triều Hủy Diệt", "4.5x Đại Địa Chấn Rồng + 4.2s Xoáy Đỏ Hoàng Kim & Bùng Nổ"
         }
     }
 };
@@ -441,6 +502,11 @@ struct Enemy {
     float stagger = 0.0f;           // Điểm Phá Giáp tích lũy (0..100) cho Elite / Warden / Boss
     float maxStagger = 100.0f;
     float staggerBrokenTimer = 0.0f; // > 0: Đang bị Phá Giáp (+35% sát thương nhận vào)
+    bool isKingBoss = false;        // Vua Hoàng Triều trong trận Nổi Dậy Chiếm Ngai Vàng
+    int kingClass = 0;              // Class ngẫu nhiên (0..4) mà Vua sử dụng
+    int kingPowerScore = 100;       // Uy lực của Vua (scale theo sức mạnh nhân vật)
+    bool isNationalGeneral = false; // Tướng Tổng Tư Lệnh Quốc Gia trên Chiến Trường
+    int generalNation = 0;
 };
 
 struct Projectile {
@@ -955,6 +1021,61 @@ struct AncestorRecord {
 static const char* kHeirNames[10] = {
     "Minh Khôi", "Hoàng Long", "Thanh Vân", "Anh Tuấn", "Ngọc Diệp",
     "Gia Huy", "Thảo Nhi", "Bảo Lâm", "Thiên Ân", "Khánh Linh"
+};
+
+// ── Tước Vị Quý Tộc Chuẩn Vương Quốc Anh (0..8) ────────────────────────────
+struct PeerageDef {
+    int rank;
+    const char* nameEn;
+    const char* nameVi;
+    const char* styleEn;
+    const char* styleVi;
+    int goldCost;
+    int meritReq;
+    int dailyGold;
+    float hpBonus;
+    float dmgBonus;
+    float armorBonus;
+    Color color;
+};
+
+static const PeerageDef kPeerageDefs[9] = {
+    { 0, "Commoner",       "Thường Dân",        "Citizen",            "Công Dân",           0,   0,    0,   0.0f,  0.0f,  0.0f, { 180, 190, 210, 255 } },
+    { 1, "Knight",         "Hiệp Sĩ",           "Sir / Dame",         "Tước Hiệp Sĩ",    1500,   0,   60,  35.0f,  6.0f,  1.5f, { 130, 225, 255, 255 } },
+    { 2, "Baronet",        "Chuẩn Nam Tước",    "Baronet",            "Chuẩn Nam Tước",   500,  20,  110,  60.0f, 11.0f,  2.2f, { 115, 245, 175, 255 } },
+    { 3, "Baron",          "Nam Tước",          "Right Hon. Baron",   "Nam Tước Lãnh Chúa", 800, 50,  175,  90.0f, 17.0f,  3.0f, { 105, 230, 255, 255 } },
+    { 4, "Viscount",       "Tử Tước",           "Viscount",           "Tử Tước",         1200,  90,  250, 125.0f, 24.0f,  4.0f, { 185, 145, 255, 255 } },
+    { 5, "Earl",           "Bá Tước",           "Right Hon. Earl",    "Bá Tước",         1700, 140,  340, 165.0f, 32.0f,  5.2f, { 225, 120, 255, 255 } },
+    { 6, "Marquess",       "Hầu Tước",          "Most Hon. Marquess", "Hầu Tước",        2300, 210,  450, 215.0f, 42.0f,  6.5f, { 255, 155,  75, 255 } },
+    { 7, "Duke",           "Công Tước",         "His Grace Duke",     "Đại Công Tước",   3000, 300,  600, 275.0f, 55.0f,  8.0f, { 255, 205,  75, 255 } },
+    { 8, "Sovereign King", "Quốc Vương Tối Cao","His Majesty King",   "Bệ Hạ Quốc Vương",   0,   0, 1000, 380.0f, 80.0f, 11.0f, { 255, 230,  90, 255 } }
+};
+
+// ── Quốc Gia, Bản Đồ Thế Giới & Quân Đồng Minh ───────────────────────────────
+struct NationState {
+    const char* nameEn;
+    const char* nameVi;
+    const char* capitalEn;
+    const char* capitalVi;
+    Vector2 mapPos;
+    Color color;
+    int militaryPower = 300;
+    int territories = 3;
+    int status = 0; // 0: Hòa bình, 1: Đồng minh, 2: Đang chiến tranh, 3: Đã chinh phạt
+    float warProgress = 0.0f; // 0..100%
+};
+
+struct AlliedUnit {
+    Vector2 pos = { 0, 0 };
+    Vector2 aim = { 1, 0 };
+    float hp = 200.0f;
+    float maxHp = 200.0f;
+    float damage = 25.0f;
+    float atkTimer = 0.0f;
+    float walkTimer = 0.0f;
+    float swing = 0.0f;
+    int heroClass = 0;
+    bool facingLeft = false;
 };
 
 // ── Game State ─────────────────────────────────────────────────────────────

@@ -27,6 +27,7 @@ inline std::vector<Game::UiBtn> Game::BuildButtons() {
                 b.push_back({ { 480, y, 320, 34 }, L("RESUME", "TIẾP TỤC"), UI_RESUME, green }); y += 38;
                 b.push_back({ { 480, y, 320, 34 }, L("SAVE / LOAD GAME", "LƯU / TẢI GAME"), UI_SAVE_LOAD, teal }); y += 38;
                 b.push_back({ { 480, y, 320, 34 }, L("EQUIPMENT & SKILLS", "TRANG BỊ & KỸ NĂNG"), UI_EQUIP, blue }); y += 38;
+                b.push_back({ { 480, y, 320, 34 }, L("WORLD MAP & KINGDOM", "BẢN ĐỒ THẾ GIỚI & LÃNH ĐỊA"), UI_WORLD_MAP, teal }); y += 38;
                 b.push_back({ { 480, y, 320, 34 }, L("FAMILY TREE [Y]", "CÂY GIA PHẢ [Y]"), UI_FAMILY_TREE, purple }); y += 38;
                 b.push_back({ { 480, y, 320, 34 }, L("CHANGE HERO", "ĐỔI TƯỚNG"), UI_CHANGE_CLASS, purple }); y += 38;
                 b.push_back({ { 480, y, 320, 34 }, L("SETTINGS", "CÀI ĐẶT"), UI_SETTINGS, blue }); y += 38;
@@ -45,6 +46,7 @@ inline std::vector<Game::UiBtn> Game::BuildButtons() {
             b.push_back({ { 510, 644, 260, 40 }, L("LOAD SAVE", "TẢI BẢN LƯU"), UI_SAVE_LOAD, teal });
             break;
         case INVENTORY:
+            b.push_back({ { 590, 622, 256, 40 }, L("WORLD MAP & FIEF [TAB]", "BẢN ĐỒ THẾ GIỚI [TAB]"), UI_WORLD_MAP, teal });
             b.push_back({ { 856, 622, 174, 40 }, L("FAMILY TREE [Y]", "CÂY GIA PHẢ [Y]"), UI_FAMILY_TREE, purple });
             b.push_back({ { 1040, 622, 146, 40 }, L("CLOSE", "ĐÓNG"), UI_CLOSE_INV, grey });
             break;
@@ -53,6 +55,7 @@ inline std::vector<Game::UiBtn> Game::BuildButtons() {
         case SAVE_LOAD:
         case SURFACE_UI:
         case FAMILY_TREE:
+        case WORLD_MAP:
             b.push_back({ { 30, 28, 150, 44 }, L("< BACK", "< QUAY LẠI"), UI_BACK, grey });
             break;
         default:
@@ -87,11 +90,13 @@ inline void Game::HandleUiAction(int a) {
         case UI_EQUIP: prevState = PAUSED; state = INVENTORY; break;
         case UI_RESTART: showHelp = false; RestartRun(); break;
         case UI_FAMILY_TREE: showHelp = false; OpenFamilyTree(state); break;
+        case UI_WORLD_MAP: showHelp = false; OpenWorldMap(state); break;
         case UI_CONTINUE_HEIR: showHelp = false; if (!children.empty()) SuccessionToChild(OldestChildIdx(), true); break;
         case UI_BACK:
             if (state == META) CloseSanctuary();
             else if (state == SHOP || state == SURFACE_UI) state = PLAYING;
             else if (state == FAMILY_TREE) state = familyTreeReturn;
+            else if (state == WORLD_MAP) state = worldMapReturn;
             else if (state == SAVE_LOAD) state = saveLoadReturn;
             break;
         case UI_CLOSE_INV: state = prevState; break;

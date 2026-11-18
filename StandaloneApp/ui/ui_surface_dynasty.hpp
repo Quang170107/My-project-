@@ -5,7 +5,7 @@ inline int Game::SurfaceOptionCount() const {
     if (surfaceBuilding == 0) return 5;
     if (surfaceBuilding == 1) return 4;
     if (surfaceBuilding == 2) return hasSpouse ? (1 + (int)children.size()) : 4;
-    return 2;
+    return 4;
 }
 
 inline void Game::TriggerSurfaceOption(int tab, int opt) {
@@ -21,7 +21,9 @@ inline void Game::TriggerSurfaceOption(int tab, int opt) {
         else SuccessionToChild(opt - 1);
     } else if (tab == 3) {
         if (opt == 0) BuyNobleTitleDirect();
-        else AcceptRoyalCommission();
+        else if (opt == 1) AcceptRoyalCommission();
+        else if (opt == 2) OpenWorldMap(SURFACE_UI);
+        else StartThroneRebellion();
     }
 }
 
@@ -118,9 +120,14 @@ inline void Game::UpdateSurfaceUi() {
             }
         }
     } else {
-        for (int i = 0; i < 2; ++i) {
-            Rectangle r = { 120.0f, 196.0f + i * 190.0f, 1040.0f, 168.0f };
-            if (CheckCollisionPointRec(m, r)) {
+        static const Rectangle cards[4] = {
+            { 120.0f, 192.0f, 1040.0f, 118.0f },
+            { 120.0f, 320.0f, 1040.0f, 118.0f },
+            { 120.0f, 448.0f,  510.0f, 128.0f },
+            { 650.0f, 448.0f,  510.0f, 128.0f }
+        };
+        for (int i = 0; i < 4; ++i) {
+            if (CheckCollisionPointRec(m, cards[i])) {
                 if (GetMouseDelta().x != 0 || GetMouseDelta().y != 0) surfaceSel = i;
                 if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { surfaceSel = i; TriggerSurfaceOption(3, i); return; }
             }
@@ -152,7 +159,7 @@ inline void Game::DrawSurfaceUi() {
     // Thanh trạng thái nhanh trên đầu bảng
     DrawRectangle(100, 140, 1080, 32, { 12, 16, 28, 240 });
     std::string info = std::string(L("Gold: ", "Vàng: ")) + std::to_string(player.gold)
-                     + "  |  " + L("Essence: ", "Tinh Hoa: ") + std::to_string(bossEssence)
+                     + "  |  " + PeerageTitleName()
                      + "  |  " + L("Hunger: ", "Độ No: ") + std::to_string((int)ceilf(hunger)) + "/100"
                      + "  |  " + BloodlineTraitName()
                      + "  |  " + TextFormat(L("Day %d %s  Age %d", "Ngày %d %s  Tuổi %d"), dayCount, ClockString().c_str(), heroAge);
@@ -314,7 +321,7 @@ inline void Game::DrawSurfaceUi() {
                     const ChildInfo& ch = children[i];
                     Rectangle r = { 120.0f, 326.0f + i * 88.0f, 1040.0f, 76.0f };
                     bool sel = (surfaceSel == (int)i + 1);
-                    Color cc = kClasses[std::max(0, std::min(3, ch.heroClass))].color;
+                    Color cc = kClasses[std::max(0, std::min(kNumClasses - 1, ch.heroClass))].color;
                     DrawRectangleRec(r, sel ? Color{ 34, 42, 68, 252 } : Color{ 20, 26, 44, 240 });
                     DrawRectangleLinesEx(r, sel ? 2.5f : 1.2f, sel ? GOLD : Fade(cc, 0.65f));
                     DrawText(TextFormat(L("Heir %d: %s  (%s)  Age %d  Lv%d", "Con %d: %s  (%s)  %d tuổi  Lv%d"), (int)i + 1, ch.name.c_str(), ClassDisplayName(ch.heroClass), ChildAgeYears(ch), ch.level), (int)r.x + 22, (int)r.y + 12, 18, cc);
@@ -349,43 +356,98 @@ inline void Game::DrawSurfaceUi() {
             }
         }
     } else {
-        // Hoàng Cung & Vua
-        Rectangle r0 = { 120.0f, 196.0f, 1040.0f, 168.0f };
-        bool sel0 = (surfaceSel == 0);
-        bool affordN = (!isNoble && player.gold >= 1500);
-        DrawRectangleRec(r0, sel0 ? Color{ 44, 38, 28, 252 } : Color{ 24, 22, 34, 245 });
-        DrawRectangleLinesEx(r0, sel0 ? 2.8f : 1.5f, sel0 ? GOLD : Color{ 195, 155, 65, 255 });
-        DrawText(L("DIRECT ROYAL GRANT: BUY NOBLE TITLE (1500 GOLD)", "MUA TƯỚC VỊ QUÝ TỘC TRỰC TIẾP (1500 VÀNG)"), (int)r0.x + 26, (int)r0.y + 18, 22, GOLD);
-        DrawText(L("High-gold shortcut to Nobility: +35 HP, +6 DMG, +1.5 Armor, +25% Gold drops, +30G/Floor,",
-                   "Dùng lượng Vàng lớn phong tước ngay: +35 Máu, +6 ST, +1.5 Giáp, +25% Vàng rơi, +30V/Tầng,"), (int)r0.x + 26, (int)r0.y + 56, 15, RAYWHITE);
-        DrawText(L("30% discount on Food/Marriage/Children & 50% discount on Noble Estate Manor.",
-                   "Giảm 30% Đồ Ăn/Cưới/Sinh Con và giảm 50% giá Dinh Thự Quý Tộc."), (int)r0.x + 26, (int)r0.y + 80, 15, SKYBLUE);
-        Rectangle b0 = { r0.x + r0.width - 260.0f, r0.y + 106.0f, 236.0f, 44.0f };
-        DrawRectangleRec(b0, isNoble ? Color{ 38, 86, 54, 255 } : (affordN ? Color{ 138, 96, 22, 255 } : Color{ 68, 34, 38, 255 }));
-        DrawRectangleLinesEx(b0, 1.5f, GOLD);
-        const char* nLbl = isNoble ? L("NOBLE TITLE OWNED", "ĐÃ LÀ QUÝ TỘC") : L("BUY NOBILITY - 1500G", "MUA QUÝ TỘC - 1500V");
-        DrawText(nLbl, (int)(b0.x + b0.width / 2) - MeasureText(nLbl, 16) / 2, (int)b0.y + 14, 16, WHITE);
+        // Hoàng Cung & Hệ thống Tước Vị Vương Quốc Anh + Lãnh Địa + Nổi Dậy
+        int nextRank = std::min(8, peerageRank + 1);
+        const PeerageDef& nxtP = kPeerageDefs[nextRank];
+        int promoCost = (peerageRank == 0) ? 1500 : std::max(100, nxtP.goldCost - warMerit * 3);
+        bool maxRank = (peerageRank >= 7);
 
-        Rectangle r1 = { 120.0f, 386.0f, 1040.0f, 168.0f };
+        Rectangle r0 = { 120.0f, 192.0f, 1040.0f, 118.0f };
+        bool sel0 = (surfaceSel == 0);
+        bool affordN = (!maxRank && player.gold >= promoCost);
+        DrawRectangleRec(r0, sel0 ? Color{ 44, 38, 28, 252 } : Color{ 24, 22, 34, 245 });
+        DrawRectangleLinesEx(r0, sel0 ? 2.8f : 1.5f, sel0 ? GOLD : PeerageColor());
+        DrawText(TextFormat(L("BRITISH PEERAGE (%s): Elevate to %s", "TƯỚC VỊ HOÀNG GIA (%s): Thăng %s"),
+                            PeerageStyleName(), maxRank ? PeerageTitleName() : (settings.language == 1 ? nxtP.nameVi : nxtP.nameEn)),
+                 (int)r0.x + 24, (int)r0.y + 14, 21, GOLD);
+        DrawText(TextFormat(L("Knight->Baronet->Baron->Viscount->Earl->Marquess->Duke  |  Daily Tax: +%dG  |  Merit: %d",
+                              "Hiệp Sĩ->Chuẩn Nam Tước->Nam Tước->Tử Tước->Bá Tước->Hầu Tước->Công Tước  |  Bổng Lộc: +%dV  |  Công: %d"),
+                            kPeerageDefs[peerageRank].dailyGold, warMerit),
+                 (int)r0.x + 24, (int)r0.y + 46, 14, RAYWHITE);
+        DrawText(maxRank ? L("Duke reached! Open World Map or launch Throne Rebellion to seize the Crown!",
+                             "Đã đạt bậc Công Tước! Mở Bản Đồ Thế Giới hoặc Nổi Dậy Đoạt Ngai Vàng!")
+                         : TextFormat(L("Next Bonus: +%d HP, +%d DMG, +%.1f ARM, +%dG/day  (War Merit discounts cost!)",
+                                        "Thưởng Bậc Tới: +%d Máu, +%d ST, +%.1f Giáp, +%dV/ngày  (Chiến Công giảm giá!)"),
+                                      (int)nxtP.hpBonus, (int)nxtP.dmgBonus, nxtP.armorBonus, nxtP.dailyGold),
+                 (int)r0.x + 24, (int)r0.y + 72, 14, SKYBLUE);
+        Rectangle b0 = { r0.x + r0.width - 270.0f, r0.y + 36.0f, 246.0f, 46.0f };
+        DrawRectangleRec(b0, maxRank ? Color{ 38, 86, 54, 255 } : (affordN ? Color{ 138, 96, 22, 255 } : Color{ 68, 34, 38, 255 }));
+        DrawRectangleLinesEx(b0, 1.5f, GOLD);
+        const char* nLbl = maxRank ? L("MAX PEERAGE: DUKE+", "ĐÃ ĐẠT BẬC TỐI ĐA")
+                                   : TextFormat(L("PROMOTE - %dG", "THĂNG TƯỚC - %dV"), promoCost);
+        DrawText(nLbl, (int)(b0.x + b0.width / 2) - MeasureText(nLbl, 15) / 2, (int)b0.y + 15, 15, WHITE);
+
+        Rectangle r1 = { 120.0f, 320.0f, 1040.0f, 118.0f };
         bool sel1 = (surfaceSel == 1);
         bool readyQ = (royalQuestActive && royalQuestKills >= 35 && royalQuestBosses >= 1);
         DrawRectangleRec(r1, sel1 ? Color{ 32, 42, 68, 252 } : Color{ 20, 26, 44, 245 });
         DrawRectangleLinesEx(r1, sel1 ? 2.8f : 1.5f, sel1 ? GOLD : SKYBLUE);
-        DrawText(L("KING'S DUNGEON SUBJUGATION COMMISSION (FREE PATH TO NOBILITY)", "ỦY THÁC THẢO PHẠT HẦM NGỤC CỦA VUA (CON ĐƯỜNG MIỄN PHÍ)"), (int)r1.x + 26, (int)r1.y + 18, 21, SKYBLUE);
-        DrawText(L("Descend into the Dungeon, slay 35 Monsters and defeat 1 Boss to earn Nobility + 300G + Relic!",
-                   "Xuống Hầm Ngục, tiêu diệt 35 Quái vật và 1 Trùm để Vua phong Tước Quý Tộc + 300 Vàng + Thánh Tích!"), (int)r1.x + 26, (int)r1.y + 54, 15, RAYWHITE);
+        DrawText(L("KING'S DUNGEON SUBJUGATION COMMISSION (FREE NOBILITY PATH)", "ỦY THÁC THẢO PHẠT HẦM NGỤC CỦA VUA (CON ĐƯỜNG MIỄN PHÍ)"),
+                 (int)r1.x + 24, (int)r1.y + 14, 20, SKYBLUE);
+        DrawText(L("Slay 35 Monsters & 1 Boss in the Dungeon for Knighthood + 300 Gold + Relic (+War Merit!).",
+                   "Diệt 35 Quái vật & 1 Trùm dưới Hầm Ngục để nhận Phong Tước + 300 Vàng + Thánh Tích!"),
+                 (int)r1.x + 24, (int)r1.y + 44, 14, RAYWHITE);
         DrawText(TextFormat(L("Progress:  Monsters %d / 35    |    Bosses %d / 1", "Tiến Độ:  Quái Đã Hạ %d / 35    |    Trùm Đã Hạ %d / 1"),
-            royalQuestKills, royalQuestBosses), (int)r1.x + 26, (int)r1.y + 84, 17, readyQ ? GREEN : GOLD);
-        Rectangle b1 = { r1.x + r1.width - 290.0f, r1.y + 106.0f, 266.0f, 44.0f };
+                            royalQuestKills, royalQuestBosses),
+                 (int)r1.x + 24, (int)r1.y + 72, 16, readyQ ? GREEN : GOLD);
+        Rectangle b1 = { r1.x + r1.width - 270.0f, r1.y + 36.0f, 246.0f, 46.0f };
         Color qFill = isNoble ? Color{ 38, 86, 54, 255 } : (readyQ ? Color{ 38, 128, 66, 255 } : (royalQuestActive ? Color{ 44, 62, 102, 255 } : Color{ 118, 52, 40, 255 }));
         DrawRectangleRec(b1, qFill);
         DrawRectangleLinesEx(b1, 1.5f, isNoble || readyQ ? GOLD : SKYBLUE);
-        const char* qLbl = isNoble ? L("NOBILITY ACHIEVED", "ĐÃ HOÀN THÀNH") : (readyQ ? L("CLAIM NOBILITY!", "NHẬN PHONG QUÝ TỘC!") : (royalQuestActive ? L("IN PROGRESS (ENTER DUNGEON)", "ĐANG LÀM (XUỐNG HẦM NGỤC)") : L("ACCEPT KING'S COMMISSION", "NHẬN ỦY THÁC CỦA VUA")));
+        const char* qLbl = isNoble ? L("NOBILITY ACHIEVED", "ĐÃ ĐẠT QUÝ TỘC")
+                                   : (readyQ ? L("CLAIM NOBILITY!", "NHẬN PHONG TƯỚC!")
+                                             : (royalQuestActive ? L("IN PROGRESS", "ĐANG THỰC HIỆN")
+                                                                 : L("ACCEPT COMMISSION", "NHẬN ỦY THÁC")));
         DrawText(qLbl, (int)(b1.x + b1.width / 2) - MeasureText(qLbl, 14) / 2, (int)b1.y + 15, 14, WHITE);
+
+        Rectangle r2 = { 120.0f, 448.0f, 510.0f, 128.0f };
+        bool sel2 = (surfaceSel == 2);
+        DrawRectangleRec(r2, sel2 ? Color{ 28, 48, 64, 252 } : Color{ 18, 28, 44, 245 });
+        DrawRectangleLinesEx(r2, sel2 ? 2.8f : 1.5f, sel2 ? GOLD : Color{ 110, 230, 175, 255 });
+        DrawText(L("WORLD MAP, FIEFDOM & WARS", "BẢN ĐỒ THẾ GIỚI, LÃNH ĐỊA & CHIẾN TRANH"),
+                 (int)r2.x + 20, (int)r2.y + 14, 18, { 120, 240, 185, 255 });
+        DrawText(fiefEstablished ? TextFormat(L("Fief: Lv.%d  |  Troops: %d  |  Tax: +%dG", "Lãnh Địa: Cấp %d | Quân: %d | Thuế: +%dV"),
+                                              fiefLevel, fiefSoldiers, FiefDailyGoldIncome())
+                                 : L("Found your Fief, manage 5 Nations, Wage War & Annex!",
+                                     "Lập Lãnh Địa Riêng, Ngoại Giao & Tuyên Chiến 5 Quốc Gia!"),
+                 (int)r2.x + 20, (int)r2.y + 44, 14, RAYWHITE);
+        Rectangle b2 = { r2.x + 20.0f, r2.y + 72.0f, r2.width - 40.0f, 40.0f };
+        DrawRectangleRec(b2, { 26, 78, 96, 255 });
+        DrawRectangleLinesEx(b2, 1.5f, { 120, 240, 185, 255 });
+        const char* mLbl = L("OPEN WORLD MAP [K / TAB]", "MỞ BẢN ĐỒ THẾ GIỚI [K / TAB]");
+        DrawText(mLbl, (int)(b2.x + b2.width / 2) - MeasureText(mLbl, 15) / 2, (int)b2.y + 12, 15, WHITE);
+
+        Rectangle r3 = { 650.0f, 448.0f, 510.0f, 128.0f };
+        bool sel3 = (surfaceSel == 3);
+        float pwr = ComputePlayerPowerScore();
+        int estKingHp = (int)roundf((1800.0f + player.maxHp * 16.0f + player.baseDmg * 58.0f + pwr * 2.8f) * DiffHp());
+        DrawRectangleRec(r3, sel3 ? Color{ 62, 26, 34, 252 } : Color{ 38, 18, 26, 245 });
+        DrawRectangleLinesEx(r3, sel3 ? 2.8f : 1.5f, sel3 ? GOLD : Color{ 255, 110, 110, 255 });
+        DrawText(L("THRONE REBELLION (USURP CROWN)", "NỔI DẬY CHIẾM NGAI VÀNG"),
+                 (int)r3.x + 20, (int)r3.y + 14, 18, { 255, 125, 125, 255 });
+        DrawText(TextFormat(L("Power: %d -> Scaled King ~%d HP (Random Class)",
+                              "Lực Chiến: %d -> Vua ~%d Máu (Class Ngẫu Nhiên)"), (int)roundf(pwr), estKingHp),
+                 (int)r3.x + 20, (int)r3.y + 44, 14, GOLD);
+        Rectangle b3 = { r3.x + 20.0f, r3.y + 72.0f, r3.width - 40.0f, 40.0f };
+        DrawRectangleRec(b3, { 135, 32, 42, 255 });
+        DrawRectangleLinesEx(b3, 1.5f, GOLD);
+        const char* kLbl = isKing ? L("DEFEND THRONE VS ROYAL GUARD!", "THỬ THÁCH VỆ BINH HOÀNG GIA!")
+                                  : L("STORM THE PALACE & CLAIM CROWN!", "TIẾN VÀO ĐẠI ĐIỆN SOÁN NGÔI VUA!");
+        DrawText(kLbl, (int)(b3.x + b3.width / 2) - MeasureText(kLbl, 15) / 2, (int)b3.y + 12, 15, WHITE);
     }
 
-    const char* foot = L("1-4 / Left-Right: Switch Building    Up/Down + Enter or Click: Action    Y: Family Tree    Esc: Back",
-                         "1-4 / Trái-Phải: Đổi Khu Vực    Lên/Xuống + Enter hoặc Nhấp: Chọn    Y: Cây Gia Phả    Esc: Thoát");
+    const char* foot = L("1-4 / Left-Right: Building   Arrows+Enter/Click: Action   K: World Map   Y: Family Tree   Esc: Back",
+                         "1-4 / Trái-Phải: Khu Vực   Mũi Tên+Enter/Nhấp: Chọn   K: Bản Đồ   Y: Gia Phả   Esc: Thoát");
     DrawText(foot, 1280 / 2 - MeasureText(foot, 15) / 2, 636, 15, { 165, 180, 215, 255 });
 }
 
@@ -427,7 +489,7 @@ inline void Game::DrawFamilyTreeScreen() {
             const char* ripTag = L("REST IN PEACE", "AN NGHỈ");
             DrawText(TextFormat(L("Gen %d", "Đời %d"), a.generation), cx + 10, ancY + 4, 15, GOLD);
             DrawText(ripTag, cx + cw - 10 - MeasureText(ripTag, 13), ancY + 5, 13, { 185, 195, 225, 255 });
-            DrawText(a.name.c_str(), cx + 12, ancY + 30, 17, kClasses[std::max(0, std::min(3, a.heroClass))].color);
+            DrawText(a.name.c_str(), cx + 12, ancY + 30, 17, kClasses[std::max(0, std::min(kNumClasses - 1, a.heroClass))].color);
             DrawText(TextFormat(L("Lv.%d [%s]", "Cấp %d [%s]"), a.levelReached, LevelTitleNameForLevel(a.levelReached)), cx + 12, ancY + 50, 12, LevelTitleColorForLevel(a.levelReached));
             DrawText(a.wasNoble ? L("[Noble]", "[Quý Tộc]") : L("[Commoner]", "[Thường Dân]"), cx + 12, ancY + 67, 12, a.wasNoble ? GOLD : GRAY);
             DrawText((std::string(L("Spouse: ", "Vợ: ")) + a.spouseName).c_str(), cx + 12, ancY + 84, 13, { 245, 175, 210, 255 });
@@ -473,7 +535,7 @@ inline void Game::DrawFamilyTreeScreen() {
             int cx = x0 + i * (kw + kgap);
             DrawLineEx({ (float)(cx + kw / 2), (float)(kidY - 18) }, { (float)(cx + kw / 2), (float)kidY }, 2.5f, GOLD);
             DrawRectangle(cx, kidY, kw, 142, { 22, 30, 48, 245 });
-            Color cc = kClasses[std::max(0, std::min(3, ch.heroClass))].color;
+            Color cc = kClasses[std::max(0, std::min(kNumClasses - 1, ch.heroClass))].color;
             DrawRectangleLinesEx({ (float)cx, (float)kidY, (float)kw, 142.0f }, 1.8f, cc);
             DrawText(TextFormat(L("HEIR %d (Gen %d)", "CON THỨ %d (ĐỜI %d)"), i + 1, generation + 1), cx + 14, kidY + 10, 14, GOLD);
             DrawText(ch.name.c_str(), cx + 14, kidY + 32, 20, cc);
@@ -485,4 +547,303 @@ inline void Game::DrawFamilyTreeScreen() {
     const char* foot = L("Press Y or Esc to return   |   Visit Family Home on Surface to trigger Rest in Peace",
                          "Nhấn Y hoặc Esc để quay lại   |   Vào Tổ Ấm trên Mặt Đất để chọn Rest in Peace kế thừa");
     DrawText(foot, 1280 / 2 - MeasureText(foot, 15) / 2, 654, 15, { 165, 180, 215, 255 });
+}
+
+// ── Bố cục nút bấm dùng chung giữa UpdateWorldMap và DrawWorldMapScreen ──
+struct WorldMapUiLayout {
+    Rectangle rPromo   = { 1070.0f, 156.0f, 156.0f, 44.0f };
+    Rectangle rFound   = {  814.0f, 304.0f, 410.0f, 52.0f };
+    Rectangle rBldg[4] = {
+        {  812.0f, 254.0f, 202.0f, 34.0f },
+        { 1024.0f, 254.0f, 202.0f, 34.0f },
+        {  812.0f, 294.0f, 202.0f, 34.0f },
+        { 1024.0f, 294.0f, 202.0f, 34.0f }
+    };
+    Rectangle rCollect = {  812.0f, 336.0f, 202.0f, 34.0f };
+    Rectangle rRecruit = { 1024.0f, 336.0f, 202.0f, 34.0f };
+    Rectangle rWar     = {  812.0f, 488.0f, 134.0f, 40.0f };
+    Rectangle rArmy    = {  952.0f, 488.0f, 134.0f, 40.0f };
+    Rectangle rBattle  = { 1092.0f, 488.0f, 134.0f, 40.0f };
+    Rectangle rRebel   = {  812.0f, 602.0f, 414.0f, 38.0f };
+};
+
+inline void Game::OpenWorldMap(State from) {
+    if (nations[0].nameEn == nullptr) InitNations();
+    worldMapReturn = from;
+    worldMapSel = std::max(0, std::min(4, worldMapSel));
+    if (worldMapSel == 0) worldMapSel = 2; // Mặc định chọn một quốc gia lân bang để ngoại giao / giao chiến
+    state = WORLD_MAP;
+    PlaySound(snd.sndPortal);
+}
+
+inline void Game::UpdateWorldMap(float dt) {
+    if (bannerTimer > 0.0f) bannerTimer = std::max(0.0f, bannerTimer - dt);
+    { int ua = HitButton(); if (ua) { HandleUiAction(ua); return; } }
+    if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_TAB) || IsKeyPressed(KEY_F3)) {
+        state = worldMapReturn;
+        return;
+    }
+
+    if (IsKeyPressed(KEY_ONE))   worldMapSel = 0;
+    if (IsKeyPressed(KEY_TWO))   worldMapSel = 1;
+    if (IsKeyPressed(KEY_THREE)) worldMapSel = 2;
+    if (IsKeyPressed(KEY_FOUR))  worldMapSel = 3;
+    if (IsKeyPressed(KEY_FIVE))  worldMapSel = 4;
+    if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_UP))    worldMapSel = (worldMapSel + 4) % 5;
+    if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_DOWN)) worldMapSel = (worldMapSel + 1) % 5;
+
+    if (IsKeyPressed(KEY_P)) PromotePeerage();
+    if (IsKeyPressed(KEY_E)) EstablishFief();
+    if (IsKeyPressed(KEY_C)) CollectFiefIncome();
+    if (IsKeyPressed(KEY_T)) RecruitFiefSoldiers();
+    if (IsKeyPressed(KEY_W)) DeclareWarOrAlliance(worldMapSel);
+    if (IsKeyPressed(KEY_A)) DispatchArmyCampaign(worldMapSel);
+    if (IsKeyPressed(KEY_F)) { StartNationalBattlefield(worldMapSel); return; }
+    if (IsKeyPressed(KEY_R)) { StartThroneRebellion(); return; }
+
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        Vector2 m = GetMousePosition();
+        for (int i = 0; i < 5; ++i) {
+            if (CheckCollisionPointCircle(m, nations[i].mapPos, 36.0f)) {
+                worldMapSel = i;
+                PlaySound(snd.sndCoin);
+                return;
+            }
+        }
+        const WorldMapUiLayout ui;
+        if (CheckCollisionPointRec(m, ui.rPromo)) { PromotePeerage(); return; }
+        if (!fiefEstablished) {
+            if (CheckCollisionPointRec(m, ui.rFound)) { EstablishFief(); return; }
+        } else {
+            for (int b = 0; b < 4; ++b) {
+                if (CheckCollisionPointRec(m, ui.rBldg[b])) { UpgradeFiefBuilding(b); return; }
+            }
+            if (CheckCollisionPointRec(m, ui.rCollect)) { CollectFiefIncome(); return; }
+            if (CheckCollisionPointRec(m, ui.rRecruit)) { RecruitFiefSoldiers(); return; }
+        }
+        if (worldMapSel >= 1) {
+            if (CheckCollisionPointRec(m, ui.rWar))    { DeclareWarOrAlliance(worldMapSel); return; }
+            if (CheckCollisionPointRec(m, ui.rArmy))   { DispatchArmyCampaign(worldMapSel); return; }
+            if (CheckCollisionPointRec(m, ui.rBattle)) { StartNationalBattlefield(worldMapSel); return; }
+        }
+        if (CheckCollisionPointRec(m, ui.rRebel)) { StartThroneRebellion(); return; }
+    }
+}
+
+inline void Game::DrawWorldMapScreen() {
+    if (nations[0].nameEn == nullptr) InitNations();
+    const WorldMapUiLayout ui;
+    const Vector2 m = GetMousePosition();
+    const float tm = (float)GetTime();
+
+    DrawRectangle(0, 0, 1280, 720, { 8, 12, 22, 255 });
+    DrawRectangleGradientV(0, 0, 1280, 720, { 12, 18, 34, 240 }, { 7, 10, 18, 255 });
+
+    const char* title = L("WORLD MAP, FIEFDOM & THRONE REBELLION", "BẢN ĐỒ THẾ GIỚI, LÃNH ĐỊA & ĐOẠT NGAI VÀNG");
+    DrawText(title, 640 - MeasureText(title, 26) / 2, 22, 26, GOLD);
+    const char* topInfo = TextFormat(L("%s (%s)  |  War Merit: %d  |  Gold: %d  |  Fief Troops: %d  |  Day %d",
+                                       "%s (%s)  |  Chiến Công: %d  |  Vàng: %d  |  Quân Lãnh Địa: %d  |  Ngày %d"),
+                                     PeerageTitleName(), PeerageStyleName(), warMerit, player.gold, fiefSoldiers, dayCount);
+    DrawText(topInfo, 640 - MeasureText(topInfo, 15) / 2, 56, 15, PeerageColor());
+
+    // ── Khung Trái: Bản Đồ Lục Địa 5 Quốc Gia ───────────────────────────────
+    Rectangle rMap = { 30.0f, 98.0f, 740.0f, 562.0f };
+    DrawRectangleRec(rMap, { 13, 21, 36, 248 });
+    DrawRectangleLinesEx(rMap, 2.0f, { 75, 110, 165, 255 });
+    for (int gx = 90; gx <= 730; gx += 80) DrawLine(gx, 104, gx, 654, { 26, 38, 62, 120 });
+    for (int gy = 150; gy <= 630; gy += 80) DrawLine(36, gy, 764, gy, { 26, 38, 62, 120 });
+    DrawEllipse(400, 365, 310, 230, { 24, 38, 56, 190 });
+    DrawEllipseLines(400, 365, 310, 230, { 55, 88, 125, 180 });
+    DrawText(L("CONTINENTAL REALM CHART", "LỤC ĐỊA NGŨ QUỐC"), 48, 110, 15, { 145, 175, 225, 220 });
+
+    // Đường nối ngoại giao / chiến tranh từ kinh đô Albion tới 4 nước còn lại
+    for (int i = 1; i < 5; ++i) {
+        const NationState& nt = nations[i];
+        Color lc = { 80, 96, 125, 130 };
+        float thick = 2.0f;
+        if (nt.status == 1)      { lc = { 90, 225, 140, 200 }; thick = 3.0f; }
+        else if (nt.status == 2) { lc = { 245, 75, 75, (unsigned char)(175 + 75 * sinf(tm * 5.0f + i)) }; thick = 3.4f; }
+        else if (nt.status == 3) { lc = Fade(GOLD, 0.85f); thick = 3.2f; }
+        DrawLineEx(nations[0].mapPos, nt.mapPos, thick, lc);
+    }
+
+    // Biểu tượng Lãnh Địa Riêng trên bản đồ
+    Vector2 fiefMapPos = { 415.0f, 250.0f };
+    if (fiefEstablished) {
+        DrawLineEx(nations[0].mapPos, fiefMapPos, 2.2f, Fade(GOLD, 0.7f));
+        DrawCircleV(fiefMapPos, 17.0f, { 42, 34, 18, 245 });
+        DrawCircleLines((int)fiefMapPos.x, (int)fiefMapPos.y, 17.0f, GOLD);
+        DrawRectangle((int)fiefMapPos.x - 7, (int)fiefMapPos.y - 6, 14, 12, GOLD);
+        const char* fTag = TextFormat(L("FIEF Lv.%d", "LÃNH ĐỊA %d"), fiefLevel);
+        DrawText(fTag, (int)fiefMapPos.x - MeasureText(fTag, 12) / 2, (int)fiefMapPos.y + 20, 12, GOLD);
+    } else {
+        DrawCircleLines((int)fiefMapPos.x, (int)fiefMapPos.y, 14.0f, { 110, 125, 150, 140 });
+        const char* fTag = L("Empty Fief [E]", "Chưa Lập [E]");
+        DrawText(fTag, (int)fiefMapPos.x - MeasureText(fTag, 11) / 2, (int)fiefMapPos.y + 18, 11, { 145, 160, 190, 190 });
+    }
+
+    // Nút 5 Quốc Gia trên Bản Đồ
+    for (int i = 0; i < 5; ++i) {
+        const NationState& nt = nations[i];
+        bool sel = (worldMapSel == i);
+        bool hov = CheckCollisionPointCircle(m, nt.mapPos, 32.0f);
+        if (sel) DrawCircleLines((int)nt.mapPos.x, (int)nt.mapPos.y, 31.0f + sinf(tm * 4.0f) * 2.5f, GOLD);
+        DrawCircleV(nt.mapPos, 24.0f, { (unsigned char)(nt.color.r / 3), (unsigned char)(nt.color.g / 3), (unsigned char)(nt.color.b / 3), 245 });
+        DrawCircleLines((int)nt.mapPos.x, (int)nt.mapPos.y, 24.0f, (sel || hov) ? GOLD : nt.color);
+        // Tháp thành nổi
+        DrawRectangle((int)nt.mapPos.x - 9, (int)nt.mapPos.y - 7, 18, 15, nt.color);
+        DrawTriangle({ nt.mapPos.x - 11, nt.mapPos.y - 7 }, { nt.mapPos.x + 11, nt.mapPos.y - 7 }, { nt.mapPos.x, nt.mapPos.y - 16 }, WHITE);
+        DrawText(TextFormat("%d", i + 1), (int)nt.mapPos.x - 4, (int)nt.mapPos.y - 4, 12, BLACK);
+
+        const char* nName = L(nt.nameEn, nt.nameVi);
+        DrawText(nName, (int)nt.mapPos.x - MeasureText(nName, 14) / 2, (int)nt.mapPos.y + 28, 14, sel ? GOLD : RAYWHITE);
+
+        const char* stLbl = L("PEACE", "HÒA BÌNH");
+        Color stCol = SKYBLUE;
+        if (nt.status == 1)      { stLbl = L("ALLIED", "ĐỒNG MINH"); stCol = GREEN; }
+        else if (nt.status == 2) { stLbl = TextFormat(L("AT WAR (%d%%)", "CHIẾN TRANH (%d%%)"), (int)roundf(nt.warProgress)); stCol = RED; }
+        else if (nt.status == 3) { stLbl = L("ANNEXED", "ĐÃ CHINH PHẠT"); stCol = GOLD; }
+        DrawText(stLbl, (int)nt.mapPos.x - MeasureText(stLbl, 12) / 2, (int)nt.mapPos.y + 46, 12, stCol);
+    }
+
+    if (bannerTimer > 0.0f && !bannerText.empty()) {
+        DrawRectangle(44, 610, 712, 38, { 18, 26, 44, 245 });
+        DrawRectangleLines(44, 610, 712, 38, GOLD);
+        DrawText(bannerText.c_str(), 400 - MeasureText(bannerText.c_str(), 15) / 2, 621, 15, GOLD);
+    }
+
+    // ── Khung Phải: Quý Tộc Anh, Lãnh Địa, Ngoại Giao, Nổi Dậy ──────────────
+    DrawRectangle(788, 98, 462, 562, { 15, 20, 34, 248 });
+    DrawRectangleLines(788, 98, 462, 562, { 75, 110, 165, 255 });
+
+    // 1. Khối Tước Vị Chuẩn Vương Quốc Anh
+    DrawRectangle(800, 110, 438, 102, { 24, 26, 40, 245 });
+    DrawRectangleLines(800, 110, 438, 102, PeerageColor());
+    DrawText(L("BRITISH PEERAGE (UK STANDARD)", "TƯỚC VỊ QUÝ TỘC CHUẨN VƯƠNG QUỐC ANH"), 812, 118, 14, GOLD);
+    DrawText(TextFormat(L("Current: %s (%d/8)  |  +%dG/day", "Hiện Tại: %s (%d/8)  |  +%dV/ngày"),
+                        PeerageTitleName(), peerageRank, kPeerageDefs[peerageRank].dailyGold),
+             812, 138, 14, PeerageColor());
+    int nxtR = std::min(8, peerageRank + 1);
+    int pCost = (peerageRank == 0) ? 1500 : std::max(100, kPeerageDefs[nxtR].goldCost - warMerit * 3);
+    if (peerageRank >= 7) {
+        DrawText(peerageRank >= 8 ? L("Supreme Monarch! (+15% DMG Aura)", "Quốc Vương Tối Cao! (+15% ST)")
+                                  : L("Duke (Max Peerage). Rebel for King!", "Công Tước (Tối Đa). Nổi dậy đoạt Vương!"),
+                 812, 168, 13, SKYBLUE);
+    } else {
+        DrawText(TextFormat(L("Next: %s", "Tiếp: %s"), settings.language == 1 ? kPeerageDefs[nxtR].nameVi : kPeerageDefs[nxtR].nameEn),
+                 812, 162, 13, RAYWHITE);
+        DrawText(TextFormat(L("Cost: %dG  (+%d HP +%d DMG)", "Giá: %dV  (+%d Máu +%d ST)"),
+                            pCost, (int)kPeerageDefs[nxtR].hpBonus, (int)kPeerageDefs[nxtR].dmgBonus),
+                 812, 182, 12, { 150, 235, 180, 255 });
+    }
+    bool hovP = CheckCollisionPointRec(m, ui.rPromo);
+    DrawRectangleRec(ui.rPromo, (peerageRank >= 7) ? Color{ 44, 72, 54, 255 } : (player.gold >= pCost ? Color{ 138, 96, 24, 255 } : Color{ 68, 34, 40, 255 }));
+    DrawRectangleLinesEx(ui.rPromo, hovP ? 2.2f : 1.3f, GOLD);
+    const char* pBtn = (peerageRank >= 7) ? L("MAX PEERAGE", "TỐI ĐA") : L("[P] PROMOTE", "[P] THĂNG TƯỚC");
+    DrawText(pBtn, (int)(ui.rPromo.x + ui.rPromo.width / 2) - MeasureText(pBtn, 14) / 2, (int)ui.rPromo.y + 15, 14, WHITE);
+
+    // 2. Khối Lãnh Địa Riêng
+    DrawRectangle(800, 220, 438, 158, { 20, 28, 44, 245 });
+    DrawRectangleLines(800, 220, 438, 158, { 110, 215, 175, 255 });
+    if (!fiefEstablished) {
+        int fCost = (peerageRank >= 3) ? 0 : (isNoble ? 250 : 500);
+        DrawText(L("PERSONAL FIEFDOM", "LÃNH ĐỊA RIÊNG"), 812, 228, 15, { 120, 240, 185, 255 });
+        DrawText(L("Found your own domain with Keep, Barracks, Market & Academy.",
+                   "Khởi tạo Thành Trì riêng với Thành Quách, Doanh Trại, Thương Điếm & Học Viện."), 812, 250, 12, RAYWHITE);
+        DrawText(L("Grants +40 HP, +8 DMG, +1.5 ARM, +50 Troops & Daily Taxes (Free at Baron).",
+                   "Nhận +40 Máu, +8 ST, +1.5 Giáp, +50 Quân & Thuế ngày (Miễn phí từ Nam Tước)."), 812, 270, 12, SKYBLUE);
+        bool hovF = CheckCollisionPointRec(m, ui.rFound);
+        DrawRectangleRec(ui.rFound, (player.gold >= fCost) ? Color{ 32, 108, 72, 255 } : Color{ 74, 36, 42, 255 });
+        DrawRectangleLinesEx(ui.rFound, hovF ? 2.4f : 1.5f, GOLD);
+        const char* fBtn = fCost == 0 ? L("[E] FOUND FIEFDOM (FREE)", "[E] LẬP LÃNH ĐỊA (MIỄN PHÍ)")
+                                      : TextFormat(L("[E] FOUND FIEFDOM (%dG)", "[E] LẬP LÃNH ĐỊA (%dV)"), fCost);
+        DrawText(fBtn, (int)(ui.rFound.x + ui.rFound.width / 2) - MeasureText(fBtn, 16) / 2, (int)ui.rFound.y + 18, 16, WHITE);
+    } else {
+        DrawText(TextFormat(L("%s (Lv.%d)", "%s (Cấp %d)"), fiefName.c_str(), fiefLevel), 812, 228, 14, GOLD);
+        const char* rStat = TextFormat(L("Troops: %d  |  +%dG/d", "Quân: %d  |  +%dV/ng"), fiefSoldiers, FiefDailyGoldIncome());
+        DrawText(rStat, 1228 - MeasureText(rStat, 12), 230, 12, { 130, 240, 175, 255 });
+        static const char* bEn[4] = { "Keep", "Barracks", "Market", "Academy" };
+        static const char* bVi[4] = { "Thành", "Doanh Trại", "Chợ", "Học Viện" };
+        for (int b = 0; b < 4; ++b) {
+            bool hov = CheckCollisionPointRec(m, ui.rBldg[b]);
+            int bCost = 180 + fiefBuildings[b] * 140;
+            bool maxB = fiefBuildings[b] >= 5;
+            DrawRectangleRec(ui.rBldg[b], maxB ? Color{ 36, 72, 54, 255 } : (player.gold >= bCost ? Color{ 30, 52, 86, 255 } : Color{ 44, 34, 48, 255 }));
+            DrawRectangleLinesEx(ui.rBldg[b], hov ? 2.0f : 1.2f, hov ? GOLD : Color{ 100, 155, 215, 255 });
+            const char* bTxt = maxB ? TextFormat("%s Lv.5 MAX", settings.language == 1 ? bVi[b] : bEn[b])
+                                    : TextFormat("%s Lv.%d (%d%s)", settings.language == 1 ? bVi[b] : bEn[b], fiefBuildings[b], bCost, settings.language == 1 ? "V" : "G");
+            DrawText(bTxt, (int)(ui.rBldg[b].x + ui.rBldg[b].width / 2) - MeasureText(bTxt, 12) / 2, (int)ui.rBldg[b].y + 11, 12, WHITE);
+        }
+        bool hovC = CheckCollisionPointRec(m, ui.rCollect);
+        DrawRectangleRec(ui.rCollect, { 108, 78, 22, 255 });
+        DrawRectangleLinesEx(ui.rCollect, hovC ? 2.0f : 1.3f, GOLD);
+        const char* cTxt = TextFormat(L("[C] Tax (+%dG)", "[C] Thu Thuế (+%dV)"), std::max(FiefDailyGoldIncome(), fiefTreasury));
+        DrawText(cTxt, (int)(ui.rCollect.x + ui.rCollect.width / 2) - MeasureText(cTxt, 13) / 2, (int)ui.rCollect.y + 10, 13, WHITE);
+
+        bool hovT = CheckCollisionPointRec(m, ui.rRecruit);
+        DrawRectangleRec(ui.rRecruit, (player.gold >= 100) ? Color{ 34, 92, 62, 255 } : Color{ 68, 34, 40, 255 });
+        DrawRectangleLinesEx(ui.rRecruit, hovT ? 2.0f : 1.3f, { 125, 240, 165, 255 });
+        const char* tTxt = TextFormat(L("[T] +%d Troops (100G)", "[T] +%d Quân (100V)"), 35 + fiefBuildings[1] * 10);
+        DrawText(tTxt, (int)(ui.rRecruit.x + ui.rRecruit.width / 2) - MeasureText(tTxt, 13) / 2, (int)ui.rRecruit.y + 10, 13, WHITE);
+    }
+
+    // 3. Khối Quốc Gia & Chiến Tranh
+    int sel = std::max(0, std::min(4, worldMapSel));
+    const NationState& nt = nations[sel];
+    DrawRectangle(800, 386, 438, 154, { 22, 24, 38, 245 });
+    DrawRectangleLines(800, 386, 438, 154, nt.color);
+    DrawText(TextFormat("[%d] %s", sel + 1, L(nt.nameEn, nt.nameVi)), 812, 394, 16, nt.color);
+    DrawText(TextFormat(L("Capital: %s  |  Army: %d  |  Provinces: %d", "Kinh Đô: %s  |  Binh Lực: %d  |  Lãnh Thổ: %d"),
+                        L(nt.capitalEn, nt.capitalVi), nt.militaryPower, nt.territories),
+             812, 418, 12, RAYWHITE);
+    // Thanh Tiến Độ Chiến Tranh
+    DrawRectangle(812, 442, 414, 18, { 14, 16, 26, 255 });
+    DrawRectangle(812, 442, (int)(414 * Clamp(nt.warProgress / 100.0f, 0.0f, 1.0f)), 18, nt.status == 3 ? GOLD : ORANGE);
+    DrawRectangleLines(812, 442, 414, 18, { 95, 110, 145, 255 });
+    const char* wpLbl = TextFormat(L("Conquest Progress: %d%%", "Tiến Độ Chinh Phạt: %d%%"), (int)roundf(nt.warProgress));
+    DrawText(wpLbl, 1019 - MeasureText(wpLbl, 12) / 2, 445, 12, WHITE);
+
+    if (sel == 0) {
+        DrawWrappedText(L("Homeland of Albion Crown. Select Foreign Nations [2-5] to forge Alliances, send Fief Armies, or lead Battlefield Sieges!",
+                          "Mẫu quốc Hoàng Triều Albion. Chọn 4 quốc gia [2-5] để Ký Đồng Minh, Điều Binh hoặc Đích Thân Thân Chinh!"),
+                        812, 472, 414, 13, 18, SKYBLUE);
+    } else {
+        bool hovW = CheckCollisionPointRec(m, ui.rWar);
+        DrawRectangleRec(ui.rWar, nt.status == 2 ? Color{ 38, 86, 56, 255 } : Color{ 118, 42, 42, 255 });
+        DrawRectangleLinesEx(ui.rWar, hovW ? 2.0f : 1.2f, WHITE);
+        const char* wTxt = (nt.status == 2) ? L("[W] Peace 250G", "[W] Hòa 250V") : L("[W] Declare War", "[W] Tuyên Chiến");
+        DrawText(wTxt, (int)(ui.rWar.x + ui.rWar.width / 2) - MeasureText(wTxt, 12) / 2, (int)ui.rWar.y + 14, 12, WHITE);
+
+        bool hovA = CheckCollisionPointRec(m, ui.rArmy);
+        DrawRectangleRec(ui.rArmy, { 126, 78, 28, 255 });
+        DrawRectangleLinesEx(ui.rArmy, hovA ? 2.0f : 1.2f, GOLD);
+        const char* aTxt = L("[A] Army (-20)", "[A] Điều Binh");
+        DrawText(aTxt, (int)(ui.rArmy.x + ui.rArmy.width / 2) - MeasureText(aTxt, 12) / 2, (int)ui.rArmy.y + 14, 12, WHITE);
+
+        bool hovB = CheckCollisionPointRec(m, ui.rBattle);
+        DrawRectangleRec(ui.rBattle, { 142, 32, 44, 255 });
+        DrawRectangleLinesEx(ui.rBattle, hovB ? 2.0f : 1.2f, GOLD);
+        const char* bTxt = L("[F] Lead Battle!", "[F] Thân Chinh!");
+        DrawText(bTxt, (int)(ui.rBattle.x + ui.rBattle.width / 2) - MeasureText(bTxt, 12) / 2, (int)ui.rBattle.y + 14, 12, WHITE);
+    }
+
+    // 4. Khối Nổi Dậy Chiếm Ngai Vàng (Vua scale chỉ số + random class)
+    DrawRectangle(800, 548, 438, 102, { 42, 16, 24, 248 });
+    DrawRectangleLines(800, 548, 438, 102, GOLD);
+    float pwr = ComputePlayerPowerScore();
+    int estKingHp = (int)roundf((1800.0f + player.maxHp * 16.0f + player.baseDmg * 58.0f + pwr * 2.8f) * DiffHp());
+    DrawText(L("THRONE REBELLION (RANDOM-CLASS SCALED KING)", "NỔI DẬY ĐOẠT NGAI VÀNG (VUA SCALE CHỈ SỐ + RANDOM CLASS)"), 812, 556, 13, GOLD);
+    DrawText(TextFormat(L("Your Power: %d   |   King Scaled HP: ~%d   |   Hero Class: RANDOM",
+                          "Lực Chiến: %d   |   Vua Scale Máu: ~%d   |   Class: NGẪU NHIÊN"),
+                        (int)roundf(pwr), estKingHp), 812, 578, 12, RAYWHITE);
+    bool hovR = CheckCollisionPointRec(m, ui.rRebel);
+    DrawRectangleRec(ui.rRebel, { 155, 28, 38, 255 });
+    DrawRectangleLinesEx(ui.rRebel, hovR ? 2.4f : 1.5f, GOLD);
+    const char* rTxt = isKing ? L("[R] ROYAL TRIAL: SPAR THRONE GUARDIAN", "[R] THỬ THÁCH ĐỆ TỬ HỘ GIÁ NGAI VÀNG")
+                              : L("[R] STORM THE PALACE & USURP THRONE!", "[R] NỔI DẬY TIẾN ĐẠI ĐIỆN CHIẾM NGAI VÀNG!");
+    DrawText(rTxt, (int)(ui.rRebel.x + ui.rRebel.width / 2) - MeasureText(rTxt, 14) / 2, (int)ui.rRebel.y + 12, 14, WHITE);
+
+    const char* foot = L("1-5/Arrows: Nation  |  P: Peerage  |  E/C/T: Fief  |  W/A/F: War & Battle  |  R: Rebel  |  Esc: Back",
+                         "1-5/Mũi Tên: Quốc Gia  |  P: Tước Vị  |  E/C/T: Lãnh Địa  |  W/A/F: Chiến Tranh  |  R: Nổi Dậy  |  Esc: Thoát");
+    DrawText(foot, 640 - MeasureText(foot, 14) / 2, 678, 14, { 165, 185, 220, 255 });
 }

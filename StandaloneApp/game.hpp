@@ -31,7 +31,7 @@ public:
     float screenShakeTimer = 0.0f;
     float screenShakeMag = 0.0f;
 
-    enum State { PLAYING, LEVEL_UP, GAME_OVER, TITLE, PAUSED, INVENTORY, SETTINGS, SHOP, META, CLASS_SELECT, SAVE_LOAD, SURFACE_UI, FAMILY_TREE };
+    enum State { PLAYING, LEVEL_UP, GAME_OVER, TITLE, PAUSED, INVENTORY, SETTINGS, SHOP, META, CLASS_SELECT, SAVE_LOAD, SURFACE_UI, FAMILY_TREE, WORLD_MAP };
     State state = PLAYING;
     int selectedClass = 0;
     int classSel = 0;
@@ -215,11 +215,51 @@ public:
     float legacyDmg = 0.0f;
     float legacyArmor = 0.0f;
     float legacySpeed = 0.0f;
-    int surfaceBuilding = 0; // 0: Quán trọ, 1: Mua nhà, 2: Gia đình & Đời con, 3: Hoàng cung & Vua
+    int surfaceBuilding = 0; // 0: Quán trọ, 1: Mua nhà, 2: Gia đình & Đời con, 3: Hoàng cung & Vua, 4: Lãnh Địa Riêng
     int surfaceSel = 0;
-    int surfaceRoom = 0;   // 0: Quảng trường, 1: Quán Trọ, 2: Phường Gia Trang, 3: Tổ Ấm & Từ Đường, 4: Hoàng Cung
+    int surfaceRoom = 0;   // 0: Quảng trường, 1: Quán Trọ, 2: Phường Gia Trang, 3: Tổ Ấm & Từ Đường, 4: Hoàng Cung, 5: Lãnh Địa Phong Ấp
     Vector2 surfaceTownReturnPos = { 0.0f, 180.0f };
     State familyTreeReturn = PLAYING;
+
+    // ── Tước Vị Chuẩn Vương Quốc Anh (0..8), Lãnh Địa Riêng, Bản Đồ Thế Giới & Nổi Dậy ──
+    int peerageRank = 0;         // 0: Thường Dân .. 7: Công Tước, 8: Quốc Vương
+    int warMerit = 0;            // Chiến công quốc gia
+    bool isKing = false;         // Đã lật đổ Bạo Chúa và đăng quang Quốc Vương
+    bool fiefEstablished = false;
+    std::string fiefName = "";
+    int fiefLevel = 0;           // 0..5
+    int fiefBuildings[4] = { 0, 0, 0, 0 }; // 0: Thành Quách, 1: Doanh Trại, 2: Thương Điếm, 3: Học Viện
+    int fiefSoldiers = 0;
+    int fiefTreasury = 0;
+    NationState nations[5];
+    int worldMapSel = 0;
+    State worldMapReturn = PLAYING;
+    bool inWarBattle = false;
+    int warBattleNation = 1;
+    bool inRebellion = false;
+    std::vector<AlliedUnit> alliedUnits;
+
+    const char* PeerageTitleName(int rank = -1) const;
+    const char* PeerageStyleName(int rank = -1) const;
+    Color PeerageColor(int rank = -1) const;
+    void PromotePeerage();
+    void EstablishFief();
+    void UpgradeFiefBuilding(int bIdx);
+    void RecruitFiefSoldiers();
+    int FiefDailyGoldIncome() const;
+    void CollectFiefIncome();
+    void InitNations();
+    void OpenWorldMap(State from);
+    void UpdateWorldMap(float dt);
+    void DrawWorldMapScreen();
+    void DeclareWarOrAlliance(int natIdx);
+    void DispatchArmyCampaign(int natIdx);
+    void StartNationalBattlefield(int natIdx);
+    float ComputePlayerPowerScore() const;
+    void StartThroneRebellion(int forcedKingClass = -1);
+    void SpawnAlliedGarrison(int count);
+    void UpdateAlliedUnits(float dt);
+    void DrawAlliedUnits();
 
     const char* L(const char* en, const char* vi) const { return settings.language == 1 ? vi : en; }
     int TimePhase() const;
@@ -272,10 +312,10 @@ public:
         return heroGivenName.empty() ? std::string(ClassDisplayName(player.heroClass)) : heroGivenName;
     }
     void ResetDynasty();
-    const ClassDef& BaseClass() const { return kClasses[std::max(0, std::min(3, player.heroClass))]; }
+    const ClassDef& BaseClass() const { return kClasses[std::max(0, std::min(kNumClasses - 1, player.heroClass))]; }
     const SubclassDef* ActiveSubclass() const;
     const char* ClassDisplayName(int hc) const {
-        hc = std::max(0, std::min(3, hc));
+        hc = std::max(0, std::min(kNumClasses - 1, hc));
         return settings.language == 1 ? kClassesVi[hc].name : kClasses[hc].name;
     }
     const char* SubDisplayName(int hc, int branch) const;
@@ -305,8 +345,8 @@ public:
     const char* RName() const;
     const char* RDesc() const;
     static int ClassWeaponType(int heroClass) {
-        int hc = std::max(0, std::min(3, heroClass));
-        return kClasses[hc].startWeapon; // Knight: Sword, Assassin: Dagger, Mage: Staff, Ranger: Bow
+        int hc = std::max(0, std::min(kNumClasses - 1, heroClass));
+        return kClasses[hc].startWeapon; // Knight: Sword, Assassin: Dagger, Mage: Staff, Ranger: Bow, Templar: Spear
     }
     static int VisualWeaponType(int heroClass, int subClass, int itemWeaponType);
     bool CanUseWeapon(int weaponType) const { return weaponType == ClassWeaponType(player.heroClass); }
@@ -323,8 +363,8 @@ public:
     float LifestealScale() const {
         return settings.difficulty == 0 ? 1.0f : (settings.difficulty == 1 ? 0.25f : 0.0625f);
     }
-    float Skill1MaxCd() const { return kClasses[std::max(0, std::min(3, player.heroClass))].qCooldown * SkillCdrMult(); }
-    float Skill2MaxCd() const { return kClasses[std::max(0, std::min(3, player.heroClass))].eCooldown * SkillCdrMult(); }
+    float Skill1MaxCd() const { return kClasses[std::max(0, std::min(kNumClasses - 1, player.heroClass))].qCooldown * SkillCdrMult(); }
+    float Skill2MaxCd() const { return kClasses[std::max(0, std::min(kNumClasses - 1, player.heroClass))].eCooldown * SkillCdrMult(); }
     float Skill3MaxCd() const {
         const SubclassDef* sc = ActiveSubclass();
         return (sc ? sc->cCooldown : 7.5f) * SkillCdrMult();
@@ -598,7 +638,7 @@ public:
     bool HasDuoImmortalBastion() const { return HasRelic(RELIC_AEGIS) && HasRelic(RELIC_CHALICE); }
 
     // ── Nút bấm trên màn hình (dùng được cho chuột lẫn chạm) ──
-    enum UiAction { UI_NONE = 0, UI_START, UI_SAVE_LOAD, UI_SANCT, UI_SETTINGS, UI_HELP, UI_QUIT, UI_RESUME, UI_EQUIP, UI_RESTART, UI_BACK, UI_CLOSE_HELP, UI_CLOSE_INV, UI_CHANGE_CLASS, UI_MAIN_MENU, UI_FAMILY_TREE, UI_CONTINUE_HEIR, UI_SURFACE_RETURN };
+    enum UiAction { UI_NONE = 0, UI_START, UI_SAVE_LOAD, UI_SANCT, UI_SETTINGS, UI_HELP, UI_QUIT, UI_RESUME, UI_EQUIP, UI_RESTART, UI_BACK, UI_CLOSE_HELP, UI_CLOSE_INV, UI_CHANGE_CLASS, UI_MAIN_MENU, UI_FAMILY_TREE, UI_CONTINUE_HEIR, UI_SURFACE_RETURN, UI_WORLD_MAP };
     struct UiBtn { Rectangle r; std::string label; int action; Color col; };
 
     std::vector<UiBtn> BuildButtons();
@@ -841,6 +881,8 @@ public:
     void DrawSurfaceFamilyHomeRoom(const BiomeColors& biome, float tm);
 
     void DrawSurfacePalaceRoom(const BiomeColors& biome, float tm);
+
+    void DrawSurfaceFiefRoom(const BiomeColors& biome, float tm);
 
     void DrawSurfaceWorld(const BiomeColors& biome);
 

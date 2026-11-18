@@ -18,7 +18,7 @@ inline void Game::RefreshSaveSlots() {
                 std::string k = line.substr(0, eq);
                 std::string val = line.substr(eq + 1);
                 if (k == "exists") existsFlag = atoi(val.c_str());
-                else if (k == "player_heroClass") info.heroClass = std::max(0, std::min(3, atoi(val.c_str())));
+                else if (k == "player_heroClass") info.heroClass = std::max(0, std::min(kNumClasses - 1, atoi(val.c_str())));
                 else if (k == "player_subClass") info.subClass = std::max(0, std::min(2, atoi(val.c_str())));
                 else if (k == "floor") info.floor = std::max(1, atoi(val.c_str()));
                 else if (k == "player_level") info.level = std::max(1, std::min(kMaxPlayerLevel, atoi(val.c_str())));
@@ -181,7 +181,21 @@ inline bool Game::SaveGameToSlot(int slot) {
       << "bountyTarget=" << bountyTarget << "\n"
       << "bountyRewardGold=" << bountyRewardGold << "\n"
       << "perfectDodgesCount=" << perfectDodgesCount << "\n"
-      << "elementalReactionsCount=" << elementalReactionsCount << "\n";
+      << "elementalReactionsCount=" << elementalReactionsCount << "\n"
+      << "peerageRank=" << peerageRank << "\n"
+      << "warMerit=" << warMerit << "\n"
+      << "isKing=" << (isKing ? 1 : 0) << "\n"
+      << "fiefEstablished=" << (fiefEstablished ? 1 : 0) << "\n"
+      << "fiefName=" << fiefName << "\n"
+      << "fiefLevel=" << fiefLevel << "\n"
+      << "fiefSoldiers=" << fiefSoldiers << "\n"
+      << "fiefTreasury=" << fiefTreasury << "\n";
+    for (int i = 0; i < 4; ++i) o << "fiefBld_" << i << "=" << fiefBuildings[i] << "\n";
+    for (int i = 0; i < 5; ++i) {
+        o << "nationSt_" << i << "=" << nations[i].status << "\n"
+          << "nationWar_" << i << "=" << nations[i].warProgress << "\n"
+          << "nationTer_" << i << "=" << nations[i].territories << "\n";
+    }
     std::string payload = o.str();
     SaveFileText(SaveFileName(slot).c_str(), (char*)payload.c_str());
     RefreshSaveSlots();
@@ -235,6 +249,13 @@ inline bool Game::LoadGameFromSlot(int slot) {
     int lChildCount = 0, lAncCount = 0;
     std::vector<ChildInfo> lChildren;
     std::vector<AncestorRecord> lAncestors;
+    int lPeerageRank = 0, lWarMerit = 0, lFiefLv = 0, lFiefSol = 0, lFiefTreas = 0;
+    bool lIsKing = false, lFiefEst = false;
+    std::string lFiefName = "";
+    int lFiefBld[4] = { 0, 0, 0, 0 };
+    int lNatSt[5] = { 1, 0, 2, 0, 2 };
+    float lNatWar[5] = { 0.0f, 0.0f, 15.0f, 0.0f, 10.0f };
+    int lNatTer[5] = { 4, 3, 4, 3, 4 };
 
     std::string line;
     while (std::getline(in, line)) {
@@ -253,8 +274,8 @@ inline bool Game::LoadGameFromSlot(int slot) {
         else if (k == "bossesKilled") loadedBosses = std::max(0, iv);
         else if (k == "phoenixUsed") loadedPhoenix = (iv != 0);
         else if (k == "roomCleared") roomCleared = iv;
-        else if (k == "selectedClass") loadedSelClass = std::max(0, std::min(3, iv));
-        else if (k == "player_heroClass") loadedP.heroClass = std::max(0, std::min(3, iv));
+        else if (k == "selectedClass") loadedSelClass = std::max(0, std::min(kNumClasses - 1, iv));
+        else if (k == "player_heroClass") loadedP.heroClass = std::max(0, std::min(kNumClasses - 1, iv));
         else if (k == "player_subClass") loadedP.subClass = std::max(0, std::min(2, iv));
         else if (k == "player_hp") loadedP.hp = fv;
         else if (k == "player_maxHp") loadedP.maxHp = std::max(1.0f, fv);
@@ -292,6 +313,27 @@ inline bool Game::LoadGameFromSlot(int slot) {
         else if (k == "bountyRewardGold") lBountyGold = std::max(0, iv);
         else if (k == "perfectDodgesCount") lPerfDodges = std::max(0, iv);
         else if (k == "elementalReactionsCount") lReactCnt = std::max(0, iv);
+        else if (k == "peerageRank") lPeerageRank = std::max(0, std::min(8, iv));
+        else if (k == "warMerit") lWarMerit = std::max(0, iv);
+        else if (k == "isKing") lIsKing = (iv != 0);
+        else if (k == "fiefEstablished") lFiefEst = (iv != 0);
+        else if (k == "fiefName") lFiefName = v;
+        else if (k == "fiefLevel") lFiefLv = std::max(0, std::min(5, iv));
+        else if (k == "fiefSoldiers") lFiefSol = std::max(0, iv);
+        else if (k == "fiefTreasury") lFiefTreas = std::max(0, iv);
+        else if (k.rfind("fiefBld_", 0) == 0) {
+            int bi = atoi(k.c_str() + 8);
+            if (bi >= 0 && bi < 4) lFiefBld[bi] = std::max(0, std::min(5, iv));
+        } else if (k.rfind("nationSt_", 0) == 0) {
+            int ni = atoi(k.c_str() + 9);
+            if (ni >= 0 && ni < 5) lNatSt[ni] = std::max(0, std::min(3, iv));
+        } else if (k.rfind("nationWar_", 0) == 0) {
+            int ni = atoi(k.c_str() + 10);
+            if (ni >= 0 && ni < 5) lNatWar[ni] = Clamp(fv, 0.0f, 100.0f);
+        } else if (k.rfind("nationTer_", 0) == 0) {
+            int ni = atoi(k.c_str() + 10);
+            if (ni >= 0 && ni < 5) lNatTer[ni] = std::max(0, iv);
+        }
         else if (k.rfind("equipPlus_", 0) == 0) {
             int ei = atoi(k.c_str() + 10);
             if (ei >= 0 && ei < 4) lEquipPlus[ei] = std::max(0, std::min(5, iv));
@@ -329,7 +371,7 @@ inline bool Game::LoadGameFromSlot(int slot) {
                 if ((int)lChildren.size() <= ci) lChildren.resize(ci + 1);
                 std::string f = k.substr(us + 1);
                 if (f == "name") lChildren[ci].name = v;
-                else if (f == "cls") lChildren[ci].heroClass = std::max(0, std::min(3, iv));
+                else if (f == "cls") lChildren[ci].heroClass = std::max(0, std::min(kNumClasses - 1, iv));
                 else if (f == "hp") lChildren[ci].bonusHp = fv;
                 else if (f == "dmg") lChildren[ci].bonusDmg = fv;
                 else if (f == "arm") lChildren[ci].bonusArmor = fv;
@@ -348,7 +390,7 @@ inline bool Game::LoadGameFromSlot(int slot) {
                 std::string f = k.substr(us + 1);
                 if (f == "gen") lAncestors[ai].generation = std::max(1, iv);
                 else if (f == "name") lAncestors[ai].name = v;
-                else if (f == "cls") lAncestors[ai].heroClass = std::max(0, std::min(3, iv));
+                else if (f == "cls") lAncestors[ai].heroClass = std::max(0, std::min(kNumClasses - 1, iv));
                 else if (f == "sub") lAncestors[ai].subClass = std::max(0, std::min(2, iv));
                 else if (f == "noble") lAncestors[ai].wasNoble = (iv != 0);
                 else if (f == "spouse") lAncestors[ai].spouseName = v;
@@ -467,6 +509,26 @@ inline bool Game::LoadGameFromSlot(int slot) {
     }
     children = lChildren;
     familyTree = lAncestors;
+    peerageRank = lPeerageRank;
+    if (isNoble && peerageRank < 1) peerageRank = 1;
+    if (lIsKing) { peerageRank = 8; isNoble = true; }
+    warMerit = lWarMerit;
+    isKing = lIsKing;
+    fiefEstablished = lFiefEst;
+    fiefName = lFiefName;
+    fiefLevel = lFiefLv;
+    fiefSoldiers = lFiefSol;
+    fiefTreasury = lFiefTreas;
+    for (int i = 0; i < 4; ++i) fiefBuildings[i] = lFiefBld[i];
+    InitNations();
+    for (int i = 0; i < 5; ++i) {
+        nations[i].status = lNatSt[i];
+        nations[i].warProgress = lNatWar[i];
+        nations[i].territories = lNatTer[i];
+    }
+    inWarBattle = false;
+    inRebellion = false;
+    alliedUnits.clear();
 
     if (inSurface) {
         surfaceTownReturnPos = lTownRet;

@@ -238,7 +238,7 @@ inline void Game::LoadSettings() {
         else if (k == "best") bestFloor = std::max(1, v);
         else if (k == "souls") souls = std::max(0, v);
         else if (k == "runs") runs = std::max(0, v);
-        else if (k == "heroClass") selectedClass = std::max(0, std::min(3, v));
+        else if (k == "heroClass") selectedClass = std::max(0, std::min(kNumClasses - 1, v));
         else if (k.size() == 5 && k.compare(0, 4, "meta") == 0) {
             int mi = k[4] - '0';
             if (mi >= 0 && mi < 8) meta[mi] = std::max(0, std::min(kMeta[mi].maxLevel, v));

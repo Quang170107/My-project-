@@ -115,6 +115,25 @@ inline void Game::MeleeAttack(Vector2 aimDir) {
         }
     }
 
+    // Nội tại Long Kỵ Thương Vương: phóng Long Thương Khí & hồi HP
+    if (player.heroClass == CLASS_TEMPLAR) {
+        if (player.subClass == 2) {
+            FireSwordWave(player.pos, aimDir, player.baseDmg * 0.95f, 580.0f, 3, { 255, 185, 65, 255 }, 14.0f, true);
+            AddRage(3.0f);
+        } else {
+            int cycle = (player.subClass == 1) ? 2 : 3;
+            if (player.attackCounter % cycle == 0) {
+                Color wCol = (player.subClass == 1) ? Color{ 255, 225, 105, 255 } : GOLD;
+                FireSwordWave(player.pos, aimDir, player.baseDmg * 1.45f, 610.0f, 3, wCol, 14.5f, player.subClass == 1);
+                float hl = (player.subClass == 1) ? 6.0f : 5.0f;
+                if (player.hp < player.maxHp) {
+                    player.hp = std::min(player.maxHp, player.hp + hl);
+                    SpawnPopup({ player.pos.x, player.pos.y - 24.0f }, "+" + std::to_string((int)hl), GREEN);
+                }
+            }
+        }
+    }
+
     // Nội tại Xạ Thủ / Sniper Deadeye: Tên Gió xuyên thấu
     bool eagleMark = (player.heroClass == CLASS_RANGER && (player.attackCounter % (player.subClass == 1 ? 2 : 3) == 0));
 
@@ -264,7 +283,8 @@ inline void Game::MeleeAttack(Vector2 aimDir) {
         }
         if (inRange) {
             hitAny = true;
-            float cc = std::min(0.85f, player.critChance + (eagleMark ? (player.subClass == 1 ? 0.15f : 0.10f) : 0.0f));
+            float cc = std::min(0.85f, player.critChance + (eagleMark ? (player.subClass == 1 ? 0.15f : 0.10f) : 0.0f)
+                                       + ((player.heroClass == CLASS_TEMPLAR && player.subClass == 2) ? 0.15f : 0.0f));
             bool isCrit = (Rand01() < cc);
             float dmg = player.baseDmg * wDmg[wt] * (eagleMark ? (player.subClass == 1 ? 1.75f : 1.50f) : 1.0f) * (isCrit ? critMul : 1.0f);
             maxHitDmg = std::max(maxHitDmg, dmg);
@@ -472,7 +492,7 @@ inline void Game::CastSkill1(Vector2 aimDir) {
             Burst(p.pos, ORANGE, 10, 160.0f, 0.35f);
             TriggerArcaneResonance(aimDir);
         }
-    } else {
+    } else if (player.heroClass == CLASS_RANGER) {
         if (player.subClass == 2) {
             // Tempest Valkyrie [Q]: Thunder Volley (7 mũi tên sét nổ AoE + choáng 0.8s quanh thân)
             PlaySound(snd.sndShoot);
@@ -518,6 +538,51 @@ inline void Game::CastSkill1(Vector2 aimDir) {
                 projectiles.push_back(p);
             }
             Burst(Vector2Add(player.pos, Vector2Scale(aimDir, 20.0f)), GOLD, 12, 200.0f, 0.35f);
+        }
+    } else if (player.heroClass == CLASS_TEMPLAR) {
+        // Royal Lancemaster / Grand Inquisitor / Dragonlord Monarch [Q]
+        float dist = (player.subClass == 2) ? 135.0f : (player.subClass == 1 ? 130.0f : 115.0f);
+        float mul = (player.subClass == 2) ? 2.65f : (player.subClass == 1 ? 2.55f : 2.25f);
+        Color lCol = (player.subClass == 2) ? Color{ 245, 75, 95, 255 } : GOLD;
+        Vector2 origin = player.pos;
+        Vector2 dest = Vector2Add(origin, Vector2Scale(aimDir, dist));
+        dest.x = Clamp(dest.x, -bw, bw);
+        dest.y = Clamp(dest.y, -bh, bh);
+        ResolvePillars(dest, 15.0f);
+        ghosts.push_back({ origin, player.facingLeft, 0.25f, 0.25f });
+        player.pos = dest;
+        player.invulnTimer = std::max(player.invulnTimer, 0.32f);
+
+        PlaySound(snd.sndSpecial);
+        Shake(0.24f, 6.5f);
+        Vector2 hitC = Vector2Add(dest, Vector2Scale(aimDir, 42.0f));
+        Burst(hitC, lCol, 28, 320.0f, 0.55f);
+        NovaVisual nv; nv.pos = hitC; nv.maxRadius = 150.0f; nv.timer = 0.28f; nv.maxTimer = 0.28f; nv.color = lCol;
+        novas.push_back(nv);
+        for (auto& e : enemies) {
+            if (e.hp <= 0) continue;
+            if (Vector2Distance(hitC, e.pos) <= 150.0f + e.radius * 0.5f) {
+                bool isCrit = (Rand01() < player.critChance);
+                float dmg = player.baseDmg * mul * (isCrit ? critMul : 1.0f);
+                Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, origin));
+                if (e.type == BOSS || e.isElite || e.isWarden) e.stagger = std::min(e.maxStagger, e.stagger + 35.0f);
+                DamageEnemy(e, dmg, kb, player.subClass == 2 ? -120.0f : 240.0f, isCrit, true);
+                if (e.hp > 0) {
+                    if (player.subClass == 1) e.stunTimer = std::max(e.stunTimer, 1.4f);
+                    if (player.subClass >= 1) { e.burnTimer = std::max(e.burnTimer, 3.0f); e.burnDps = std::max(e.burnDps, player.baseDmg * 0.6f); }
+                }
+            }
+        }
+        TriggerBarrelsInRadius(hitC, 150.0f, player.baseDmg * mul);
+        float baseAng = atan2f(aimDir.y, aimDir.x);
+        for (int i = -1; i <= 1; ++i) {
+            float a = baseAng + i * 0.22f;
+            FireSwordWave(dest, { cosf(a), sinf(a) }, player.baseDmg * 1.45f, 620.0f, 3, lCol, 14.5f, player.subClass >= 1);
+        }
+        if (player.subClass == 2 && player.hp < player.maxHp) {
+            float hl = std::max(5.0f, roundf(player.maxHp * 0.10f));
+            player.hp = std::min(player.maxHp, player.hp + hl);
+            SpawnPopup({ player.pos.x, player.pos.y - 26.0f }, "+" + std::to_string((int)hl), GREEN);
         }
     }
 }
@@ -674,7 +739,7 @@ inline void Game::CastSkill2(Vector2 aimDir, Vector2 moveDir) {
             TriggerBarrelsInRadius(player.pos, rad, player.baseDmg * mul);
             TriggerArcaneResonance(aimDir);
         }
-    } else {
+    } else if (player.heroClass == CLASS_RANGER) {
         // Ranger / Sniper Deadeye / Valkyrie Lancer [E]
         GroundEffect trap;
         trap.kind = 0;
@@ -700,6 +765,33 @@ inline void Game::CastSkill2(Vector2 aimDir, Vector2 moveDir) {
         else if (player.subClass == 2) { player.shieldActive = true; player.hasteTimer = std::max(player.hasteTimer, 3.5f); }
         PlaySound(snd.sndDash);
         Burst(trap.pos, trap.color, 14, 180.0f, 0.4f);
+    } else {
+        // Royal Lancemaster / Grand Inquisitor / Dragonlord Monarch [E]
+        PlaySound(snd.sndSpecial);
+        Shake(0.25f, 6.0f);
+        Color nCol = (player.subClass == 2) ? Color{ 245, 75, 95, 255 } : GOLD;
+        float rad = 195.0f;
+        float mul = (player.subClass == 2) ? 2.3f : (player.subClass == 1 ? 2.2f : 1.95f);
+        Burst(player.pos, nCol, 34, 360.0f, 0.6f);
+        player.holyBuffTimer = (player.subClass == 1) ? 4.5f : 3.5f;
+        player.hasteTimer = std::max(player.hasteTimer, 4.0f);
+        player.shieldActive = true;
+        if (player.subClass == 2) AddRage(25.0f);
+        SpawnPopup({ player.pos.x, player.pos.y - 34.0f },
+                   player.subClass == 2 ? L("EMPEROR'S ROAR!", "LONG KHIẾU CHẤN THIÊN!") : L("ROYAL BANNER!", "HOÀNG KỲ BẢO HỘ!"), nCol);
+        NovaVisual nv; nv.pos = player.pos; nv.maxRadius = rad; nv.timer = 0.35f; nv.maxTimer = 0.35f; nv.color = nCol;
+        novas.push_back(nv);
+        for (auto& e : enemies) {
+            if (e.hp <= 0) continue;
+            if (Vector2Distance(player.pos, e.pos) <= rad + e.radius * 0.4f) {
+                bool isCrit = (Rand01() < player.critChance);
+                float dmg = player.baseDmg * mul * (isCrit ? critMul : 1.0f);
+                Vector2 kb = Vector2Normalize(Vector2Subtract(e.pos, player.pos));
+                DamageEnemy(e, dmg, kb, 260.0f, isCrit, true);
+                if (e.hp > 0) e.stunTimer = std::max(e.stunTimer, player.subClass == 2 ? 1.5f : 1.2f);
+            }
+        }
+        TriggerBarrelsInRadius(player.pos, rad, player.baseDmg * mul);
     }
 }
 
@@ -858,7 +950,7 @@ inline void Game::CastSkill3(Vector2 aimDir) {
             }
             TriggerArcaneResonance(aimDir);
         }
-    } else {
+    } else if (player.heroClass == CLASS_RANGER) {
         if (player.subClass == 1) {
             // Sniper Deadeye: Tiễn Xuyên Phá — Bắn Tên Siêu Thanh 3.0x Chí Mạng xuyên toàn bộ & nổ 80px
             PlaySound(snd.sndShoot);
@@ -892,6 +984,44 @@ inline void Game::CastSkill3(Vector2 aimDir) {
             }
             player.shieldActive = true;
             Burst(player.pos, vCol, 18, 240.0f, 0.45f);
+        }
+    } else {
+        // CLASS_TEMPLAR [C]
+        if (player.subClass == 1) {
+            PlaySound(snd.sndShoot);
+            Shake(0.20f, 5.0f);
+            for (int i = -2; i <= 2; ++i) {
+                float a = baseAng + i * 0.16f;
+                Projectile jv; jv.fromPlayer = true; jv.kind = 1;
+                jv.pos = Vector2Add(player.pos, { cosf(a) * 20.0f, sinf(a) * 20.0f });
+                jv.vel = { cosf(a) * 760.0f, sinf(a) * 760.0f };
+                jv.damage = player.baseDmg * 2.15f; jv.life = 1.5f; jv.radius = 10.5f;
+                jv.pierce = 4; jv.applyStun = true; jv.applyBurn = true; jv.color = GOLD;
+                projectiles.push_back(jv);
+            }
+            float hl = std::max(5.0f, roundf(player.maxHp * 0.10f));
+            player.hp = std::min(player.maxHp, player.hp + hl);
+            SpawnPopup({ player.pos.x, player.pos.y - 26.0f }, "+" + std::to_string((int)hl), GREEN);
+            Burst(player.pos, GOLD, 20, 250.0f, 0.45f);
+        } else {
+            PlaySound(snd.sndSlash);
+            Shake(0.24f, 6.0f);
+            const Color dCol = { 255, 195, 75, 255 };
+            NovaVisual nv; nv.pos = player.pos; nv.maxRadius = 175.0f; nv.timer = 0.30f; nv.maxTimer = 0.30f; nv.color = dCol;
+            novas.push_back(nv);
+            for (auto& e : enemies) {
+                if (e.hp <= 0) continue;
+                if (Vector2Distance(player.pos, e.pos) <= 175.0f + e.radius * 0.5f) {
+                    bool isCrit = (Rand01() < player.critChance);
+                    DamageEnemy(e, player.baseDmg * 2.4f * (isCrit ? critMul : 1.0f), Vector2Normalize(Vector2Subtract(e.pos, player.pos)), 220.0f, isCrit, true);
+                }
+            }
+            TriggerBarrelsInRadius(player.pos, 175.0f, player.baseDmg * 2.4f);
+            for (int i = 0; i < 8; ++i) {
+                float a = i * (PI / 4.0f);
+                FireSwordWave(player.pos, { cosf(a), sinf(a) }, player.baseDmg * 1.65f, 580.0f, 3, dCol, 14.0f, true);
+            }
+            Burst(player.pos, dCol, 24, 280.0f, 0.5f);
         }
     }
 }
@@ -1045,7 +1175,7 @@ inline void Game::CastSkill4(Vector2 aimDir, Vector2 moveDir) {
             }
             TriggerArcaneResonance(aimDir);
         }
-    } else {
+    } else if (player.heroClass == CLASS_RANGER) {
         if (player.subClass == 1) {
             // Sniper Deadeye: Pháo Sáng & Ẩn Thân — 6 tên pháo sáng (1.7x AoE) + 1.5s Bất Tử & 3s Tăng Tốc
             PlaySound(snd.sndShoot);
@@ -1090,6 +1220,49 @@ inline void Game::CastSkill4(Vector2 aimDir, Vector2 moveDir) {
                 sa.pierce = 2; sa.color = vCol;
                 projectiles.push_back(sa);
             }
+            AddRage(20.0f);
+        }
+    } else {
+        // CLASS_TEMPLAR [V]
+        if (player.subClass == 1) {
+            PlaySound(snd.sndSpecial);
+            Shake(0.26f, 6.0f);
+            Vector2 cPos = Vector2Add(player.pos, Vector2Scale(aimDir, 95.0f));
+            cPos.x = Clamp(cPos.x, -bw + 30.0f, bw - 30.0f);
+            cPos.y = Clamp(cPos.y, -bh + 30.0f, bh - 30.0f);
+            NovaVisual nv; nv.pos = cPos; nv.maxRadius = 180.0f; nv.timer = 0.35f; nv.maxTimer = 0.35f; nv.color = GOLD;
+            novas.push_back(nv);
+            Burst(cPos, GOLD, 30, 320.0f, 0.55f);
+            for (auto& e : enemies) {
+                if (e.hp <= 0) continue;
+                if (Vector2Distance(cPos, e.pos) <= 180.0f + e.radius * 0.5f) {
+                    bool isCrit = (Rand01() < player.critChance);
+                    if (e.type == BOSS || e.isElite || e.isWarden) e.stagger = std::min(e.maxStagger, e.stagger + 45.0f);
+                    DamageEnemy(e, player.baseDmg * 2.65f * (isCrit ? critMul : 1.0f), Vector2Normalize(Vector2Subtract(e.pos, cPos)), 220.0f, isCrit, true);
+                    if (e.hp > 0) { e.burnTimer = std::max(e.burnTimer, 3.0f); e.burnDps = std::max(e.burnDps, player.baseDmg * 0.65f); }
+                }
+            }
+            TriggerBarrelsInRadius(cPos, 180.0f, player.baseDmg * 2.65f);
+            GroundEffect hz; hz.kind = 1; hz.pos = cPos; hz.radius = 150.0f; hz.maxTimer = 2.5f; hz.timer = 2.5f; hz.tickTimer = 0.4f;
+            hz.damage = player.baseDmg * 0.7f; hz.color = GOLD;
+            groundEffects.push_back(hz);
+            AddRage(20.0f);
+        } else {
+            PlaySound(snd.sndSpecial);
+            Shake(0.24f, 6.0f);
+            const Color dCol = { 245, 75, 95, 255 };
+            Vector2 targetC = Vector2Add(player.pos, Vector2Scale(aimDir, 130.0f));
+            targetC.x = Clamp(targetC.x, -bw + 40.0f, bw - 40.0f);
+            targetC.y = Clamp(targetC.y, -bh + 40.0f, bh - 40.0f);
+            for (int k = 0; k < 6; ++k) {
+                float a = k * (PI / 3.0f);
+                GroundEffect pl; pl.kind = 4;
+                pl.pos = { Clamp(targetC.x + cosf(a) * 90.0f, -bw, bw), Clamp(targetC.y + sinf(a) * 90.0f, -bh, bh) };
+                pl.radius = 100.0f; pl.maxTimer = 0.24f + k * 0.08f; pl.timer = pl.maxTimer;
+                pl.damage = player.baseDmg * 2.3f; pl.color = (k & 1) ? GOLD : dCol;
+                groundEffects.push_back(pl);
+            }
+            player.dashTimer = 0.0f;
             AddRage(20.0f);
         }
     }
@@ -1206,7 +1379,7 @@ inline void Game::CastUltimate(Vector2 aimDir) {
             Burst(center, { 175, 90, 255, 255 }, 38, 360.0f, 0.8f);
             TriggerArcaneResonance(aimDir);
         }
-    } else {
+    } else if (player.heroClass == CLASS_RANGER) {
         // Emerald Ranger / Sniper Deadeye / Valkyrie Lancer [R]
         bool isVal = (player.subClass == 2);
         ShowBanner(isVal ? "GUNGNIR SKYFALL!" : (player.subClass == 1 ? "SOLARIS ARROW TEMPEST!" : "PHOENIX ARROW RAIN!"), 2.2f);
@@ -1223,6 +1396,44 @@ inline void Game::CastUltimate(Vector2 aimDir) {
         rain.color = isVal ? Color{ 100, 235, 255, 255 } : Color{ 255, 160, 55, 255 };
         groundEffects.push_back(rain);
         Burst(player.pos, rain.color, 32, 340.0f, 0.65f);
+    } else {
+        // Royal Lancemaster / Grand Inquisitor / Dragonlord Monarch [R]
+        bool isDrag = (player.subClass == 2);
+        ShowBanner(isDrag ? L("DYNASTY ANNIHILATION!", "HOÀNG TRIỀU HỦY DIỆT!") : (player.subClass == 1 ? L("HEAVENSFALL PHALANX!", "THIÊN PHẠT ĐẠI TRẬN!") : L("SOVEREIGN'S PHALANX!", "THIÊN QUÂN VẠN MÃ!")), 2.5f);
+        overdriveTimer = std::max(overdriveTimer, 4.5f);
+        player.holyBuffTimer = 4.5f;
+        player.shieldActive = true;
+        Color uCol = isDrag ? Color{ 245, 75, 95, 255 } : GOLD;
+        float mul = isDrag ? 4.5f : (player.subClass == 1 ? 4.3f : 3.8f);
+        Burst(player.pos, uCol, 50, 440.0f, 0.85f);
+        NovaVisual nv; nv.pos = player.pos; nv.maxRadius = 275.0f; nv.timer = 0.45f; nv.maxTimer = 0.45f; nv.color = uCol;
+        novas.push_back(nv);
+        for (auto& e : enemies) {
+            if (e.hp <= 0) continue;
+            if (Vector2Distance(player.pos, e.pos) <= 275.0f) {
+                bool isCrit = (Rand01() < player.critChance);
+                DamageEnemy(e, player.baseDmg * mul * (isCrit ? critMul : 1.0f), Vector2Normalize(Vector2Subtract(e.pos, player.pos)), 260.0f, isCrit, false);
+                if (e.hp > 0) e.stunTimer = std::max(e.stunTimer, 1.6f);
+            }
+        }
+        TriggerBarrelsInRadius(player.pos, 275.0f, player.baseDmg * mul);
+        Vector2 center = Vector2Add(player.pos, Vector2Scale(aimDir, 120.0f));
+        center.x = Clamp(center.x, -(roomW / 2.0f - 120.0f), roomW / 2.0f - 120.0f);
+        center.y = Clamp(center.y, -(roomH / 2.0f - 100.0f), roomH / 2.0f - 100.0f);
+        if (isDrag) {
+            GroundEffect bv; bv.kind = 2; bv.pos = center; bv.radius = 260.0f; bv.maxTimer = 4.2f; bv.timer = 4.2f; bv.tickTimer = 0.14f;
+            bv.damage = player.baseDmg * 1.55f; bv.color = uCol;
+            groundEffects.push_back(bv);
+        } else {
+            GroundEffect srain; srain.kind = 3; srain.pos = center; srain.radius = 275.0f; srain.maxTimer = 4.2f; srain.timer = 4.2f;
+            srain.tickTimer = 0.10f; srain.damage = player.baseDmg * 1.35f; srain.color = GOLD;
+            groundEffects.push_back(srain);
+            if (player.subClass == 1) {
+                GroundEffect hz; hz.kind = 1; hz.pos = player.pos; hz.radius = 220.0f; hz.maxTimer = 4.5f; hz.timer = 4.5f; hz.tickTimer = 0.40f;
+                hz.damage = player.baseDmg * 0.95f; hz.color = GOLD;
+                groundEffects.push_back(hz);
+            }
+        }
     }
 }
 

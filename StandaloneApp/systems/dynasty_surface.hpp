@@ -31,6 +31,15 @@ inline void Game::AdvanceTime(float hours) {
     while (timeOfDay >= 24.0f) {
         timeOfDay -= 24.0f;
         dayCount++;
+        int inc = FiefDailyGoldIncome();
+        if (inc > 0) fiefTreasury += inc;
+        if (fiefEstablished) {
+            int maxSol = 50 + fiefBuildings[0] * 45 + peerageRank * 25;
+            fiefSoldiers = std::min(maxSol, fiefSoldiers + 3 + fiefBuildings[1] * 4);
+        }
+        for (int i = 1; i < 5; ++i) {
+            if (nations[i].status == 2) nations[i].warProgress = Clamp(nations[i].warProgress + 4.0f, 0.0f, 95.0f);
+        }
     }
 }
 
@@ -348,6 +357,21 @@ inline void Game::ResetDynasty() {
     surfaceSel = 0;
     surfaceRoom = 0;
     surfaceTownReturnPos = { 0.0f, 180.0f };
+    peerageRank = 0;
+    warMerit = 0;
+    isKing = false;
+    fiefEstablished = false;
+    fiefName = "";
+    fiefLevel = 0;
+    for (int i = 0; i < 4; ++i) fiefBuildings[i] = 0;
+    fiefSoldiers = 0;
+    fiefTreasury = 0;
+    worldMapSel = 0;
+    inWarBattle = false;
+    warBattleNation = 1;
+    inRebellion = false;
+    alliedUnits.clear();
+    InitNations();
 }
 
 inline Vector2 Game::SurfaceLandmarkPos(int idx) {
@@ -356,6 +380,7 @@ inline Vector2 Game::SurfaceLandmarkPos(int idx) {
         case 1: return {  420.0f, -180.0f }; // Phường Gia Trang (Mua Nhà)
         case 2: return {  420.0f,  180.0f }; // Tổ Ấm Gia Đình (Cưới Vợ / Sinh Con / An Nghỉ)
         case 3: return { -420.0f,  180.0f }; // Hoàng Cung (Quý Tộc & Ủy Thác Của Vua)
+        case 5: return {    0.0f,  325.0f }; // Xe Ngựa & Cổng Lãnh Địa Riêng / Bản Đồ Thế Giới
         default: return {   0.0f, -385.0f }; // Cổng Trở Lại Hầm Ngục
     }
 }
@@ -381,9 +406,12 @@ inline Vector2 Game::SpouseCandPos(int i) {
 }
 
 inline void Game::SetupSurfaceRoomEnvironment(int roomIdx, bool movePlayer) {
-    surfaceRoom = std::max(0, std::min(4, roomIdx));
-    if (surfaceRoom >= 1) surfaceBuilding = surfaceRoom - 1;
+    surfaceRoom = std::max(0, std::min(5, roomIdx));
+    if (surfaceRoom >= 1) surfaceBuilding = std::min(3, surfaceRoom - 1);
     enemies.clear();
+    alliedUnits.clear();
+    inWarBattle = false;
+    inRebellion = false;
     projectiles.clear();
     loots.clear();
     slashes.clear();
@@ -439,13 +467,20 @@ inline void Game::SetupSurfaceRoomEnvironment(int roomIdx, bool movePlayer) {
         else { roomW = 1420.0f; roomH = 960.0f; }
         float px = roomW * 0.39f, py = roomH * 0.30f;
         pillars = { { -px, -py }, { px, -py }, { -px, py }, { px, py } };
-    } else {
+    } else if (surfaceRoom == 4) {
         roomW = 1380.0f;
         roomH = 960.0f;
         pillars = {
             { -425.0f, -265.0f }, {  425.0f, -265.0f },
             { -425.0f,    0.0f }, {  425.0f,    0.0f },
             { -425.0f,  265.0f }, {  425.0f,  265.0f }
+        };
+    } else {
+        roomW = 1400.0f;
+        roomH = 960.0f;
+        pillars = {
+            { -430.0f, -270.0f }, {  430.0f, -270.0f },
+            { -430.0f,  120.0f }, {  430.0f,  120.0f }
         };
     }
 
@@ -458,6 +493,8 @@ inline void Game::SetupSurfaceRoomEnvironment(int roomIdx, bool movePlayer) {
         }
         torches.push_back({ -82.0f, -345.0f });
         torches.push_back({  82.0f, -345.0f });
+        torches.push_back({ -82.0f,  310.0f });
+        torches.push_back({  82.0f,  310.0f });
     } else if (surfaceRoom == 1) {
         torches.push_back({ -64.0f, -roomH / 2.0f + 42.0f });
         torches.push_back({  64.0f, -roomH / 2.0f + 42.0f });
@@ -480,6 +517,13 @@ inline void Game::SetupSurfaceRoomEnvironment(int roomIdx, bool movePlayer) {
         torches.push_back({  130.0f,  -40.0f });
         torches.push_back({ -130.0f,  210.0f });
         torches.push_back({  130.0f,  210.0f });
+    } else {
+        torches.push_back({ -140.0f, -310.0f });
+        torches.push_back({  140.0f, -310.0f });
+        torches.push_back({ -340.0f,  -70.0f });
+        torches.push_back({  340.0f,  -70.0f });
+        torches.push_back({ -140.0f,  210.0f });
+        torches.push_back({  140.0f,  210.0f });
     }
     InitMotes();
 
@@ -492,22 +536,24 @@ inline void Game::SetupSurfaceRoomEnvironment(int roomIdx, bool movePlayer) {
 
 inline void Game::EnterSurfaceRoom(int roomIdx) {
     if (!inSurface) return;
-    int r = std::max(1, std::min(4, roomIdx));
+    int r = std::max(1, std::min(5, roomIdx));
     surfaceTownReturnPos = SurfaceTownExitSpot(r);
     SetupSurfaceRoomEnvironment(r, true);
     PlaySound(snd.sndCoin);
     Burst(player.pos, GOLD, 14, 150.0f, 0.45f);
-    static const char* roomNamesEn[4] = {
+    static const char* roomNamesEn[5] = {
         "ENTERED: GOLDENHEARTH TAVERN & MARKET",
         "ENTERED: MASONS & ESTATE GUILD",
         "ENTERED: FAMILY MANOR & ANCESTRAL HALL",
-        "ENTERED: ROYAL PALACE THRONE HALL"
+        "ENTERED: ROYAL PALACE THRONE HALL",
+        "ENTERED: PERSONAL FIEFDOM & STRONGHOLD"
     };
-    static const char* roomNamesVi[4] = {
+    static const char* roomNamesVi[5] = {
         "VÀO PHÒNG: QUÁN TRỌ & CHỢ ẨM THỰC",
         "VÀO PHÒNG: PHƯỜNG KIẾN TRÚC GIA TRANG",
         "VÀO PHÒNG: TỔ ẤM GIA ĐÌNH & TỪ ĐƯỜNG",
-        "VÀO PHÒNG: ĐẠI ĐIỆN HOÀNG CUNG"
+        "VÀO PHÒNG: ĐẠI ĐIỆN HOÀNG CUNG",
+        "VÀO PHÒNG: LÃNH ĐỊA PHONG ẤP & THÀNH QUÁCH"
     };
     ShowBanner(L(roomNamesEn[r - 1], roomNamesVi[r - 1]), 2.4f);
 }
@@ -549,6 +595,9 @@ inline void Game::EnterSurface(int nextF) {
 
 inline void Game::LeaveSurfaceToDungeon() {
     inSurface = false;
+    inWarBattle = false;
+    inRebellion = false;
+    alliedUnits.clear();
     roomW = 1200.0f;
     roomH = 750.0f;
     floor = std::max(1, nextDungeonFloor);
@@ -689,7 +738,7 @@ inline void Game::TryHaveChild() {
     ChildInfo ch;
     int nameIdx = (generation * 3 + (int)children.size() + (int)familyTree.size()) % 10;
     ch.name = kHeirNames[nameIdx];
-    ch.heroClass = (player.heroClass + (int)children.size() + 1) % 4;
+    ch.heroClass = (player.heroClass + (int)children.size() + 1) % kNumClasses;
     ch.bonusHp = 18.0f + houseTier * 8.0f + (isNoble ? 14.0f : 0.0f) + (spouseIdx >= 0 ? kSpouses[spouseIdx].hpBonus * 0.45f : 0.0f);
     ch.bonusDmg = 3.0f + houseTier * 2.0f + (isNoble ? 3.5f : 0.0f) + (spouseIdx >= 0 ? kSpouses[spouseIdx].dmgBonus * 0.50f : 0.0f);
     ch.bonusArmor = 0.5f + (isNoble ? 0.6f : 0.0f);
@@ -724,6 +773,7 @@ inline void Game::AcceptRoyalCommission() {
 inline void Game::CompleteRoyalCommission() {
     if (isNoble) return;
     isNoble = true;
+    if (peerageRank < 1) peerageRank = 1;
     royalQuestActive = false;
     player.gold += 300;
     player.maxHp += 35.0f;
@@ -739,7 +789,7 @@ inline void Game::CompleteRoyalCommission() {
 
 inline void Game::BuyNobleTitleDirect() {
     if (isNoble) {
-        ShowBanner(L("You are already Noble!", "Bạn đã là Quý Tộc rồi!"), 2.0f);
+        PromotePeerage();
         return;
     }
     const int noblePrice = 1500;
@@ -751,6 +801,7 @@ inline void Game::BuyNobleTitleDirect() {
     }
     player.gold -= noblePrice;
     isNoble = true;
+    if (peerageRank < 1) peerageRank = 1;
     royalQuestActive = false;
     player.maxHp += 35.0f;
     player.hp = std::min(player.maxHp, player.hp + 35.0f);
@@ -758,8 +809,385 @@ inline void Game::BuyNobleTitleDirect() {
     player.armor += 1.5f;
     PlaySound(snd.sndLevelUp);
     Burst(player.pos, GOLD, 36, 300.0f, 0.9f);
-    ShowBanner(L("ROYAL PROMOTION: PURCHASED NOBLE TITLE! (+Stats, +25% Gold, Discounts)",
-                 "SẮC PHONG QUÝ TỘC THÀNH CÔNG! (+Chỉ số, +25% Vàng, Giảm giá 30-50%)"), 4.0f);
+    ShowBanner(L("ROYAL PROMOTION: KNIGHTHOOD BESTOWED! (+Stats, +25% Gold, Discounts)",
+                 "SẮC PHONG QUÝ TỘC HIỆP SĨ THÀNH CÔNG! (+Chỉ số, +25% Vàng, Giảm giá 30-50%)"), 4.0f);
+}
+
+inline const char* Game::PeerageTitleName(int rank) const {
+    int r = (rank < 0) ? peerageRank : rank;
+    r = std::max(0, std::min(8, r));
+    return settings.language == 1 ? kPeerageDefs[r].nameVi : kPeerageDefs[r].nameEn;
+}
+
+inline const char* Game::PeerageStyleName(int rank) const {
+    int r = (rank < 0) ? peerageRank : rank;
+    r = std::max(0, std::min(8, r));
+    return settings.language == 1 ? kPeerageDefs[r].styleVi : kPeerageDefs[r].styleEn;
+}
+
+inline Color Game::PeerageColor(int rank) const {
+    int r = (rank < 0) ? peerageRank : rank;
+    r = std::max(0, std::min(8, r));
+    return kPeerageDefs[r].color;
+}
+
+inline void Game::PromotePeerage() {
+    if (peerageRank <= 0) {
+        BuyNobleTitleDirect();
+        return;
+    }
+    if (peerageRank >= 7) {
+        ShowBanner(peerageRank >= 8
+            ? L("You are already Sovereign King of the Realm!", "Bạn đã là Quốc Vương Tối Cao cai trị thiên hạ!")
+            : L("Reached DUKE (Max Peerage)! Start Throne Rebellion on World Map to claim the Crown!",
+                "Đã đạt tước ĐẠI CÔNG TƯỚC (tối đa)! Hãy Nổi Dậy Chiếm Ngai Vàng trên Bản Đồ Thế Giới!"), 3.5f);
+        return;
+    }
+    int nextR = peerageRank + 1;
+    const PeerageDef& cur = kPeerageDefs[peerageRank];
+    const PeerageDef& nxt = kPeerageDefs[nextR];
+    int cost = std::max(100, nxt.goldCost - warMerit * 3);
+    if (player.gold < cost) {
+        ShowBanner(TextFormat(L("Need %d Gold to be elevated to %s (War Merit discounts cost)!",
+                                "Cần %d Vàng để thăng tước %s (Chiến Công giúp giảm giá)!"),
+                              cost, settings.language == 1 ? nxt.nameVi : nxt.nameEn), 3.0f);
+        PlaySound(snd.sndHurt);
+        return;
+    }
+    player.gold -= cost;
+    float dHp = nxt.hpBonus - cur.hpBonus;
+    float dDmg = nxt.dmgBonus - cur.dmgBonus;
+    float dArm = nxt.armorBonus - cur.armorBonus;
+    player.maxHp += dHp;
+    player.hp = std::min(player.maxHp, player.hp + dHp);
+    player.baseDmg += dDmg;
+    player.armor += dArm;
+    peerageRank = nextR;
+    isNoble = true;
+    PlaySound(snd.sndLevelUp);
+    Burst(player.pos, nxt.color, 36, 310.0f, 0.85f);
+    ShowBanner(TextFormat(L("PEERAGE PROMOTED: %s! (+%d HP, +%d DMG, +%.1f ARM)",
+                            "THĂNG TƯỚC QUÝ TỘC: %s! (+%d Máu, +%d ST, +%.1f Giáp)"),
+                          PeerageTitleName(nextR), (int)dHp, (int)dDmg, dArm), 4.0f);
+}
+
+inline int Game::FiefDailyGoldIncome() const {
+    if (!fiefEstablished && peerageRank <= 0) return 0;
+    int peerGold = kPeerageDefs[std::max(0, std::min(8, peerageRank))].dailyGold;
+    int marketGold = fiefEstablished ? (75 + fiefBuildings[2] * 95 + fiefLevel * 45) : 0;
+    return peerGold + marketGold;
+}
+
+inline void Game::EstablishFief() {
+    if (fiefEstablished) {
+        CollectFiefIncome();
+        return;
+    }
+    int cost = (peerageRank >= 3) ? 0 : (isNoble ? 250 : 500);
+    if (player.gold < cost) {
+        ShowBanner(TextFormat(L("Need %dG to found a Personal Fiefdom (Free at Baron rank)!",
+                                "Cần %d Vàng để lập Lãnh Địa Riêng (Miễn phí từ Nam Tước)!"), cost), 3.0f);
+        PlaySound(snd.sndHurt);
+        return;
+    }
+    player.gold -= cost;
+    fiefEstablished = true;
+    fiefLevel = 1;
+    fiefBuildings[0] = 1;
+    fiefSoldiers = 50;
+    fiefTreasury = 150;
+    if (peerageRank < 1) { peerageRank = 1; isNoble = true; }
+    if (fiefName.empty()) {
+        fiefName = (settings.language == 1 ? "Lãnh Địa " : "Fief of ") + CurrentHeroDisplayName();
+    }
+    player.maxHp += 40.0f;
+    player.hp = std::min(player.maxHp, player.hp + 40.0f);
+    player.baseDmg += 8.0f;
+    player.armor += 1.5f;
+    PlaySound(snd.sndLevelUp);
+    Burst(player.pos, GOLD, 40, 320.0f, 0.9f);
+    ShowBanner(std::string(L("PERSONAL FIEFDOM FOUNDED: ", "LẬP LÃNH ĐỊA RIÊNG THÀNH CÔNG: ")) + fiefName + "!", 4.0f);
+}
+
+inline void Game::UpgradeFiefBuilding(int bIdx) {
+    if (!fiefEstablished) {
+        EstablishFief();
+        return;
+    }
+    bIdx = std::max(0, std::min(3, bIdx));
+    if (fiefBuildings[bIdx] >= 5) {
+        ShowBanner(L("Fief building already at Lv.5 Max!", "Công trình lãnh địa đã đạt cấp tối đa Lv.5!"), 2.4f);
+        return;
+    }
+    int cost = 180 + fiefBuildings[bIdx] * 140;
+    if (player.gold < cost) {
+        ShowBanner(TextFormat(L("Need %d Gold to upgrade building!", "Cần %d Vàng để nâng cấp công trình!"), cost), 2.4f);
+        PlaySound(snd.sndHurt);
+        return;
+    }
+    player.gold -= cost;
+    fiefBuildings[bIdx]++;
+    fiefLevel = std::min(5, 1 + (fiefBuildings[0] + fiefBuildings[1] + fiefBuildings[2] + fiefBuildings[3]) / 3);
+    if (bIdx == 0) {
+        player.maxHp += 25.0f;
+        player.hp = std::min(player.maxHp, player.hp + 25.0f);
+        fiefSoldiers += 20;
+    } else if (bIdx == 1) {
+        player.baseDmg += 5.0f;
+        fiefSoldiers += 25;
+    } else if (bIdx == 2) {
+        fiefTreasury += 120;
+        foodRations += 2;
+    } else {
+        player.armor += 1.2f;
+        player.critChance = std::min(0.75f, player.critChance + 0.03f);
+        bossEssence++;
+    }
+    AdvanceTime(1.0f);
+    PlaySound(snd.sndLevelUp);
+    Burst(player.pos, SKYBLUE, 24, 240.0f, 0.65f);
+    static const char* bNamesEn[4] = { "Citadel Keep", "War Barracks", "Guild Market", "Arcane Academy" };
+    static const char* bNamesVi[4] = { "Thành Quách", "Doanh Trại", "Thương Điếm", "Học Viện" };
+    ShowBanner(TextFormat(L("UPGRADED %s TO LV.%d!", "NÂNG CẤP %s LÊN CẤP %d!"),
+                          settings.language == 1 ? bNamesVi[bIdx] : bNamesEn[bIdx], fiefBuildings[bIdx]), 3.0f);
+}
+
+inline void Game::RecruitFiefSoldiers() {
+    if (!fiefEstablished) {
+        EstablishFief();
+        return;
+    }
+    const int cost = 100;
+    if (player.gold < cost) {
+        ShowBanner(L("Need 100 Gold to recruit Fief Garrison!", "Cần 100 Vàng để chiêu mộ Binh Sĩ Lãnh Địa!"), 2.2f);
+        PlaySound(snd.sndHurt);
+        return;
+    }
+    player.gold -= cost;
+    int gain = 35 + fiefBuildings[1] * 10;
+    fiefSoldiers += gain;
+    PlaySound(snd.sndSpecial);
+    Burst(player.pos, GOLD, 20, 220.0f, 0.55f);
+    ShowBanner(TextFormat(L("RECRUITED +%d GARRISON TROOPS (Total: %d)!",
+                            "CHIÊU MỘ +%d QUÂN LÃNH ĐỊA (Tổng: %d)!"), gain, fiefSoldiers), 2.8f);
+}
+
+inline void Game::CollectFiefIncome() {
+    if (!fiefEstablished && peerageRank <= 0) {
+        EstablishFief();
+        return;
+    }
+    int gain = std::max(FiefDailyGoldIncome(), fiefTreasury);
+    fiefTreasury = 0;
+    player.gold += gain;
+    int rGain = std::max(1, fiefBuildings[2]);
+    foodRations += rGain;
+    PlaySound(snd.sndCoin);
+    Burst(player.pos, GOLD, 24, 240.0f, 0.6f);
+    ShowBanner(TextFormat(L("FIEF TAX COLLECTED: +%d Gold & +%d Rations!",
+                            "THU THUẾ LÃNH ĐỊA: +%d Vàng & +%d Lương Khô!"), gain, rGain), 3.0f);
+}
+
+inline void Game::InitNations() {
+    nations[0] = { "Kingdom of Albion", "Vương Quốc Albion", "Royal Capital", "Kinh Đô Hoàng Triều",
+                   { 360.0f, 360.0f }, GOLD, 480, 4, 1, 0.0f };
+    nations[1] = { "Nordheim Jarldom", "Đế Chế Bắc Băng Nordheim", "Frostgarde", "Thành Sương Giá",
+                   { 170.0f, 155.0f }, { 95, 220, 255, 255 }, 320, 3, 0, 0.0f };
+    nations[2] = { "Solaris Caliphate", "Vương Triều Thái Dương Solaris", "Sunspire", "Thành Nhật Quang",
+                   { 615.0f, 175.0f }, ORANGE, 380, 4, 2, 15.0f };
+    nations[3] = { "Sylvan Duchy", "Công Quốc Rừng Ngọc Sylvan", "Verdant Keep", "Thành Lục Bảo",
+                   { 185.0f, 520.0f }, { 110, 235, 145, 255 }, 290, 3, 0, 0.0f };
+    nations[4] = { "Umbra Empire", "Hắc Ám Đế Quốc Umbra", "Obsidian Bastion", "Thành Hắc Ám",
+                   { 605.0f, 525.0f }, { 215, 95, 245, 255 }, 440, 4, 2, 10.0f };
+}
+
+inline void Game::DeclareWarOrAlliance(int natIdx) {
+    if (natIdx < 1 || natIdx >= 5) return;
+    NationState& nt = nations[natIdx];
+    if (nt.status == 3) {
+        ShowBanner(L("This Nation is already annexed into your Empire!", "Quốc gia này đã quy hàng dưới trướng bạn!"), 2.4f);
+        return;
+    }
+    if (nt.status == 2) {
+        if (player.gold < 250) {
+            ShowBanner(L("Need 250 Gold to negotiate Peace & Alliance!", "Cần 250 Vàng để ký Hòa Ước & Đồng Minh!"), 2.4f);
+            PlaySound(snd.sndHurt);
+            return;
+        }
+        player.gold -= 250;
+        nt.status = 1;
+        warMerit += 15;
+        PlaySound(snd.sndCoin);
+        ShowBanner(std::string(L("SIGNED ALLIANCE WITH ", "ĐÃ KÝ ĐỒNG MINH VỚI ")) + L(nt.nameEn, nt.nameVi) + "!", 3.0f);
+    } else {
+        nt.status = 2;
+        PlaySound(snd.sndSpecial);
+        ShowBanner(std::string(L("WAR DECLARED AGAINST ", "ĐÃ TUYÊN CHIẾN VỚI ")) + L(nt.nameEn, nt.nameVi) + "!", 3.0f);
+    }
+}
+
+inline void Game::DispatchArmyCampaign(int natIdx) {
+    if (natIdx < 1 || natIdx >= 5) return;
+    NationState& nt = nations[natIdx];
+    if (nt.status == 3) {
+        ShowBanner(L("Nation already conquered!", "Quốc gia này đã bị chinh phạt!"), 2.2f);
+        return;
+    }
+    if (!fiefEstablished) {
+        ShowBanner(L("Establish your Personal Fiefdom first to command an army!", "Hãy lập Lãnh Địa Riêng trước khi điều binh xuất chinh!"), 2.8f);
+        PlaySound(snd.sndHurt);
+        return;
+    }
+    if (fiefSoldiers < 20) {
+        ShowBanner(L("Need at least 20 Fief Soldiers to launch a campaign!", "Cần tối thiểu 20 Binh Sĩ Lãnh Địa để xuất chinh!"), 2.6f);
+        PlaySound(snd.sndHurt);
+        return;
+    }
+    nt.status = 2;
+    fiefSoldiers -= 20;
+    float gain = 35.0f + fiefBuildings[1] * 8.0f + peerageRank * 4.0f;
+    nt.warProgress = std::min(100.0f, nt.warProgress + gain);
+    warMerit += 45;
+    player.gold += 160;
+    AdvanceTime(2.0f);
+    PlaySound(snd.sndSpecial);
+    if (nt.warProgress >= 100.0f) {
+        nt.status = 3;
+        nations[0].territories += nt.territories;
+        nt.territories = 0;
+        player.maxHp += 30.0f;
+        player.hp = std::min(player.maxHp, player.hp + 30.0f);
+        player.baseDmg += 6.0f;
+        bossEssence++;
+        warMerit += 80;
+        PlaySound(snd.sndLevelUp);
+        ShowBanner(std::string(L("CONQUERED NATION: ", "CHINH PHẠT THÀNH CÔNG: ")) + L(nt.nameEn, nt.nameVi) + L(" (+30HP, +6DMG, +Essence)!", " (+30 Máu, +6 ST, +1 Tinh Hoa)!"), 4.0f);
+    } else {
+        ShowBanner(TextFormat(L("ARMY CAMPAIGN VICTORY! %s War Progress: %d%% (+45 Merit, +160G)",
+                                "CHIẾN DỊCH THẮNG LỢI! Tiến Độ %s: %d%% (+45 Chiến Công, +160V)"),
+                              L(nt.nameEn, nt.nameVi), (int)roundf(nt.warProgress)), 3.2f);
+    }
+}
+
+inline void Game::StartNationalBattlefield(int natIdx) {
+    if (natIdx < 1 || natIdx >= 5) natIdx = 1;
+    inSurface = false;
+    inWarBattle = true;
+    inRebellion = false;
+    warBattleNation = natIdx;
+    nations[natIdx].status = 2;
+    state = PLAYING;
+    PlaySound(snd.sndPortal);
+    BuildFloor();
+}
+
+inline float Game::ComputePlayerPowerScore() const {
+    float eqScore = 0.0f;
+    for (int i = 0; i < 4; ++i) {
+        if (hasEquip[i]) eqScore += equipped[i].Score() * (1.0f + 0.22f * equipPlus[i]);
+    }
+    int fiefSum = fiefBuildings[0] + fiefBuildings[1] + fiefBuildings[2] + fiefBuildings[3];
+    return player.level * 20.0f + player.maxHp * 1.5f + player.baseDmg * 14.0f + EffectiveArmor() * 24.0f
+         + EffectiveAttackRate() * 45.0f + player.critChance * 260.0f + eqScore * 1.5f
+         + (float)player.relics.size() * 70.0f + familiarRank * 65.0f + runeRank * 60.0f
+         + peerageRank * 85.0f + fiefSum * 40.0f;
+}
+
+inline void Game::StartThroneRebellion(int forcedKingClass) {
+    inSurface = false;
+    inRebellion = true;
+    inWarBattle = false;
+    state = PLAYING;
+    PlaySound(snd.sndSpecial);
+    BuildFloor();
+    if (forcedKingClass >= 0 && forcedKingClass < kNumClasses) {
+        for (auto& e : enemies) {
+            if (e.isKingBoss) {
+                e.kingClass = forcedKingClass;
+                ShowBanner(TextFormat(L("THRONE REBELLION! HIS MAJESTY [%s - PWR %d] DESCENDS!",
+                                        "NỔI DẬY CHIẾM NGAI VÀNG! BẠO CHÚA [%s - UY LỰC %d] XUẤT TRẬN!"),
+                                      ClassDisplayName(e.kingClass), e.kingPowerScore), 4.0f);
+            }
+        }
+    }
+}
+
+inline void Game::SpawnAlliedGarrison(int count) {
+    alliedUnits.clear();
+    for (int i = 0; i < count; ++i) {
+        AlliedUnit u;
+        u.heroClass = (i % 2 == 0) ? CLASS_TEMPLAR : (i % kNumClasses);
+        u.maxHp = std::max(140.0f, player.maxHp * 0.65f + fiefBuildings[1] * 35.0f);
+        u.hp = u.maxHp;
+        u.damage = std::max(16.0f, player.baseDmg * 0.45f + fiefBuildings[1] * 4.0f);
+        u.pos = { player.pos.x + (i - (count - 1) * 0.5f) * 58.0f, player.pos.y + 34.0f };
+        u.atkTimer = 0.2f * i;
+        alliedUnits.push_back(u);
+    }
+}
+
+inline void Game::UpdateAlliedUnits(float dt) {
+    if (inSurface || alliedUnits.empty()) return;
+    for (size_t i = 0; i < alliedUnits.size();) {
+        AlliedUnit& u = alliedUnits[i];
+        if (u.hp <= 0.0f) { alliedUnits.erase(alliedUnits.begin() + i); continue; }
+        if (u.atkTimer > 0.0f) u.atkTimer -= dt;
+        if (u.swing > 0.0f) u.swing -= dt;
+        Enemy* target = nullptr;
+        float bestD = 1e9f;
+        for (auto& e : enemies) {
+            if (e.hp <= 0.0f) continue;
+            float d = Vector2Distance(u.pos, e.pos);
+            if (d < bestD) { bestD = d; target = &e; }
+        }
+        Vector2 mv = { 0.0f, 0.0f };
+        if (target) {
+            Vector2 to = Vector2Subtract(target->pos, u.pos);
+            float d = Vector2Length(to);
+            Vector2 dir = d > 0.01f ? Vector2Scale(to, 1.0f / d) : Vector2{ 1.0f, 0.0f };
+            u.aim = dir;
+            if (d > target->radius + 38.0f) mv = dir;
+            if (d <= target->radius + 52.0f && u.atkTimer <= 0.0f) {
+                u.atkTimer = 0.72f;
+                u.swing = 0.20f;
+                DamageEnemy(*target, u.damage, dir, 150.0f, Rand01() < 0.15f, false);
+            }
+        } else {
+            Vector2 goal = { player.pos.x + ((int)i - 1) * 52.0f, player.pos.y + 38.0f };
+            Vector2 to = Vector2Subtract(goal, u.pos);
+            float d = Vector2Length(to);
+            if (d > 28.0f) mv = Vector2Scale(to, 1.0f / d);
+        }
+        if (Vector2Length(mv) > 0.05f) {
+            u.pos = Vector2Add(u.pos, Vector2Scale(mv, 235.0f * dt));
+            u.walkTimer += dt * 10.0f;
+        }
+        if (fabsf(u.aim.x) > 0.1f) u.facingLeft = u.aim.x < 0.0f;
+        for (const auto& e : enemies) {
+            if (e.hp > 0.0f && Vector2Distance(e.pos, u.pos) < e.radius + 14.0f) {
+                u.hp -= e.contactDmg * 0.28f * dt;
+            }
+        }
+        ++i;
+    }
+}
+
+inline void Game::DrawAlliedUnits() {
+    if (inSurface || alliedUnits.empty()) return;
+    for (const auto& u : alliedUnits) {
+        if (u.hp <= 0.0f) continue;
+        DrawEllipse((int)u.pos.x, (int)u.pos.y + 15, 16, 6, { 0, 0, 0, 95 });
+        DrawCircleLines((int)u.pos.x, (int)u.pos.y + 13, 15.0f, Fade(GOLD, 0.65f));
+        float off = u.swing > 0.0f ? Lerp(1.25f, -1.25f, u.swing / 0.20f) : 0.45f;
+        rlPushMatrix();
+        rlTranslatef(u.pos.x, u.pos.y, 0.0f);
+        rlScalef(0.86f, 0.86f, 1.0f);
+        DrawHeroModel({ 0.0f, 0.0f }, u.heroClass, ClassWeaponType(u.heroClass), u.aim, u.facingLeft, u.walkTimer, true, off, false, true, 0.0f, 0.0f, 0, 0.0f);
+        rlPopMatrix();
+        float pct = Clamp(u.hp / std::max(1.0f, u.maxHp), 0.0f, 1.0f);
+        DrawRectangle((int)u.pos.x - 15, (int)u.pos.y - 34, 30, 4, { 20, 20, 28, 220 });
+        DrawRectangle((int)u.pos.x - 14, (int)u.pos.y - 33, (int)(28 * pct), 2, GOLD);
+    }
 }
 
 inline void Game::ApplyEquipEnhanceStep(int s) {
@@ -885,17 +1313,18 @@ inline void Game::SuccessionToChild(int childIdx, bool forced) {
     children.clear();
 
     player = Player();
-    int hc = std::max(0, std::min(3, heir.heroClass));
+    int hc = std::max(0, std::min(kNumClasses - 1, heir.heroClass));
     selectedClass = hc;
     const ClassDef& cd = kClasses[hc];
     player.heroClass = hc;
     player.subClass = 0;
-    player.maxHp = cd.baseHp + 10.0f * meta[0] + kHouses[houseTier].hpBonus + (isNoble ? 35.0f : 0.0f) + legacyHp;
-    player.baseDmg = (cd.baseDmg - 3.0f) + 2.0f * meta[1] + kHouses[houseTier].dmgBonus + (isNoble ? 6.0f : 0.0f) + legacyDmg;
+    const PeerageDef& pd = kPeerageDefs[std::max(0, std::min(8, peerageRank))];
+    player.maxHp = cd.baseHp + 10.0f * meta[0] + kHouses[houseTier].hpBonus + pd.hpBonus + fiefBuildings[0] * 25.0f + (fiefEstablished ? 40.0f : 0.0f) + legacyHp;
+    player.baseDmg = (cd.baseDmg - 3.0f) + 2.0f * meta[1] + kHouses[houseTier].dmgBonus + pd.dmgBonus + fiefBuildings[1] * 5.0f + (fiefEstablished ? 8.0f : 0.0f) + legacyDmg;
     player.speed = cd.baseSpeed + 5.0f * meta[2] + legacySpeed;
     player.attackRate = cd.baseAtkRate;
-    player.armor = cd.baseArmor + (isNoble ? 1.5f : 0.0f) + legacyArmor;
-    player.critChance = cd.baseCrit;
+    player.armor = cd.baseArmor + pd.armorBonus + fiefBuildings[3] * 1.2f + (fiefEstablished ? 1.5f : 0.0f) + legacyArmor;
+    player.critChance = std::min(0.75f, cd.baseCrit + fiefBuildings[3] * 0.03f);
     player.specialCooldown = Skill1MaxCd();
     player.skill2Cooldown = Skill2MaxCd();
     player.skill3Cooldown = Skill3MaxCd();
@@ -954,7 +1383,7 @@ inline void Game::ToggleChildParty(int idx) {
     }
     ch.inParty = true;
     PlaySound(snd.sndLevelUp);
-    Burst(player.pos, kClasses[std::max(0, std::min(3, ch.heroClass))].color, 18, 200.0f, 0.55f);
+    Burst(player.pos, kClasses[std::max(0, std::min(kNumClasses - 1, ch.heroClass))].color, 18, 200.0f, 0.55f);
     ShowBanner(ch.name + L(" will follow you into the Dungeon to train!", " sẽ theo cha xuống Hầm Ngục rèn luyện!"), 2.8f);
 }
 
@@ -1015,7 +1444,7 @@ inline void Game::ChildDamageEnemy(Enemy& e, float dmg, int ci, Vector2 kb) {
     e.hp -= dmg;
     e.pos = Vector2Add(e.pos, Vector2Scale(kb, 4.0f));
     e.hitFlash = 0.09f;
-    Color cc = kClasses[std::max(0, std::min(3, ch.heroClass))].color;
+    Color cc = kClasses[std::max(0, std::min(kNumClasses - 1, ch.heroClass))].color;
     SpawnPopup({ e.pos.x + 8.0f, e.pos.y - 6.0f }, (crit ? "!" : "") + std::to_string((int)dmg), crit ? YELLOW : LerpColor(cc, WHITE, 0.45f));
     Burst(e.pos, cc, crit ? 7 : 3, 150.0f, 0.25f);
     if (e.hp <= 0.0f) {
@@ -1055,7 +1484,7 @@ inline void Game::UpdatePartyChildren(float dt) {
         ChildInfo& ch = children[k];
         if (!ch.active) continue;
         int mySlot = slot++;
-        int hc = std::max(0, std::min(3, ch.heroClass));
+        int hc = std::max(0, std::min(kNumClasses - 1, ch.heroClass));
         bool ranged = ChildIsRanged(hc);
         if (ch.atkTimer > 0.0f) ch.atkTimer -= dt;
         if (ch.invuln > 0.0f) ch.invuln -= dt;
@@ -1170,7 +1599,7 @@ inline void Game::DrawPartyChildren() {
     for (size_t k = 0; k < children.size(); ++k) {
         const ChildInfo& ch = children[k];
         if (!ch.active) continue;
-        int hc = std::max(0, std::min(3, ch.heroClass));
+        int hc = std::max(0, std::min(kNumClasses - 1, ch.heroClass));
         Color cc = kClasses[hc].color;
         float sc = 0.62f + 0.38f * Clamp((ch.age - kChildTrainAge) / (float)(18 - kChildTrainAge), 0.0f, 1.0f);
         DrawEllipse((int)ch.pos.x, (int)(ch.pos.y + 16.0f * sc), (int)(18.0f * sc), (int)(7.0f * sc), { 0, 0, 0, 90 });
@@ -1202,7 +1631,7 @@ inline void Game::DrawPartyHud(int y) {
     y += 17;
     for (const auto& ch : children) {
         if (!ch.inParty && ch.injuredTimer <= 0.0f) continue;
-        int hc = std::max(0, std::min(3, ch.heroClass));
+        int hc = std::max(0, std::min(kNumClasses - 1, ch.heroClass));
         Color cc = kClasses[hc].color;
         DrawRectangle(24, y, 236, 26, { 14, 18, 30, 210 });
         DrawRectangleLines(24, y, 236, 26, Fade(cc, 0.8f));

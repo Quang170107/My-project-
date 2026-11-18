@@ -262,14 +262,15 @@ inline void Game::RenderLightmap() {
     };
     Color amb = ambients[BiomeIdx()];
     if (inSurface) {
-        static const Color surfAmb[5] = {
+        static const Color surfAmb[6] = {
             { 208, 204, 188, 255 }, // 0: Quảng trường
             { 186, 164, 142, 255 }, // 1: Quán trọ lửa sưởi
             { 184, 194, 212, 255 }, // 2: Phường Gia Trang
             { 196, 182, 174, 255 }, // 3: Tổ ấm gia đình
-            { 188, 172, 180, 255 }  // 4: Hoàng cung
+            { 188, 172, 180, 255 }, // 4: Hoàng cung
+            { 182, 194, 216, 255 }  // 5: Lãnh Địa Riêng
         };
-        amb = surfAmb[std::max(0, std::min(4, surfaceRoom))];
+        amb = surfAmb[std::max(0, std::min(5, surfaceRoom))];
         if (surfaceRoom == 0) {
             int ph = TimePhase();
             if (ph == 0) amb = { 215, 178, 142, 255 };      // Bình Minh ấm áp
@@ -293,6 +294,7 @@ inline void Game::RenderLightmap() {
         if (surfaceRoom == 0) {
             AddLight({ 0.0f, 0.0f }, 250.0f, { 115, 220, 255, 255 }, 0.50f);
             AddLight(SurfaceLandmarkPos(4), 240.0f, { 175, 95, 255, 255 }, 0.72f);
+            AddLight(SurfaceLandmarkPos(5), 220.0f, { 255, 215, 95, 255 }, 0.50f);
             for (int bi = 0; bi < 4; ++bi) AddLight(SurfaceLandmarkPos(bi), 230.0f, { 255, 210, 125, 255 }, 0.45f);
         } else if (surfaceRoom == 1) {
             AddLight({ 0.0f, -roomH / 2.0f + 50.0f }, 300.0f, { 255, 135, 45, 255 }, 0.65f);
@@ -308,6 +310,10 @@ inline void Game::RenderLightmap() {
             AddLight({ 0.0f, -295.0f }, 300.0f, { 255, 220, 105, 255 }, 0.62f);
             AddLight({ -235.0f, -95.0f }, 200.0f, { 255, 215, 85, 255 }, 0.48f);
             AddLight({  235.0f, -95.0f }, 200.0f, { 130, 215, 255, 255 }, 0.48f);
+        } else if (surfaceRoom == 5) {
+            AddLight({ 0.0f, -265.0f }, 260.0f, { 255, 215, 95, 255 }, 0.58f);
+            AddLight({ 0.0f,  -65.0f }, 200.0f, { 115, 230, 255, 255 }, 0.48f);
+            AddLight({ 0.0f,  125.0f }, 220.0f, { 255, 150, 75, 255 }, 0.52f);
         }
         AddLight(SurfaceInteriorExitPos(), 160.0f, { 140, 225, 255, 255 }, 0.42f);
     }
@@ -348,7 +354,10 @@ inline void Game::RenderLightmap() {
         if (e.hp <= 0) continue;
         if (e.type == BOMBER && e.fusing) AddLight(e.pos, 170.0f, { 255, 90, 40, 255 }, 0.55f + 0.25f * sinf(e.fuseTimer * 40.0f));
         else if (e.burnTimer > 0) AddLight(e.pos, 90.0f, { 255, 140, 40, 255 }, 0.5f);
-        else if (e.type == BOSS) AddLight(e.pos, 260.0f, (e.bossKind == 1) ? Color{ 255, 140, 50, 255 } : (e.bossKind == 2 ? Color{ 95, 220, 255, 255 } : (e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 170, 90, 255, 255 })), 0.5f);
+        else if (e.type == BOSS) {
+            Color blc = e.isKingBoss ? GOLD : (e.isNationalGeneral ? nations[std::max(1, std::min(4, e.generalNation))].color : ((e.bossKind == 1) ? Color{ 255, 140, 50, 255 } : (e.bossKind == 2 ? Color{ 95, 220, 255, 255 } : (e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 170, 90, 255, 255 }))));
+            AddLight(e.pos, e.isKingBoss ? 300.0f : 260.0f, blc, 0.58f);
+        }
         else if (e.isElite || e.isWarden) AddLight(e.pos, 110.0f, { 255, 215, 100, 255 }, 0.4f);
     }
 
@@ -550,7 +559,7 @@ inline void Game::DrawSurfaceTownSquare(const BiomeColors& biome, float tm) {
         DrawDetailedNpcModel({ homeP.x - 112.0f, homeP.y + 24.0f }, spouseIdx, kSpouses[spouseIdx].dressCol, GOLD, { 38, 28, 24, 255 }, true, 0.5f);
     }
     for (size_t k = 0; k < children.size(); ++k) {
-        int chc = std::max(0, std::min(3, children[k].heroClass));
+        int chc = std::max(0, std::min(kNumClasses - 1, children[k].heroClass));
         DrawHeroModel({ homeP.x + 112.0f + k * 24.0f, homeP.y + 24.0f }, chc, ClassWeaponType(chc), { -0.8f, 0.2f }, true, tm * 2.0f + k, true, 0.2f, false, false, 0.0f, 0.0f, 0, 0.0f);
     }
 
@@ -566,6 +575,17 @@ inline void Game::DrawSurfaceTownSquare(const BiomeColors& biome, float tm) {
     DrawCircle((int)dp.x, (int)dp.y, 22.0f, { 48, 18, 78, 245 });
     std::string dgLbl = std::string(L("DESCENT GATE (FLOOR ", "CỔNG HẦM NGỤC (TẦNG ")) + std::to_string(nextDungeonFloor) + ")";
     DrawSurfacePrompt({ dp.x, dp.y + 42.0f }, dgLbl.c_str(), L("[F / G] Enter Dungeon", "[F / G] Xuống Hầm Ngục"), { 205, 145, 255, 255 }, nearGate);
+
+    // Cổng Xe Ngựa phía Nam tới Lãnh Địa Riêng [5] & Bản Đồ Thế Giới [K]
+    Vector2 fg = SurfaceLandmarkPos(5);
+    bool nearFief = Vector2Distance(player.pos, fg) < 88.0f;
+    DrawEllipse((int)fg.x, (int)fg.y + 18, 62.0f, 18.0f, Fade(BLACK, 0.38f));
+    DrawPoly(fg, 6, 36.0f, 0.0f, { 78, 52, 34, 255 });
+    DrawPolyLinesEx(fg, 6, 36.0f, 0.0f, 2.2f, nearFief ? GOLD : SKYBLUE);
+    Diamond({ fg.x, fg.y - 6.0f }, 10.0f, 12.0f, GOLD, WHITE);
+    DrawSurfacePrompt({ fg.x, fg.y + 38.0f },
+                      fiefEstablished ? fiefName.c_str() : L("[5] PERSONAL FIEFDOM GATE", "[5] CỔNG LÃNH ĐỊA RIÊNG"),
+                      L("[F / 5] Enter Fiefdom   [K] World Map", "[F / 5] Vào Lãnh Địa   [K] Bản Đồ Thế Giới"), GOLD, nearFief);
 }
 
 inline void Game::DrawSurfaceTavernRoom(const BiomeColors& biome, float tm) {
@@ -774,7 +794,7 @@ inline void Game::DrawSurfaceFamilyHomeRoom(const BiomeColors& biome, float tm) 
             Vector2 hp = HeirPosInHome((int)k);
             const ChildInfo& ch = children[k];
             bool nearH = Vector2Distance(player.pos, hp) < 85.0f;
-            int hc = std::max(0, std::min(3, ch.heroClass));
+            int hc = std::max(0, std::min(kNumClasses - 1, ch.heroClass));
             Color cc = kClasses[hc].color;
             DrawCircleLines((int)hp.x, (int)hp.y + 6, 30.0f, Fade(nearH ? GOLD : (ch.inParty ? Color{ 120, 245, 170, 255 } : cc), 0.72f));
             {
@@ -861,12 +881,70 @@ inline void Game::DrawSurfacePalaceRoom(const BiomeColors& biome, float tm) {
     DrawSurfaceExitDoor(SurfaceInteriorExitPos());
 }
 
+inline void Game::DrawSurfaceFiefRoom(const BiomeColors& biome, float tm) {
+    (void)biome;
+    // Đại sảnh Lãnh Địa Riêng với thảm hoàng gia, rương thuế, doanh trại & bàn Bản Đồ Thế Giới
+    DrawRectangle(-92, -260, 184, (int)(roomH / 2 + 210), { 38, 52, 88, 225 });
+    DrawRectangleLinesEx({ -92.0f, -260.0f, 184.0f, roomH / 2.0f + 210.0f }, 3.0f, GOLD);
+
+    // Đài Hiến Chương Lãnh Địa (Bắc)
+    Vector2 kp = { 0.0f, -265.0f };
+    bool nearK = Vector2Distance(player.pos, kp) < 115.0f;
+    DrawRectangle(-86, (int)kp.y - 36, 172, 68, { 68, 76, 98, 255 });
+    DrawRectangleLines(-86, (int)kp.y - 36, 172, 68, nearK ? GOLD : SKYBLUE);
+    Diamond({ kp.x, kp.y - 12.0f + sinf(tm * 3.0f) * 2.5f }, 11.0f, 14.0f, GOLD, WHITE);
+    std::string kSub = fiefEstablished
+        ? TextFormat(L("[F] Collect Taxes (+%dG Treasury | %dG/day)", "[F] Thu Thuế (+%dV Kho | %dV/ngày)"), fiefTreasury, FiefDailyGoldIncome())
+        : TextFormat(L("[F] Found Fiefdom (%dG - Free at Baron)", "[F] Lập Lãnh Địa (%dV - Miễn từ Nam Tước)"), (peerageRank >= 3) ? 0 : (isNoble ? 250 : 500));
+    DrawSurfacePrompt({ kp.x, kp.y + 42.0f },
+                      fiefEstablished ? fiefName.c_str() : L("FIEF CHARTER ALTAR", "ĐÀI HIẾN CHƯƠNG LÃNH ĐỊA"),
+                      kSub.c_str(), GOLD, nearK);
+
+    // Doanh Trại Chiêu Binh (Giữa trên)
+    Vector2 rp = { 0.0f, -65.0f };
+    bool nearR = Vector2Distance(player.pos, rp) < 105.0f;
+    DrawPoly(rp, 6, 44.0f, 0.0f, { 72, 54, 44, 255 });
+    DrawPolyLinesEx(rp, 6, 44.0f, 0.0f, 2.2f, nearR ? GOLD : ORANGE);
+    DrawSurfacePrompt({ rp.x, rp.y + 34.0f },
+                      TextFormat(L("FIEF GARRISON (%d TROOPS)", "BINH DOANH LÃNH ĐỊA (%d QUÂN)"), fiefSoldiers),
+                      L("[F] Recruit Troops (100G)", "[F] Chiêu Mộ Binh Sĩ (100 Vàng)"), ORANGE, nearR);
+
+    // Bàn Chiến Lược Thế Giới (Giữa dưới)
+    Vector2 wp = { 0.0f, 125.0f };
+    bool nearW = Vector2Distance(player.pos, wp) < 115.0f;
+    DrawRectangle((int)wp.x - 74, (int)wp.y - 36, 148, 72, { 44, 66, 98, 255 });
+    DrawRectangleLines((int)wp.x - 74, (int)wp.y - 36, 148, 72, nearW ? GOLD : SKYBLUE);
+    Diamond({ wp.x, wp.y }, 9.0f, 9.0f, RED, GOLD);
+    DrawSurfacePrompt({ wp.x, wp.y + 44.0f },
+                      L("WORLD MAP & WAR COUNCIL", "BẢN ĐỒ THẾ GIỚI & CHIẾN TRANH"),
+                      L("[F / K] Open Continent Map & Rebellion", "[F / K] Mở Bản Đồ Thế Giới & Nổi Dậy"), SKYBLUE, nearW);
+
+    // 4 Công trình nâng cấp trong Lãnh Địa (Lv.0..5)
+    Vector2 bPos[4] = { { -320.0f, -60.0f }, { 320.0f, -60.0f }, { -320.0f, 125.0f }, { 320.0f, 125.0f } };
+    const char* bNamesEn[4] = { "Citadel Keep", "War Barracks", "Guild Market", "Arcane Academy" };
+    const char* bNamesVi[4] = { "Thành Quách (+Máu)", "Doanh Trại (+ST)", "Thương Điếm (+Vàng)", "Học Viện (+Giáp/CM)" };
+    Color bCols[4] = { GOLD, { 245, 85, 95, 255 }, { 115, 240, 160, 255 }, { 125, 220, 255, 255 } };
+    for (int i = 0; i < 4; ++i) {
+        Vector2 p = bPos[i];
+        bool near = Vector2Distance(player.pos, p) < 95.0f;
+        int lv = fiefBuildings[i];
+        DrawRectangle((int)p.x - 48, (int)p.y - 28, 96, 56, { 34, 42, 62, 255 });
+        DrawRectangleLines((int)p.x - 48, (int)p.y - 28, 96, 56, near ? GOLD : bCols[i]);
+        std::string bTitle = TextFormat("%s [Lv.%d/5]", settings.language == 1 ? bNamesVi[i] : bNamesEn[i], lv);
+        std::string bSub = (lv >= 5) ? std::string(L("MAX LEVEL", "TỐI ĐA")) : TextFormat(L("[F] Upgrade (%dG)", "[F] Nâng Cấp (%dV)"), 180 + lv * 140);
+        DrawSurfacePrompt({ p.x, p.y + 34.0f }, bTitle.c_str(), bSub.c_str(), bCols[i], near);
+    }
+
+    DrawSurfaceExitDoor(SurfaceInteriorExitPos());
+}
+
 inline void Game::DrawSurfaceWorld(const BiomeColors& biome) {
     float tm = (float)GetTime();
     if (surfaceRoom == 1) DrawSurfaceTavernRoom(biome, tm);
     else if (surfaceRoom == 2) DrawSurfaceHousingRoom(biome, tm);
     else if (surfaceRoom == 3) DrawSurfaceFamilyHomeRoom(biome, tm);
     else if (surfaceRoom == 4) DrawSurfacePalaceRoom(biome, tm);
+    else if (surfaceRoom == 5) DrawSurfaceFiefRoom(biome, tm);
     else DrawSurfaceTownSquare(biome, tm);
 }
 
@@ -1503,6 +1581,7 @@ inline void Game::Draw() {
         }
     }
     DrawPartyChildren(); // con cái theo cha rèn luyện
+    DrawAlliedUnits();   // binh sĩ lãnh địa & cận vệ đồng minh
     DrawFamiliarSprite(); // Linh Thú Hộ Vệ
     DrawEllipse((int)player.pos.x, (int)player.pos.y + 16, 20, 8, { 0, 0, 0, 100 }); // Shadow
     DrawPlayerSprite();
@@ -1619,7 +1698,8 @@ inline void Game::Draw() {
     // ── 2D Screen Space UI ──
     Color hCol = HeroColor();
     const char* hTitle = HeroTitle();
-    std::string badgeLeft = (isNoble ? std::string(L("[NOBLE] ", "[QT] ")) : std::string(""))
+    std::string pTag = (peerageRank > 0 || isKing) ? (std::string("[") + PeerageTitleName() + "] ") : (isNoble ? std::string(L("[NOBLE] ", "[QT] ")) : std::string(""));
+    std::string badgeLeft = pTag
                           + (!heroGivenName.empty() ? (heroGivenName + " - ") : (generation > 1 ? (std::string(L("Gen", "Đ")) + std::to_string(generation) + " ") : std::string("")))
                           + hTitle;
     int yOff = surfaceUnlocked ? 22 : 0;
@@ -1783,7 +1863,7 @@ inline void Game::Draw() {
             DrawText(pTag, hx + 18, hy + 18, 10, GOLD);
         }
     }
-    DrawText(L("[I] Gear & Skills   [Y] Family Tree", "[I] Đồ & Kỹ Năng   [Y] Gia Phả"), 24 + 4 * 36 + 4, 164 + yOff, 14, { 150, 165, 200, 255 });
+    DrawText(L("[I] Gear  [Y] Family  [Tab] World Map", "[I] Đồ  [Y] Gia Phả  [Tab] Thế Giới"), 24 + 4 * 36 + 4, 164 + yOff, 13, { 150, 165, 200, 255 });
 
     // Tuổi & tiến độ năm (1 năm = 3 phút) + Đoàn con theo rèn luyện
     {
@@ -1802,14 +1882,18 @@ inline void Game::Draw() {
     for (const auto& e : enemies) {
         if (e.type == BOSS && e.hp > 0) {
             bossBarActive = true;
-            int bw = 468, bx = 1280 / 2 - bw / 2, by = 78;
+            int bw = 490, bx = 1280 / 2 - bw / 2, by = 92;
             float pct = std::max(0.0f, e.hp / std::max(1.0f, e.maxHp));
             float lag = Clamp(bossHpLag, pct, 1.0f);
-            Color bCol = (e.bossKind == 2)
-                ? (e.enraged ? Color{ 125, 235, 255, 255 } : Color{ 65, 195, 255, 255 })
-                : ((e.bossKind == 1)
-                    ? (e.enraged ? Color{ 255, 90, 30, 255 } : Color{ 255, 150, 40, 255 })
-                    : (e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 190, 60, 200, 255 }));
+            Color bCol = e.isKingBoss
+                ? (e.enraged ? Color{ 215, 38, 48, 255 } : Color{ 168, 32, 62, 255 })
+                : (e.isNationalGeneral
+                    ? nations[std::max(1, std::min(4, e.generalNation))].color
+                    : ((e.bossKind == 2)
+                        ? (e.enraged ? Color{ 125, 235, 255, 255 } : Color{ 65, 195, 255, 255 })
+                        : ((e.bossKind == 1)
+                            ? (e.enraged ? Color{ 255, 90, 30, 255 } : Color{ 255, 150, 40, 255 })
+                            : (e.enraged ? Color{ 255, 70, 50, 255 } : Color{ 190, 60, 200, 255 }))));
             DrawRectangle(bx - 4, by - 3, bw + 8, 32, { 10, 12, 22, 235 });
             DrawRectangle(bx, by, (int)(bw * lag), 17, { 245, 225, 225, 210 });
             DrawRectangle(bx, by, (int)(bw * pct), 17, bCol);
@@ -1818,11 +1902,18 @@ inline void Game::Draw() {
             DrawRectangleLinesEx({ (float)bx - 4, (float)by - 3, (float)bw + 8, 23.0f }, 1.8f, GOLD);
             Diamond({ (float)bx - 4, (float)by + 8.5f }, 4.5f, 4.5f, GOLD, WHITE);
             Diamond({ (float)bx + bw + 4, (float)by + 8.5f }, 4.5f, 4.5f, GOLD, WHITE);
-            const char* nm = (e.bossKind == 2)
-                ? (e.enraged ? L("THE FROST DRAGON ARCHON - ENRAGED", "BĂNG LONG ĐẾ QUÂN - CUỒNG NỘ") : L("THE FROST DRAGON ARCHON", "BĂNG LONG ĐẾ QUÂN"))
-                : ((e.bossKind == 1)
-                    ? (e.enraged ? L("THE MOLTEN COLOSSUS - ENRAGED", "KHỔNG LỒ DUNG NHAM - CUỒNG NỘ") : L("THE MOLTEN COLOSSUS", "KHỔNG LỒ DUNG NHAM"))
-                    : (e.enraged ? L("THE VOID SOVEREIGN - ENRAGED", "CHÚA TỂ HƯ KHÔNG - CUỒNG NỘ") : L("THE VOID SOVEREIGN", "CHÚA TỂ HƯ KHÔNG")));
+            const char* nm = e.isKingBoss
+                ? TextFormat(L("HIS MAJESTY THE KING [%s - PWR %d]", "QUỐC VƯƠNG HOÀNG TRIỀU [%s - UY LỰC %d]"),
+                             ClassDisplayName(e.kingClass), e.kingPowerScore)
+                : (e.isNationalGeneral
+                    ? TextFormat(L("GRAND GENERAL OF %s", "ĐẠI TƯỚNG QUÂN %s"),
+                                 L(nations[std::max(1, std::min(4, e.generalNation))].nameEn,
+                                   nations[std::max(1, std::min(4, e.generalNation))].nameVi))
+                    : ((e.bossKind == 2)
+                        ? (e.enraged ? L("THE FROST DRAGON ARCHON - ENRAGED", "BĂNG LONG ĐẾ QUÂN - CUỒNG NỘ") : L("THE FROST DRAGON ARCHON", "BĂNG LONG ĐẾ QUÂN"))
+                        : ((e.bossKind == 1)
+                            ? (e.enraged ? L("THE MOLTEN COLOSSUS - ENRAGED", "KHỔNG LỒ DUNG NHAM - CUỒNG NỘ") : L("THE MOLTEN COLOSSUS", "KHỔNG LỒ DUNG NHAM"))
+                            : (e.enraged ? L("THE VOID SOVEREIGN - ENRAGED", "CHÚA TỂ HƯ KHÔNG - CUỒNG NỘ") : L("THE VOID SOVEREIGN", "CHÚA TỂ HƯ KHÔNG")))));
             DrawText(nm, 1280 / 2 - MeasureText(nm, 14) / 2, by + 1, 14, WHITE);
 
             // Thanh Phá Giáp Boss
@@ -1900,10 +1991,10 @@ inline void Game::Draw() {
     // Thanh 5 ô kỹ năng ở giữa đáy màn hình (hoặc thanh phím nhanh trên Mặt Đất)
     if (inSurface && state == PLAYING) {
         const char* sBar = (surfaceRoom == 0)
-            ? L("[F] Enter / Interact   [1..4] Quick Room   [Tab] Menu   [Y] Family Tree   [H] Ration",
-                "[F] Vào Phòng / Tương Tác   [1..4] Vào Nhanh   [Tab] Bảng Chung   [Y] Gia Phả   [H] Lương")
-            : L("[0] Town Square   [1..4] Switch Room   [F] Interact   [Tab] Room Menu   [Y] Tree   [H] Ration",
-                "[0] Ra Quảng Trường   [1..4] Đổi Phòng   [F] Tương Tác   [Tab] Menu   [Y] Gia Phả   [H] Lương");
+            ? L("[F] Enter / Interact   [1..5] Room (5=Fief)   [Tab] Menu   [K] World Map   [Y] Tree",
+                "[F] Vào Phòng / Tương Tác   [1..5] Phòng (5=Lãnh Địa)   [Tab] Bảng Chung   [K] Thế Giới   [Y] Gia Phả")
+            : L("[0] Town Square   [1..5] Switch Room   [F] Interact   [Tab] Menu   [K] World Map",
+                "[0] Ra Quảng Trường   [1..5] Đổi Phòng   [F] Tương Tác   [Tab] Menu   [K] Bản Đồ Thế Giới");
         int sbW = MeasureText(sBar, 14) + 28;
         DrawRectangle(1280 / 2 - sbW / 2, 720 - 44, sbW, 30, { 14, 20, 32, 230 });
         DrawRectangleLines(1280 / 2 - sbW / 2, 720 - 44, sbW, 30, GOLD);
@@ -1966,7 +2057,7 @@ inline void Game::Draw() {
         DrawRectangle(0, 0, 1280, 720, Fade(BLACK, 0.84f));
         if (subclassChoosing) {
             float tm = (float)GetTime();
-            int hc = std::max(0, std::min(3, player.heroClass));
+            int hc = std::max(0, std::min(kNumClasses - 1, player.heroClass));
             const char* hdr = L("LEVEL 5 AWAKENING! CHOOSE YOUR SUBCLASS (6 SKILLS)", "THỨC TỈNH CẤP 5! CHỌN NHÁNH CHUYỂN CHỨC (6 KỸ NĂNG)");
             OutlinedText(hdr, 1280 / 2 - MeasureText(hdr, 30) / 2, 30, 30, GOLD, { 80, 42, 10, 255 });
             std::string sub = std::string(ClassDisplayName(hc)) + L(" Evolution — Permanent Class Branch, Signature Weapon & 6 Skills", " Tiến Hóa — Nhánh Chức Vĩnh Viễn, Vũ Khí Trấn Phái & 6 Kỹ Năng");
@@ -2094,6 +2185,7 @@ inline void Game::Draw() {
 
     if (state == SURFACE_UI) DrawSurfaceUi();
     if (state == FAMILY_TREE) DrawFamilyTreeScreen();
+    if (state == WORLD_MAP) DrawWorldMapScreen();
     if (state == INVENTORY) DrawInventory();
     if (state == SETTINGS) DrawSettingsScreen();
     if (state == SHOP) DrawShopScreen();

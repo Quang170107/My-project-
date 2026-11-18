@@ -3,18 +3,18 @@
 
 inline const SubclassDef* Game::ActiveSubclass() const {
     if (player.subClass != 1 && player.subClass != 2) return nullptr;
-    int hc = std::max(0, std::min(3, player.heroClass));
+    int hc = std::max(0, std::min(kNumClasses - 1, player.heroClass));
     return &kSubclasses[hc][player.subClass - 1];
 }
 
 inline const char* Game::SubDisplayName(int hc, int branch) const {
-    hc = std::max(0, std::min(3, hc));
+    hc = std::max(0, std::min(kNumClasses - 1, hc));
     int b = (branch == 2) ? 1 : 0;
     return settings.language == 1 ? kSubclassesVi[hc][b].name : kSubclasses[hc][b].name;
 }
 
 inline const char* Game::HeroTitle() const {
-    int hc = std::max(0, std::min(3, player.heroClass));
+    int hc = std::max(0, std::min(kNumClasses - 1, player.heroClass));
     if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].name : kSubclasses[hc][player.subClass - 1].name;
     return settings.language == 1 ? kClassesVi[hc].name : kClasses[hc].name;
 }
@@ -29,86 +29,86 @@ inline int Game::LevelTitleTierForLevel(int lv) {
 }
 
 inline const char* Game::HeroRole() const {
-    int hc = std::max(0, std::min(3, player.heroClass));
+    int hc = std::max(0, std::min(kNumClasses - 1, player.heroClass));
     if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].role : kSubclasses[hc][player.subClass - 1].role;
     return settings.language == 1 ? kClassesVi[hc].role : kClasses[hc].role;
 }
 
 inline const char* Game::PassiveName() const {
-    int hc = std::max(0, std::min(3, player.heroClass));
+    int hc = std::max(0, std::min(kNumClasses - 1, player.heroClass));
     if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].passiveName : kSubclasses[hc][player.subClass - 1].passiveName;
     return settings.language == 1 ? kClassesVi[hc].passiveName : kClasses[hc].passiveName;
 }
 
 inline const char* Game::PassiveDesc() const {
-    int hc = std::max(0, std::min(3, player.heroClass));
+    int hc = std::max(0, std::min(kNumClasses - 1, player.heroClass));
     if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].passiveDesc : kSubclasses[hc][player.subClass - 1].passiveDesc;
     return settings.language == 1 ? kClassesVi[hc].passiveDesc : kClasses[hc].passiveDesc;
 }
 
 inline const char* Game::QName() const {
-    int hc = std::max(0, std::min(3, player.heroClass));
+    int hc = std::max(0, std::min(kNumClasses - 1, player.heroClass));
     if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].qName : kSubclasses[hc][player.subClass - 1].qName;
     return settings.language == 1 ? kClassesVi[hc].qName : kClasses[hc].qName;
 }
 
 inline const char* Game::QDesc() const {
-    int hc = std::max(0, std::min(3, player.heroClass));
+    int hc = std::max(0, std::min(kNumClasses - 1, player.heroClass));
     if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].qDesc : kSubclasses[hc][player.subClass - 1].qDesc;
     return settings.language == 1 ? kClassesVi[hc].qDesc : kClasses[hc].qDesc;
 }
 
 inline const char* Game::EName() const {
-    int hc = std::max(0, std::min(3, player.heroClass));
+    int hc = std::max(0, std::min(kNumClasses - 1, player.heroClass));
     if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].eName : kSubclasses[hc][player.subClass - 1].eName;
     return settings.language == 1 ? kClassesVi[hc].eName : kClasses[hc].eName;
 }
 
 inline const char* Game::EDesc() const {
-    int hc = std::max(0, std::min(3, player.heroClass));
+    int hc = std::max(0, std::min(kNumClasses - 1, player.heroClass));
     if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].eDesc : kSubclasses[hc][player.subClass - 1].eDesc;
     return settings.language == 1 ? kClassesVi[hc].eDesc : kClasses[hc].eDesc;
 }
 
 inline const char* Game::CName() const {
-    int hc = std::max(0, std::min(3, player.heroClass));
+    int hc = std::max(0, std::min(kNumClasses - 1, player.heroClass));
     if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].cName : kSubclasses[hc][player.subClass - 1].cName;
     return "";
 }
 
 inline const char* Game::CDesc() const {
-    int hc = std::max(0, std::min(3, player.heroClass));
+    int hc = std::max(0, std::min(kNumClasses - 1, player.heroClass));
     if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].cDesc : kSubclasses[hc][player.subClass - 1].cDesc;
     return "";
 }
 
 inline const char* Game::VName() const {
-    int hc = std::max(0, std::min(3, player.heroClass));
+    int hc = std::max(0, std::min(kNumClasses - 1, player.heroClass));
     if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].vName : kSubclasses[hc][player.subClass - 1].vName;
     return "";
 }
 
 inline const char* Game::VDesc() const {
-    int hc = std::max(0, std::min(3, player.heroClass));
+    int hc = std::max(0, std::min(kNumClasses - 1, player.heroClass));
     if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].vDesc : kSubclasses[hc][player.subClass - 1].vDesc;
     return "";
 }
 
 inline const char* Game::RName() const {
-    int hc = std::max(0, std::min(3, player.heroClass));
+    int hc = std::max(0, std::min(kNumClasses - 1, player.heroClass));
     if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].rName : kSubclasses[hc][player.subClass - 1].rName;
     return settings.language == 1 ? kClassesVi[hc].rName : kClasses[hc].rName;
 }
 
 inline const char* Game::RDesc() const {
-    int hc = std::max(0, std::min(3, player.heroClass));
+    int hc = std::max(0, std::min(kNumClasses - 1, player.heroClass));
     if (player.subClass == 1 || player.subClass == 2) return settings.language == 1 ? kSubclassesVi[hc][player.subClass - 1].rDesc : kSubclasses[hc][player.subClass - 1].rDesc;
     return settings.language == 1 ? kClassesVi[hc].rDesc : kClasses[hc].rDesc;
 }
 
 inline int Game::VisualWeaponType(int heroClass, int subClass, int itemWeaponType) {
     (void)itemWeaponType;
-    int hc = std::max(0, std::min(3, heroClass));
+    int hc = std::max(0, std::min(kNumClasses - 1, heroClass));
     if (hc == CLASS_MAGE && subClass == 1) return WP_SWORD; // Kiem Su: dung Gay nhung model la Kiem Phep
     return ClassWeaponType(hc);
 }
@@ -123,7 +123,7 @@ inline float Game::SkillCdrMult() const {
 
 inline float Game::EffectiveAttackRate() const {
     float r = player.attackRate;
-    if (player.holyBuffTimer > 0.0f) r *= (player.heroClass == CLASS_KNIGHT && player.subClass == 1 ? 1.30f : 1.25f);
+    if (player.holyBuffTimer > 0.0f) r *= ((player.heroClass == CLASS_KNIGHT || player.heroClass == CLASS_TEMPLAR) && player.subClass == 1 ? 1.32f : 1.25f);
     if (player.heroClass == CLASS_KNIGHT && player.subClass == 2) {
         float missingFrac = 1.0f - Clamp(player.hp / std::max(1.0f, player.maxHp), 0.0f, 1.0f);
         r *= (1.0f + 0.40f * missingFrac);
@@ -131,8 +131,9 @@ inline float Game::EffectiveAttackRate() const {
     if (player.heroClass == CLASS_MAGE && player.subClass == 1 && (player.shieldActive || player.ultActiveTimer > 0.0f || player.swordOrbitTimer > 0.0f)) r *= 1.25f;
     if (player.hasteTimer > 0.0f) {
         if (player.heroClass == CLASS_RANGER) r *= (player.subClass == 1 ? 1.45f : 1.35f);
-        else if (player.heroClass == CLASS_KNIGHT || player.heroClass == CLASS_MAGE) r *= 1.30f;
+        else if (player.heroClass == CLASS_KNIGHT || player.heroClass == CLASS_MAGE || player.heroClass == CLASS_TEMPLAR) r *= 1.30f;
     }
+    if (isKing) r *= 1.12f;
     if (comboCount >= 10) r *= 1.20f; // Frenzy Overdrive
     if (styleRank > 0) r *= (1.0f + 0.020f * styleRank);
     if (runeBuffTimer > 0.0f && activeRune == 3) r *= (1.0f + 0.12f + 0.05f * runeRank);
@@ -147,9 +148,10 @@ inline float Game::EffectiveMoveSpeed() const {
     if (player.heroClass == CLASS_ASSASSIN) {
         if (player.ultActiveTimer > 0.0f) s *= (player.subClass == 2 ? 1.45f : 1.35f);
         else if (player.hasteTimer > 0.0f) s *= 1.25f;
-    } else if (player.hasteTimer > 0.0f && (player.heroClass == CLASS_KNIGHT || player.heroClass == CLASS_RANGER)) {
+    } else if (player.hasteTimer > 0.0f && (player.heroClass == CLASS_KNIGHT || player.heroClass == CLASS_RANGER || player.heroClass == CLASS_TEMPLAR)) {
         s *= 1.22f;
     }
+    if (isKing) s *= 1.12f;
     if (comboCount >= 10) s *= 1.18f; // Frenzy Overdrive
     if (runeBuffTimer > 0.0f && activeRune == 3) s *= 1.15f;
     if (familiarKind == 3) s *= (1.0f + 0.05f * familiarRank); // Lôi Ưng Thần Tốc: +5%/cấp
@@ -560,7 +562,7 @@ inline void Game::RestartRun() {
     roomW = 1200;
     roomH = 750;
     player = Player();
-    int hc = std::max(0, std::min(3, selectedClass));
+    int hc = std::max(0, std::min(kNumClasses - 1, selectedClass));
     const ClassDef& cd = kClasses[hc];
     player.heroClass = hc;
     player.maxHp = cd.baseHp;
@@ -679,6 +681,10 @@ inline Game::BiomeColors Game::SurfaceBiome() const {
             return { { 28, 14, 18, 255 }, { 74, 40, 48, 255 }, { 60, 32, 38, 255 }, { 132, 34, 48, 255 },
                      { 255, 218, 82, 255 }, { 255, 110, 120, 255 }, { 142, 108, 74, 255 }, { 255, 232, 135, 255 },
                      "IMPERIAL THRONE HALL", "ĐẠI ĐIỆN HOÀNG CUNG" };
+        case 5: // Thành Quách Lãnh Địa Riêng (Đá hoa cương xanh thép & Vàng ròng)
+            return { { 18, 22, 32, 255 }, { 54, 62, 78, 255 }, { 42, 48, 62, 255 }, { 98, 42, 56, 255 },
+                     { 255, 215, 85, 255 }, { 115, 235, 255, 255 }, { 92, 104, 128, 255 }, { 215, 240, 255, 255 },
+                     "PERSONAL FIEFDOM STRONGHOLD", "THÀNH QUÁCH LÃNH ĐỊA RIÊNG" };
         default: // Quảng Trường Làng Mạc & Kinh Thành (Đá vôi hoàng kim rực nắng)
             return { { 22, 28, 38, 255 }, { 62, 74, 64, 255 }, { 52, 64, 54, 255 }, { 126, 116, 98, 255 },
                      { 245, 205, 100, 255 }, { 110, 225, 255, 255 }, { 124, 112, 92, 255 }, { 255, 242, 180, 255 },
@@ -852,6 +858,7 @@ inline void Game::Shake(float dur, float mag) {
 }
 
 inline Vector2 Game::SurfaceTownExitSpot(int roomIdx) {
+    if (roomIdx == 5) return { 0.0f, 258.0f };
     if (roomIdx < 1 || roomIdx > 4) return { 0.0f, 180.0f };
     Vector2 bp = SurfaceLandmarkPos(roomIdx - 1);
     return { bp.x, bp.y + 84.0f };
@@ -864,8 +871,8 @@ inline Vector2 Game::HousingPedestalPos(int tierIdx) {
 }
 
 inline float Game::ChildAttackInterval(const ChildInfo& ch) const {
-    static const float base[4] = { 0.85f, 0.60f, 1.10f, 0.90f };
-    int hc = std::max(0, std::min(3, ch.heroClass));
+    static const float base[kNumClasses] = { 0.85f, 0.60f, 1.10f, 0.90f, 0.78f };
+    int hc = std::max(0, std::min(kNumClasses - 1, ch.heroClass));
     return base[hc] * (1.30f - 0.30f * ChildGrowth(ch));
 }
 
@@ -947,6 +954,7 @@ inline void Game::BuildFloor() {
     particles.clear();
     itemDrops.clear();
     pendingSpawns.clear();
+    alliedUnits.clear();
     barrels.clear();
     hazards.clear();
     portalChoices.clear();
@@ -961,6 +969,91 @@ inline void Game::BuildFloor() {
     portalOpen = false;
     portalPos = { 0, -roomH / 2.0f + 75.0f };
     player.pos = { 0, roomH / 2.0f - 90.0f };
+
+    if (inRebellion) {
+        roomW = 1360.0f;
+        roomH = 920.0f;
+        floorMod = MOD_NONE;
+        shopFloor = false;
+        hasShrine = hasCaptiveEvent = hasBloodPact = hasRunicAnvil = false;
+        chests.clear();
+        BuildDecor();
+        portalPos = { 0.0f, -roomH / 2.0f + 75.0f };
+        player.pos = { 0.0f, roomH / 2.0f - 105.0f };
+        SpawnPartyChildren();
+        layout = LAY_BLOCKS;
+        pillars = {
+            { -410.0f, -245.0f }, {  410.0f, -245.0f },
+            { -410.0f,   45.0f }, {  410.0f,   45.0f }
+        };
+        torches = {
+            { -150.0f, -280.0f }, {  150.0f, -280.0f },
+            { -150.0f,  190.0f }, {  150.0f,  190.0f }
+        };
+        Enemy king = BuildEnemy(BOSS, { 0.0f, -155.0f });
+        king.isKingBoss = true;
+        king.kingClass = rand() % kNumClasses;
+        float pwr = ComputePlayerPowerScore();
+        king.kingPowerScore = (int)roundf(pwr);
+        king.maxHp = roundf((1800.0f + player.maxHp * 16.0f + player.baseDmg * 58.0f + pwr * 2.8f) * DiffHp());
+        king.hp = king.maxHp;
+        king.contactDmg = roundf((18.0f + player.maxHp * 0.11f + player.baseDmg * 0.85f + pwr * 0.025f) * DiffDmg());
+        king.speed = Clamp(140.0f + player.speed * 0.38f + pwr * 0.015f, 195.0f, 330.0f);
+        king.radius = 30.0f;
+        king.maxStagger = 140.0f + player.level * 1.5f;
+        enemies.push_back(king);
+        for (int gi = 0; gi < 3; ++gi) {
+            Enemy g = BuildEnemy(gi == 0 ? BRUTE : CHASER, { (gi - 1) * 190.0f, -60.0f });
+            g.isElite = true;
+            g.eliteAffix = 1 + (gi % 4);
+            g.maxHp *= 1.35f;
+            g.hp = g.maxHp;
+            enemies.push_back(g);
+        }
+        SpawnAlliedGarrison(fiefEstablished ? 3 : 1);
+        weatherKind = 0;
+        lightningFlash = 0.0f;
+        bossHpLag = 1.0f;
+        ShowBanner(TextFormat(L("THRONE REBELLION! HIS MAJESTY [%s - PWR %d] DESCENDS!",
+                                "NỔI DẬY CHIẾM NGAI VÀNG! BẠO CHÚA [%s - UY LỰC %d] XUẤT TRẬN!"),
+                              ClassDisplayName(king.kingClass), king.kingPowerScore), 4.0f);
+        return;
+    }
+    if (inWarBattle) {
+        roomW = 1360.0f;
+        roomH = 920.0f;
+        floorMod = MOD_NONE;
+        shopFloor = false;
+        hasShrine = hasCaptiveEvent = hasBloodPact = hasRunicAnvil = false;
+        chests.clear();
+        BuildDecor();
+        portalPos = { 0.0f, -roomH / 2.0f + 75.0f };
+        player.pos = { 0.0f, roomH / 2.0f - 105.0f };
+        SpawnPartyChildren();
+        layout = LAY_RING;
+        BuildPillars();
+        int ni = std::max(1, std::min(4, warBattleNation));
+        Enemy gen = BuildEnemy(BOSS, { 0.0f, -155.0f });
+        gen.isNationalGeneral = true;
+        gen.generalNation = ni;
+        float pwr = ComputePlayerPowerScore();
+        gen.maxHp = roundf((950.0f + player.maxHp * 9.0f + pwr * 1.35f) * DiffHp());
+        gen.hp = gen.maxHp;
+        gen.contactDmg = roundf((15.0f + player.baseDmg * 0.65f + pwr * 0.015f) * DiffDmg());
+        gen.speed = Clamp(145.0f + player.speed * 0.30f, 180.0f, 290.0f);
+        gen.radius = 28.0f;
+        enemies.push_back(gen);
+        for (int gi = 0; gi < 6; ++gi) {
+            enemies.push_back(BuildEnemy((gi % 2 == 0) ? RANGER : CHASER, { (gi - 2.5f) * 145.0f, -70.0f + (gi % 2) * 45.0f }));
+        }
+        SpawnAlliedGarrison(fiefEstablished ? 3 : 2);
+        weatherKind = 0;
+        lightningFlash = 0.0f;
+        bossHpLag = 1.0f;
+        ShowBanner(TextFormat(L("WAR BATTLEFIELD: %s!", "CHIẾN TRƯỜNG QUỐC GIA: %s!"),
+                              L(nations[ni].nameEn, nations[ni].nameVi)), 3.5f);
+        return;
+    }
     SpawnPartyChildren();
 
     bool isBoss = (floor % 5 == 0);
@@ -1451,14 +1544,23 @@ inline void Game::Update(float dt) {
         UpdateFamilyTree();
         return;
     }
+    if (state == WORLD_MAP) {
+        UpdateWorldMap(dt);
+        return;
+    }
     if (state == INVENTORY) {
         { int ua = HitButton(); if (ua) { HandleUiAction(ua); return; } }
         if (IsKeyPressed(KEY_Y)) { OpenFamilyTree(INVENTORY); return; }
+        if (IsKeyPressed(KEY_F3) || IsKeyPressed(KEY_TAB)) { OpenWorldMap(INVENTORY); return; }
         if (IsKeyPressed(KEY_I) || EscPressed() || IsKeyPressed(KEY_ENTER) || PadPressed(GAMEPAD_BUTTON_MIDDLE_LEFT) || PadPressed(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) state = prevState;
         return;
     }
     if (state == PLAYING && IsKeyPressed(KEY_Y)) {
         OpenFamilyTree(PLAYING);
+        return;
+    }
+    if (state == PLAYING && (IsKeyPressed(KEY_F3) || (IsKeyPressed(KEY_TAB) && !inSurface) || (inSurface && IsKeyPressed(KEY_K)))) {
+        OpenWorldMap(PLAYING);
         return;
     }
     if (state == PLAYING && IsKeyPressed(KEY_H)) {
@@ -1637,6 +1739,7 @@ inline void Game::Update(float dt) {
         for (int bi = 0; bi < 4; ++bi) {
             if (IsKeyPressed(KEY_ONE + bi)) { EnterSurfaceRoom(bi + 1); return; }
         }
+        if (IsKeyPressed(KEY_FIVE)) { EnterSurfaceRoom(5); return; }
         if (surfaceRoom >= 1 && IsKeyPressed(KEY_ZERO)) {
             LeaveSurfaceRoomToTown();
             return;
@@ -1675,6 +1778,11 @@ inline void Game::Update(float dt) {
                 Burst({ 0.0f, 0.0f }, SKYBLUE, 18, 170.0f, 0.55f);
                 SpawnPopup(player.pos, "+20 HP", SKYBLUE);
                 ShowBanner(L("Drank Crystal Fountain Water (+20 HP)", "Đã uống nước Đài Phun Nước Thánh (+20 Máu)"), 2.0f);
+            }
+            Vector2 fiefGate = SurfaceLandmarkPos(5);
+            if (Vector2Distance(player.pos, fiefGate) < 88.0f && interact) {
+                EnterSurfaceRoom(5);
+                return;
             }
             Vector2 dgPos = SurfaceLandmarkPos(4);
             float dgDist = Vector2Distance(player.pos, dgPos);
@@ -1754,6 +1862,18 @@ inline void Game::Update(float dt) {
                     if (bestAct == 1) BuyNobleTitleDirect();
                     else if (bestAct == 2) AcceptRoyalCommission();
                     else if (bestAct == 3) { OpenSurfaceModal(3); return; }
+                } else if (surfaceRoom == 5) {
+                    checkCand(10, {    0.0f, -265.0f }, 115.0f);  // Rương Kho & Hiến Chương Lãnh Địa
+                    checkCand(11, {    0.0f,  -65.0f }, 105.0f);  // Doanh Trại Chiêu Binh
+                    checkCand(12, {    0.0f,  125.0f }, 115.0f);  // Bàn Bản Đồ Thế Giới & Chiến Tranh
+                    checkCand(0,  { -320.0f,  -60.0f }, 95.0f);   // Thành Quách
+                    checkCand(1,  {  320.0f,  -60.0f }, 95.0f);   // Doanh Trại
+                    checkCand(2,  { -320.0f,  125.0f }, 95.0f);   // Thương Điếm
+                    checkCand(3,  {  320.0f,  125.0f }, 95.0f);   // Học Viện
+                    if (bestAct == 10) EstablishFief();
+                    else if (bestAct == 11) RecruitFiefSoldiers();
+                    else if (bestAct == 12) { OpenWorldMap(PLAYING); return; }
+                    else if (bestAct >= 0 && bestAct <= 3) UpgradeFiefBuilding(bestAct);
                 }
             }
         }
@@ -1981,6 +2101,90 @@ inline void Game::Update(float dt) {
                     e.chargeState = 0;
                     e.summonTimer = 6.5f;
                 }
+            }
+        } else if (e.type == BOSS && (e.isKingBoss || e.isNationalGeneral)) {
+            int effCls = e.isKingBoss ? e.kingClass : CLASS_TEMPLAR;
+            if (!e.enraged && e.hp <= e.maxHp * 0.5f) {
+                e.enraged = true;
+                e.speed *= 1.25f;
+                PlaySound(snd.sndSpecial);
+                Shake(0.45f, 8.5f);
+                ShowBanner(e.isKingBoss
+                    ? L("HIS MAJESTY UNLEASHES IMPERIAL WRATH!", "QUỐC VƯƠNG BẠO CHÚA BÙNG NỔ LONG UY!")
+                    : L("ENEMY GRAND GENERAL ENRAGES!", "ĐẠI TƯỚNG QUÂN ĐỊCH CUỒNG NỘ!"), 3.2f);
+            }
+            e.attackTimer += dt;
+            float cd = e.enraged ? 1.30f : 1.85f;
+            if (e.attackTimer >= cd) {
+                e.attackTimer = 0.0f;
+                e.summonTimer += 1.0f;
+                PlaySound(snd.sndSpecial);
+                float baseA = atan2f(dir.y, dir.x);
+                float bDmg = e.contactDmg * (e.enraged ? 0.92f : 0.78f);
+                if (effCls == CLASS_KNIGHT) {
+                    e.pos = Vector2Add(e.pos, Vector2Scale(dir, std::min(140.0f, dist * 0.65f)));
+                    NovaVisual nv; nv.pos = e.pos; nv.maxRadius = 155.0f; nv.timer = 0.32f; nv.maxTimer = 0.32f; nv.color = GOLD;
+                    novas.push_back(nv);
+                    if (Vector2Distance(e.pos, player.pos) <= 155.0f) DamagePlayer(bDmg * 1.15f);
+                    for (int k = 0; k < 8; ++k) {
+                        float a = k * (PI / 4.0f);
+                        Projectile p; p.fromPlayer = false; p.pos = e.pos;
+                        p.vel = { cosf(a) * 260.0f, sinf(a) * 260.0f };
+                        p.damage = bDmg * 0.85f; p.life = 3.0f; p.radius = 8.5f; p.color = GOLD;
+                        projectiles.push_back(p);
+                    }
+                } else if (effCls == CLASS_ASSASSIN) {
+                    float bx = Clamp(player.pos.x - dir.x * 105.0f, -(roomW / 2.0f - 40.0f), roomW / 2.0f - 40.0f);
+                    float by = Clamp(player.pos.y - dir.y * 105.0f, -(roomH / 2.0f - 40.0f), roomH / 2.0f - 40.0f);
+                    ghosts.push_back({ e.pos, e.facingLeft, 0.25f, 0.25f });
+                    e.pos = { bx, by };
+                    int fan = e.enraged ? 9 : 7;
+                    Vector2 toP = Vector2Normalize(Vector2Subtract(player.pos, e.pos));
+                    float ta = atan2f(toP.y, toP.x);
+                    for (int k = 0; k < fan; ++k) {
+                        float a = ta + (k - (fan - 1) * 0.5f) * 0.20f;
+                        Projectile p; p.fromPlayer = false; p.kind = 3; p.pos = e.pos;
+                        p.vel = { cosf(a) * 340.0f, sinf(a) * 340.0f };
+                        p.damage = bDmg * 0.82f; p.life = 2.6f; p.radius = 8.0f; p.color = { 255, 70, 120, 255 };
+                        projectiles.push_back(p);
+                    }
+                } else if (effCls == CLASS_MAGE) {
+                    for (int k = -1; k <= 1; k += 2) {
+                        float a = baseA + k * 0.18f;
+                        Projectile p; p.fromPlayer = false; p.kind = 4; p.pos = e.pos;
+                        p.vel = { cosf(a) * 310.0f, sinf(a) * 310.0f };
+                        p.damage = bDmg; p.life = 3.0f; p.radius = 11.0f; p.color = ORANGE;
+                        projectiles.push_back(p);
+                    }
+                    if (((int)e.summonTimer) % 2 == 0) {
+                        NovaVisual nv; nv.pos = e.pos; nv.maxRadius = 175.0f; nv.timer = 0.35f; nv.maxTimer = 0.35f; nv.color = SKYBLUE;
+                        novas.push_back(nv);
+                        if (dist <= 175.0f) { DamagePlayer(bDmg); player.frostSlowTimer = std::max(player.frostSlowTimer, 1.4f); }
+                    }
+                } else if (effCls == CLASS_RANGER) {
+                    int cnt = e.enraged ? 11 : 7;
+                    for (int k = 0; k < cnt; ++k) {
+                        float a = baseA + (k - (cnt - 1) * 0.5f) * 0.14f;
+                        Projectile p; p.fromPlayer = false; p.kind = 1; p.pos = e.pos;
+                        p.vel = { cosf(a) * 390.0f, sinf(a) * 390.0f };
+                        p.damage = bDmg * 0.80f; p.life = 2.8f; p.radius = 7.5f; p.color = { 115, 245, 145, 255 };
+                        projectiles.push_back(p);
+                    }
+                } else {
+                    NovaVisual nv; nv.pos = e.pos; nv.maxRadius = 170.0f; nv.timer = 0.34f; nv.maxTimer = 0.34f; nv.color = GOLD;
+                    novas.push_back(nv);
+                    if (dist <= 170.0f) DamagePlayer(bDmg * 1.1f);
+                    int waves = e.enraged ? 10 : 8;
+                    for (int k = 0; k < waves; ++k) {
+                        float a = k * (2.0f * PI / waves) + baseA;
+                        Projectile p; p.fromPlayer = false; p.kind = 6; p.pos = e.pos;
+                        p.vel = { cosf(a) * 305.0f, sinf(a) * 305.0f };
+                        p.damage = bDmg * 0.85f; p.life = 3.0f; p.radius = 10.0f; p.color = { 255, 185, 65, 255 };
+                        projectiles.push_back(p);
+                    }
+                }
+            } else {
+                e.pos = Vector2Add(e.pos, Vector2Scale(dir, e.speed * speedMod * dt));
             }
         } else if (e.type == BOSS && e.bossKind == 1) {
             // Molten Colossus: đập đất (sóng + đạn lửa) và lao tới có báo hiệu
@@ -2233,8 +2437,9 @@ inline void Game::Update(float dt) {
         }
     }
 
-    // ── Con cái theo cha rèn luyện & Linh Thú Hộ Vệ ──
+    // ── Con cái theo cha rèn luyện, Quân Đồng Minh & Linh Thú Hộ Vệ ──
     UpdatePartyChildren(dt);
+    UpdateAlliedUnits(dt);
     UpdateFamiliar(dt);
 
     // ── Projectiles ──
@@ -2796,6 +3001,7 @@ inline void Game::DamageEnemy(Enemy& e, float dmg, Vector2 kb, float kbForce, bo
     if (e.stunTimer > 0.0f) dmg *= 1.20f; // Kẻ địch đang choáng nhận thêm 20% sát thương
     if (e.staggerBrokenTimer > 0.0f) dmg *= 1.35f; // Phá Giáp: nhận thêm +35% sát thương
     if (overdriveTimer > 0.0f) dmg *= 1.18f; // Bùng Nổ Linh Hồn: +18% sát thương
+    if (peerageRank > 0 || isKing) dmg *= (1.0f + peerageRank * 0.04f + (isKing ? 0.15f : 0.0f));
     if (HasRelic(RELIC_BERSERK) && player.hp < player.maxHp * 0.4f) dmg *= 1.4f;
     dmg *= HungerDamageMult();
     dmg *= AgeDamageMult();
@@ -3020,6 +3226,40 @@ inline void Game::OnEnemyKilled(Enemy& e) {
         if (bountyActive && bountyKind == 2) bountyProgress++;
         SpawnPopup({ e.pos.x, e.pos.y - 36.0f }, TextFormat(L("+%d BOSS ESSENCE", "+%d TINH HOA TRÙM"), ess), GOLD);
         GrantOrUpgradeFamiliar();
+        if (e.isKingBoss) {
+            isKing = true;
+            isNoble = true;
+            peerageRank = 8;
+            inRebellion = false;
+            player.maxHp += 120.0f;
+            player.hp = player.maxHp;
+            player.baseDmg += 25.0f;
+            player.armor += 3.0f;
+            player.gold += 800;
+            bossEssence += 3;
+            warMerit += 200;
+            for (auto& other : enemies) if (&other != &e) other.hp = 0.0f;
+            pendingSpawns.clear();
+            ShowBanner(L("THE KING IS FALLEN! YOU ARE CROWNED SOVEREIGN MONARCH!",
+                         "ĐÃ LẬT ĐỔ BẠO CHÚA! BẠN ĐĂNG QUANG QUỐC VƯƠNG TỐI CAO!"), 5.0f);
+        } else if (e.isNationalGeneral) {
+            int ni = std::max(1, std::min(4, e.generalNation));
+            nations[ni].status = 3;
+            nations[ni].warProgress = 100.0f;
+            nations[0].territories += nations[ni].territories;
+            nations[ni].territories = 0;
+            inWarBattle = false;
+            warMerit += 120;
+            player.gold += 400;
+            bossEssence += 2;
+            player.maxHp += 30.0f;
+            player.hp = std::min(player.maxHp, player.hp + 30.0f);
+            player.baseDmg += 6.0f;
+            for (auto& other : enemies) if (&other != &e) other.hp = 0.0f;
+            pendingSpawns.clear();
+            ShowBanner(TextFormat(L("VICTORY! %s HAS BEEN CONQUERED!", "ĐẠI THẮNG! ĐÃ CHINH PHẠT %s!"),
+                                  L(nations[ni].nameEn, nations[ni].nameVi)), 4.5f);
+        }
     }
     loots.push_back({ 0, e.pos, (e.type == BOSS ? 150 : (e.isWarden ? 90 : (e.isElite ? 35 : (e.isMinion ? 5 : 15)))), 20.0f });
     {
@@ -3140,6 +3380,9 @@ inline bool Game::DamagePlayer(float dmg) {
     }
 
     if (player.hp <= 0) {
+        inRebellion = false;
+        inWarBattle = false;
+        alliedUnits.clear();
         state = GAME_OVER;
         PlaySound(snd.sndDeath);
         AwardSouls();
@@ -3247,7 +3490,7 @@ inline void Game::TriggerLevelUp() {
 }
 
 inline void Game::ChooseSubclass(int branch) {
-    int hc = std::max(0, std::min(3, player.heroClass));
+    int hc = std::max(0, std::min(kNumClasses - 1, player.heroClass));
     int b = (branch == 2) ? 2 : 1;
     player.subClass = b;
     subclassChoosing = false;
